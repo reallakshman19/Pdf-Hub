@@ -62,7 +62,9 @@ export function useAnnotationPersistence({
   // A parent may supply a freshly allocated callback on every render. Only
   // the PDF revision, not that callback identity, may restart source hydration.
   const restoredCountCallback = React.useRef(setRestoredCount);
-  restoredCountCallback.current = setRestoredCount;
+  React.useLayoutEffect(() => {
+    restoredCountCallback.current = setRestoredCount;
+  }, [setRestoredCount]);
   React.useEffect(() => {
     let cancelled = false;
     const loadStored = async () => {
