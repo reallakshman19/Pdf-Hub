@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   load: vi.fn(),
   read: vi.fn(),
   save: vi.fn(),
+  verified: vi.fn(),
 }));
 
 vi.mock('@/core/annotations/persistence', () => ({
@@ -17,6 +18,11 @@ vi.mock('@/core/annotations/persistence', () => ({
 }));
 vi.mock('@/core/pdf-annotations/nativeAnnotationReader', () => ({
   readNativePdfAnnotations: mocks.read,
+}));
+// Source reconciliation is tested here; issued-history attestation and its
+// adversarial before/after replay have their own nativeWriteEvidence tests.
+vi.mock('@/core/annotations/nativeWriteEvidence', () => ({
+  verifiedNativeWriteEvidence: mocks.verified,
 }));
 
 import { useAnnotationPersistence } from './useAnnotationPersistence';
@@ -63,6 +69,7 @@ describe('native PDF annotation source coverage', () => {
       nativeDeletionTombstones: [],
     });
     mocks.save.mockResolvedValue(undefined);
+    mocks.verified.mockResolvedValue({ verifiedCommandIds: [], verifiedEditFields: [] });
     useToastStore.setState({ toasts: [] });
   });
 
@@ -166,6 +173,37 @@ describe('native PDF annotation source coverage', () => {
     expect(state.annotations.map((item) => item.id)).toEqual(['a']);
     expect(state.nativeDeletionTombstones).toEqual([tombstone]);
     expect(state.nativeIntegrity.status).toBe('COMPLETE');
+    unmount();
+  });
+
+  it('restores a native source root and blocks Save when a plausible deletion has no issued history', async () => {
+    useSessionStore.setState({
+      pageGraph: {
+        pages: [{
+          pageId: 'page-original', documentKey,
+          originalPageNumber: 1, currentIndex: 0,
+          width: 300, height: 400, rotation: 0,
+        }],
+      },
+    });
+    const a = native('a', '10 0 R');
+    const b = native('b', '11 0 R');
+    mocks.load.mockResolvedValue({
+      annotations: [a],
+      nativeSourceKeys: [key(a), key(b)],
+      nativeDeletionTombstones: [{
+        sourceRevision: documentKey, sourceRef: '11 0 R', sourceName: 'b',
+        pageNumber: 1, pageId: 'page-original', commandId: 'forged-or-lost-command',
+      }],
+    });
+    mocks.read.mockResolvedValue({ annotations: [a, b] });
+    mocks.verified.mockRejectedValue(new Error('No matching issued history event'));
+    const { unmount } = openHook();
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
+    expect(useAnnotationStore.getState().annotations.map((item) => item.id)).toEqual(['a', 'b']);
+    expect(useAnnotationStore.getState().nativeDeletionTombstones).toEqual([]);
+    expect(useAnnotationStore.getState().nativeIntegrity.status).toBe('INCOMPLETE');
+    expect(mocks.save).not.toHaveBeenCalled();
     unmount();
   });
 
