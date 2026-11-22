@@ -2,6 +2,7 @@ import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
 import { bakeWriterElementsIntoPdf, type WriterExportWarning } from '@/core/writer/exporter';
 import type { PdfAnnotation } from '@/core/annotations/types';
+import type { NativeDeletionAuthorization } from '@/core/annotations/nativeIntegrity';
 import type { PlacedElement } from '@/core/writer/types';
 import { writeNativePdfAnnotations } from '@/core/pdf-annotations/nativeAnnotationWriter';
 import { flattenNativePdfAnnotations } from '@/core/pdf-annotations/flattenNativePdfAnnotations';
@@ -12,6 +13,7 @@ export interface ComposeCommittedPdfInput {
   writerElements: PlacedElement[];
   /** Caller has loaded the complete managed annotation model for these bytes. */
   replaceManagedAnnotations?: boolean;
+  nativeDeletionAuthorization?: NativeDeletionAuthorization;
 }
 
 export interface ComposeCommittedPdfResult {
@@ -55,6 +57,8 @@ export async function composeCommittedPdf(
     // may remove PDF-native annotations omitted from the local model.
     const native = await writeNativePdfAnnotations(nextBytes, annotations, {
       replaceManagedAnnotations: input.replaceManagedAnnotations,
+      nativeDeletionAuthorization: input.nativeDeletionAuthorization,
+      sourceBytesForAuthorization: input.baseBytes,
     });
     nextBytes = new Uint8Array(native.bytes);
   }
@@ -114,7 +118,11 @@ export async function composeEditablePdf(
   }
 
   if (annotations.length > 0 || input.replaceManagedAnnotations) {
-    const native = await writeNativePdfAnnotations(nextBytes, annotations, { replaceManagedAnnotations: input.replaceManagedAnnotations });
+    const native = await writeNativePdfAnnotations(nextBytes, annotations, {
+      replaceManagedAnnotations: input.replaceManagedAnnotations,
+      nativeDeletionAuthorization: input.nativeDeletionAuthorization,
+      sourceBytesForAuthorization: input.baseBytes,
+    });
     nextBytes = new Uint8Array(native.bytes);
   }
 
