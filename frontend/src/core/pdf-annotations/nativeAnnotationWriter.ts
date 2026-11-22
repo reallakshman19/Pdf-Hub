@@ -4067,6 +4067,10 @@ function serializableAnnotationData(annotation: PdfAnnotation): Record<string, u
   // is session-only and must not redirect a reopened copy to the old page.
   delete data.nativeCopySource;
   delete data.nativeAppearanceRef;
+  delete data.nativeAppearanceRect;
+  delete data.nativeAppearanceBodyRect;
+  delete data.nativeAppearanceImported;
+  delete data.nativeAppearanceDirty;
   delete data.nativeAppearanceRotation;
   delete data.nativeAppearancePageRotation;
   delete data.nativeStampRotationReadOnly;
