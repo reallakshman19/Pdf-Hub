@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
+import { useToastStore } from '@/core/toast/store';
 
 const mocks = vi.hoisted(() => ({
   load: vi.fn(),
@@ -58,10 +59,33 @@ describe('native PDF annotation source coverage', () => {
     useSessionStore.setState({ documentKey, workingBytes: bytes });
     useAnnotationStore.setState({ annotations: [], hydratedDocumentKey: null });
     mocks.save.mockResolvedValue(undefined);
+    useToastStore.setState({ toasts: [] });
   });
 
   afterEach(() => {
     useSessionStore.getState().clearDocument();
+  });
+
+  it('still imports PDF-native annotations when IndexedDB recovery is unavailable', async () => {
+    const a = native('source-only', '10 0 R');
+    mocks.load.mockRejectedValue(new Error('IndexedDB blocked'));
+    mocks.read.mockResolvedValue({ annotations: [a] });
+
+    const { unmount } = openHook();
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
+    expect(useAnnotationStore.getState().annotations).toEqual([a]);
+    unmount();
+  });
+
+  it('alerts the user instead of silently pretending a failed import was flattened', async () => {
+    mocks.load.mockResolvedValue(null);
+    mocks.read.mockRejectedValue(new Error('Bad source annotation graph'));
+
+    const { unmount } = openHook();
+    await waitFor(() => expect(useToastStore.getState().toasts.some((toast) =>
+      toast.title === 'Native annotations unavailable')).toBe(true));
+    expect(useAnnotationStore.getState().hydratedDocumentKey).toBeNull();
+    unmount();
   });
 
   it('recovers all source annotations omitted by an incomplete legacy sidecar', async () => {
