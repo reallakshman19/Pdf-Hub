@@ -353,6 +353,69 @@ describe('native PDF annotation source coverage', () => {
     unmount();
   });
 
+  it('retains pasted native stamp geometry and content when its original is re-imported', async () => {
+    const original: PdfAnnotation = {
+      ...native('source-stamp', '10 0 R'),
+      type: 'stamp',
+      rect: { x: 100, y: 262, width: 120, height: 30 },
+    };
+    const copy: PdfAnnotation = {
+      ...native('copied-stamp', '10 0 R', 2),
+      type: 'stamp',
+      rect: { x: 118, y: 280, width: 120, height: 30 },
+      data: {
+        text: 'User-owned copy',
+        nativeCopySource: { pageNumber: 1, nativeName: 'source-stamp' },
+      },
+    };
+    mocks.load.mockResolvedValue({ annotations: [copy] });
+    mocks.read.mockResolvedValue({ annotations: [original] });
+
+    const { unmount } = openHook();
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
+    const restored = useAnnotationStore.getState().annotations.find((item) => item.id === 'copied-stamp');
+    expect(restored?.rect).toEqual(copy.rect);
+    expect(restored?.data.text).toBe('User-owned copy');
+    expect(restored?.data.nativeCopySource).toEqual(copy.data.nativeCopySource);
+    expect(useAnnotationStore.getState().nativeIntegrity.status).toBe('COMPLETE');
+    unmount();
+  });
+
+  it('does not overwrite copied callout leader geometry with its source /CL', async () => {
+    const original: PdfAnnotation = {
+      ...native('original-callout', '21 0 R'),
+      type: 'callout',
+      data: {
+        text: 'Source',
+        nativeSourceRef: '21 0 R',
+        anchor: { x: 25, y: 35 },
+        knee: { x: 35, y: 35 },
+      },
+    };
+    const copy: PdfAnnotation = {
+      ...native('copy-callout', '21 0 R', 2),
+      type: 'callout',
+      rect: { x: 90, y: 100, width: 80, height: 20 },
+      data: {
+        text: 'Edited copy',
+        nativeCopySource: { pageNumber: 1, nativeName: 'original-callout' },
+        anchor: { x: 45, y: 75 },
+        knee: { x: 75, y: 75 },
+      },
+    };
+    mocks.load.mockResolvedValue({ annotations: [copy] });
+    mocks.read.mockResolvedValue({ annotations: [original] });
+
+    const { unmount } = openHook();
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
+    const recovered = useAnnotationStore.getState().annotations.find((item) => item.id === 'copy-callout')!;
+    expect(recovered.rect).toEqual(copy.rect);
+    expect(recovered.data.anchor).toEqual(copy.data.anchor);
+    expect(recovered.data.knee).toEqual(copy.data.knee);
+    expect(recovered.data.text).toBe('Edited copy');
+    unmount();
+  });
+
   it('matches a source by native reference even if a saved overlay ID changed', async () => {
     const a = native('original', '10 0 R');
     const stored = { ...a, id: 'renamed-by-sidecar' };
