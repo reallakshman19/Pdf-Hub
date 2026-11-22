@@ -2,6 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFString } from 'pdf-lib';
 import { readNativePdfAnnotations } from './nativeAnnotationReader';
 import { writeNativePdfAnnotations } from './nativeAnnotationWriter';
+import { FileAdapter } from '@/adapters/file/FileAdapter';
+import type { PdfAnnotation } from '@/core/annotations/types';
+
+async function authorize(bytes: Uint8Array, deleted: PdfAnnotation[]) {
+  const sourceRevision = await FileAdapter.hashBytes(bytes);
+  return {
+    replaceManagedAnnotations: true,
+    nativeDeletionAuthorization: {
+      sourceRevision,
+      sourcePageIds: ['source-page-1'],
+      tombstones: deleted.map((item) => ({
+        sourceRevision,
+        sourceRef: item.data.nativeSourceRef!,
+        sourceName: item.data.nativeOriginalName ?? item.id,
+        pageNumber: item.pageNumber,
+        pageId: 'source-page-1',
+        commandId: 'explicit-native-delete',
+      })),
+    },
+  };
+}
 
 async function fixture() {
   const doc = await PDFDocument.create();
@@ -29,15 +50,67 @@ describe('managed native annotation deletion', () => {
   it('removes an explicitly deleted stamp and its popup while preserving a different and an unsupported annotation', async () => {
     const bytes = await fixture();
     const loaded = (await readNativePdfAnnotations(bytes)).annotations;
-    const output = await writeNativePdfAnnotations(bytes, loaded.filter((a) => a.id !== 'named'), { replaceManagedAnnotations: true });
+    const deleted = loaded.filter((a) => a.id === 'named');
+    const output = await writeNativePdfAnnotations(
+      bytes, loaded.filter((a) => a.id !== 'named'), await authorize(bytes, deleted),
+    );
     expect(await types(output.bytes)).toEqual(['/Link', '/Stamp']);
     expect((await readNativePdfAnnotations(output.bytes)).annotations).toHaveLength(1);
   });
 
   it('handles deletion of the last managed annotation without removing unsupported objects', async () => {
     const bytes = await fixture();
-    const output = await writeNativePdfAnnotations(bytes, [], { replaceManagedAnnotations: true });
+    const loaded = (await readNativePdfAnnotations(bytes)).annotations;
+    const output = await writeNativePdfAnnotations(bytes, [], await authorize(bytes, loaded));
     expect(await types(output.bytes)).toEqual(['/Link']);
+  });
+
+
+  it('refuses to delete an annotation missing from a corrupted cache with no command', async () => {
+    const bytes = await fixture();
+    const loaded = (await readNativePdfAnnotations(bytes)).annotations;
+    await expect(writeNativePdfAnnotations(
+      bytes, loaded.filter((item) => item.id !== 'named'),
+      { replaceManagedAnnotations: true },
+    )).rejects.toThrow('explicit deletion command');
+    expect(await types(bytes)).toEqual(['/Link', '/Popup', '/Stamp', '/Stamp']);
+  });
+
+  it('rejects a source revision mismatch even with an otherwise valid deletion command', async () => {
+    const bytes = await fixture();
+    const loaded = (await readNativePdfAnnotations(bytes)).annotations;
+    const options = await authorize(bytes, loaded.filter((item) => item.id === 'named'));
+    options.nativeDeletionAuthorization.sourceRevision = 'sha256:different-input';
+    await expect(writeNativePdfAnnotations(
+      bytes, loaded.filter((item) => item.id !== 'named'), options,
+    )).rejects.toThrow('different PDF revision');
+  });
+
+  it('rejects a parser omission in the source PDF rather than silently losing it', async () => {
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([300, 400]);
+    const valid = doc.context.register(doc.context.obj({
+      Type: 'Annot', Subtype: 'Text', Rect: [10, 30, 30, 50],
+      NM: PDFString.of('valid'),
+    }));
+    const broken = doc.context.register(doc.context.obj({
+      Type: 'Annot', Subtype: 'FreeText', Contents: PDFString.of('No rectangle'),
+    }));
+    page.node.set(PDFName.of('Annots'), doc.context.obj([valid, broken]));
+    const bytes = await doc.save();
+    const loaded = (await readNativePdfAnnotations(bytes)).annotations;
+    await expect(writeNativePdfAnnotations(
+      bytes, loaded, { replaceManagedAnnotations: true },
+    )).rejects.toThrow('not imported');
+  });
+
+  it('rejects two model records that both claim the same native object', async () => {
+    const bytes = await fixture();
+    const loaded = (await readNativePdfAnnotations(bytes)).annotations;
+    const extra = { ...loaded[0], id: 'claim-same-source' };
+    await expect(writeNativePdfAnnotations(
+      bytes, [...loaded, extra], { replaceManagedAnnotations: true },
+    )).rejects.toThrow('duplicate native source identities');
   });
 
   it('edits an unnamed native stamp without leaving a second original behind', async () => {
