@@ -239,7 +239,8 @@ for (const entry of corpus) {
     const savedBytes = await downloadPdf(page, 'Save');
     const savedPdf = await PDFDocument.load(savedBytes);
     assertNativeRoots(savedPdf, entry.pages);
-    verifySavedObjects(sourceObjects, nativeObjectEvidence(savedPdf));
+    const savedObjects = nativeObjectEvidence(savedPdf);
+    verifySavedObjects(sourceObjects, savedObjects);
     writePrivateOutput(entry, 'native-saved', savedBytes);
 
     // Reload the output as another browser session to expose local sidecar /
@@ -253,7 +254,10 @@ for (const entry of corpus) {
       }
       await expect(page.locator(`[data-page="${pageNumber}"] [data-annotation-type]`))
         .toHaveCount(count, { timeout: 120_000 });
-      await assertSourceDomAndSelection(page, pageNumber, sourceObjects[index], false);
+      // A full PDF rewrite may legitimately allocate fresh indirect xrefs.
+      // Reopened DOM refs must match *saved* /Annots, while /NM and /AP
+      // fingerprints independently trace each source object through Save.
+      await assertSourceDomAndSelection(page, pageNumber, savedObjects[index], false);
     }
 
     // Explicit Export Flattened must bake visuals and remove all /Annots.
