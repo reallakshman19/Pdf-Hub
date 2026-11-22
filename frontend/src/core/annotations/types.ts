@@ -88,7 +88,7 @@ export interface AnnotationData extends Record<string, unknown> {
   anchor?: Point2D;
   knee?: Point2D;
   leaderStyle?: 'straight' | 'elbow';
-  arrowHead?: 'open' | 'filled' | 'none';
+  arrowHead?: 'open' | 'filled' | 'circle' | 'square' | 'slash' | 'diamond' | 'none';
 
   // ── line end styles ───────────────────────────────────
   lineStartCap?: 'none' | 'arrow' | 'circle' | 'square';

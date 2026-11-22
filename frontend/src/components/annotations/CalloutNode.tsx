@@ -215,7 +215,7 @@ interface LeaderArrowHeadProps {
   to: Point2D;
   color: string;
   strokeWidth: number;
-  styleType: 'open' | 'filled';
+  styleType: 'open' | 'filled' | 'circle' | 'square' | 'slash' | 'diamond';
   scale?: number;
   cursor?: string;
   onPointerDown?: (e: React.PointerEvent<SVGElement>) => void;
@@ -252,6 +252,64 @@ const LeaderArrowHead: React.FC<LeaderArrowHeadProps> = ({
     return (
       <polygon
         points={`${to.x},${to.y} ${left.x},${left.y} ${right.x},${right.y}`}
+        fill={color}
+        style={style}
+        onPointerDown={onPointerDown}
+      />
+    );
+  }
+
+  if (styleType === 'circle') {
+    const r = Math.max(4 * scale, strokeWidth * 2);
+    return (
+      <circle
+        cx={to.x}
+        cy={to.y}
+        r={r}
+        fill={color}
+        style={style}
+        onPointerDown={onPointerDown}
+      />
+    );
+  }
+
+  if (styleType === 'square') {
+    const s = Math.max(4 * scale, strokeWidth * 2);
+    return (
+      <rect
+        x={to.x - s}
+        y={to.y - s}
+        width={2 * s}
+        height={2 * s}
+        fill={color}
+        style={style}
+        onPointerDown={onPointerDown}
+      />
+    );
+  }
+
+  if (styleType === 'slash') {
+    const s = Math.max(6 * scale, strokeWidth * 2.5);
+    return (
+      <line
+        x1={to.x - s}
+        y1={to.y - s}
+        x2={to.x + s}
+        y2={to.y + s}
+        stroke={color}
+        strokeWidth={strokeWidth * 1.5}
+        strokeLinecap="round"
+        style={style}
+        onPointerDown={onPointerDown}
+      />
+    );
+  }
+
+  if (styleType === 'diamond') {
+    const s = Math.max(5 * scale, strokeWidth * 2);
+    return (
+      <polygon
+        points={`${to.x},${to.y - s} ${to.x + s},${to.y} ${to.x},${to.y + s} ${to.x - s},${to.y}`}
         fill={color}
         style={style}
         onPointerDown={onPointerDown}

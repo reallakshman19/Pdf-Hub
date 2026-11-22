@@ -3060,11 +3060,26 @@ function addSubtypeFields(
           const calloutLine = calloutCoordinates(annotation, geometry);
           if (calloutLine) target.CL = calloutLine;
         }
-        const sourceLe = sourceDict?.get(lib.PDFName.of('LE'));
-        if (sourceLe) {
-          target.LE = sourceLe;
-        } else if (!sourceDict) {
-          target.LE = lib.PDFName.of('OpenArrow');
+        const leStyle = annotation.data.arrowHead;
+        if (typeof leStyle === 'string') {
+          const map: Record<string, string> = {
+            filled: 'ClosedArrow',
+            open: 'OpenArrow',
+            circle: 'Circle',
+            square: 'Square',
+            slash: 'Slash',
+            diamond: 'Diamond',
+            none: 'None',
+          };
+          const resolvedName = map[leStyle.toLowerCase()];
+          target.LE = resolvedName ? lib.PDFName.of(resolvedName) : lib.PDFName.of('OpenArrow');
+        } else {
+          const sourceLe = sourceDict?.get(lib.PDFName.of('LE'));
+          if (sourceLe) {
+            target.LE = sourceLe;
+          } else if (!sourceDict) {
+            target.LE = lib.PDFName.of('OpenArrow');
+          }
         }
       } else {
         const sourceIntent = sourceDict?.get(lib.PDFName.of('IT'));

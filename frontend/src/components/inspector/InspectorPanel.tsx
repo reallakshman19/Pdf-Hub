@@ -705,7 +705,15 @@ const StyleTab: React.FC<{
               label="Arrowhead"
               value={typeof annotation.data.arrowHead === 'string' ? annotation.data.arrowHead : 'open'}
               onChange={(val) => applyToSelection({ arrowHead: val })}
-              options={[{ label: 'Open', value: 'open' }, { label: 'Filled', value: 'filled' }, { label: 'None', value: 'none' }]}
+              options={[
+                { label: 'Open Arrow', value: 'open' },
+                { label: 'Filled Arrow', value: 'filled' },
+                { label: 'Circle (Dot)', value: 'circle' },
+                { label: 'Square', value: 'square' },
+                { label: 'Slash (Tick)', value: 'slash' },
+                { label: 'Diamond', value: 'diamond' },
+                { label: 'None', value: 'none' },
+              ]}
             />
           </div>
         </Section>

@@ -1280,8 +1280,15 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       if (!moved && Math.hypot(moveEvent.clientX - current.startClientX, moveEvent.clientY - current.startClientY) < 1) return;
       moved = true;
 
-      const dx = (moveEvent.clientX - current.startClientX) / scale;
-      const dy = (moveEvent.clientY - current.startClientY) / scale;
+      let dx = (moveEvent.clientX - current.startClientX) / scale;
+      let dy = (moveEvent.clientY - current.startClientY) / scale;
+      if (moveEvent.shiftKey) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          dy = 0;
+        } else {
+          dx = 0;
+        }
+      }
 
       if (current.mode === 'move' || current.mode === 'move-all') {
         const nextRects: Record<string, Rect> = {};
@@ -1498,8 +1505,17 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       const screenDx = (moveEvent.clientX - current.startClientX) / scale;
       const screenDy = (moveEvent.clientY - current.startClientY) / scale;
       const radians = (annotation.data.rotation ?? 0) * Math.PI / 180;
-      const dx = screenDx * Math.cos(radians) + screenDy * Math.sin(radians);
-      const dy = -screenDx * Math.sin(radians) + screenDy * Math.cos(radians);
+      let dx = screenDx * Math.cos(radians) + screenDy * Math.sin(radians);
+      let dy = -screenDx * Math.sin(radians) + screenDy * Math.cos(radians);
+      if (moveEvent.shiftKey) {
+        const dist = Math.hypot(dx, dy);
+        if (dist > 2) {
+          const rawAngle = Math.atan2(dy, dx);
+          const snappedAngle = Math.round(rawAngle / (Math.PI / 4)) * (Math.PI / 4);
+          dx = dist * Math.cos(snappedAngle);
+          dy = dist * Math.sin(snappedAngle);
+        }
+      }
       const nextAnchor = annotation.data.rotation
         ? { x: current.startAnchor.x + dx, y: current.startAnchor.y + dy }
         : { x: clamp(current.startAnchor.x + dx, 0, current.pageWidth), y: clamp(current.startAnchor.y + dy, 0, current.pageHeight) };
