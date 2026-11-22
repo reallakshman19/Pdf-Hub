@@ -134,7 +134,14 @@ describe('managed native annotation deletion', () => {
     const original = loaded.find((item) => item.id !== 'named')!;
     const forged = { ...original, rect: { ...original.rect, x: original.rect.x + 10 } };
     await expect(writeNativePdfAnnotations(bytes, loaded.map((item) =>
-      item.id === original.id ? forged : item), { replaceManagedAnnotations: true }))
+      item.id === original.id ? forged : item), {
+        replaceManagedAnnotations: true,
+        nativeDeletionAuthorization: {
+          sourceRevision: await FileAdapter.hashBytes(bytes),
+          sourcePageIds: ['source-page-1'],
+          tombstones: [],
+        },
+      }))
       .rejects.toThrow(/without user provenance for: rect/);
   });
 
@@ -149,7 +156,14 @@ describe('managed native annotation deletion', () => {
       'user-move-unnamed-stamp',
     );
     const output = await writeNativePdfAnnotations(bytes, loaded.map((item) =>
-      item.id === unnamed.id ? edited : item), { replaceManagedAnnotations: true });
+      item.id === unnamed.id ? edited : item), {
+      replaceManagedAnnotations: true,
+      nativeDeletionAuthorization: {
+        sourceRevision: await FileAdapter.hashBytes(bytes),
+        sourcePageIds: ['source-page-1'],
+        tombstones: [],
+      },
+    });
     expect(await types(output.bytes)).toEqual(['/Link', '/Popup', '/Stamp', '/Stamp']);
     const reopened = (await readNativePdfAnnotations(output.bytes)).annotations;
     expect(reopened.find((a) => a.id === unnamed.id)?.rect.x).toBe(edited.rect.x);
