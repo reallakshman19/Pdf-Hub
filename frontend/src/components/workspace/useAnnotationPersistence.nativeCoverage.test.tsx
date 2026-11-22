@@ -272,6 +272,8 @@ describe('native PDF annotation source coverage', () => {
     expect(result.rect).toEqual(source.rect);
     expect(result.data.text).toBe(source.data.text);
     expect(result.data.nativeEditProvenance).toBeUndefined();
+    expect(useAnnotationStore.getState().nativeIntegrity.status).toBe('INCOMPLETE');
+    expect(mocks.save).not.toHaveBeenCalled();
     unmount();
   });
 
