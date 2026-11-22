@@ -231,21 +231,27 @@ export function useAnnotationPersistence({
           }
           if (!edited.size) delete data.nativeEditProvenance;
           delete data.nativeMarkupDraft;
-          if (!edited.has('rect')) effectiveRect = source.rect;
-          for (const key of ['anchor', 'knee', 'leaderStyle', 'arrowHead', 'text'] as const) {
-            if (edited.has(key)) continue;
-            if (source.data[key] !== undefined) {
-              (data as Record<string, unknown>)[key] = source.data[key];
-            } else {
-              delete data[key];
+          // A native copy is a new user-owned overlay. Its original supplies
+          // artwork, *not* the authoritative text, position or leader geometry.
+          // Restoring source /Rect here teleports pasted stamps/callouts to the
+          // original on refresh or Undo (including when the page was rotated).
+          if (!origin) {
+            if (!edited.has('rect')) effectiveRect = source.rect;
+            for (const key of ['anchor', 'knee', 'leaderStyle', 'arrowHead', 'text'] as const) {
+              if (edited.has(key)) continue;
+              if (source.data[key] !== undefined) {
+                (data as Record<string, unknown>)[key] = source.data[key];
+              } else {
+                delete data[key];
+              }
             }
-          }
-          if (resolvedType === 'callout' || resolvedType === 'textbox') {
-            if (source.data.borderColor) data.borderColor = source.data.borderColor;
-            if (source.data.backgroundColor) data.backgroundColor = source.data.backgroundColor;
-            if (typeof source.data.textColor === 'string') data.textColor = source.data.textColor;
-            if (typeof source.data.fontFamily === 'string') data.fontFamily = source.data.fontFamily;
-            if (typeof source.data.borderWidth === 'number') data.borderWidth = source.data.borderWidth;
+            if (resolvedType === 'callout' || resolvedType === 'textbox') {
+              if (source.data.borderColor) data.borderColor = source.data.borderColor;
+              if (source.data.backgroundColor) data.backgroundColor = source.data.backgroundColor;
+              if (typeof source.data.textColor === 'string') data.textColor = source.data.textColor;
+              if (typeof source.data.fontFamily === 'string') data.fontFamily = source.data.fontFamily;
+              if (typeof source.data.borderWidth === 'number') data.borderWidth = source.data.borderWidth;
+            }
           }
           // Classify from the native source, never a potentially stale
           // editable/generated flag restored from a sidecar.
