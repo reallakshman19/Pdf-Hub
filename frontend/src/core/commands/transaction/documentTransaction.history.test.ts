@@ -120,6 +120,7 @@ describe('document transaction history memory', () => {
     clearWorkingRevisionStoreRegistryForTests();
     clearHistoryJournalStoreRegistryForTests();
     useAnnotationStore.getState().setAnnotations([beforeAnnotation]);
+    useAnnotationStore.setState({ nativeDeletionTombstones: [] });
     useOcrStore.getState().clearOcr();
     useSessionStore.getState().openDocument({
       documentKey: 'hash-1',
@@ -167,6 +168,52 @@ describe('document transaction history memory', () => {
       },
       selectedPageIndexes: [0],
     });
+  });
+
+  it('rejects a page rewrite with pending native deletions before altering the source revision', async () => {
+    const commandId = 'explicit-user-deletion';
+    useAnnotationStore.setState({
+      annotations: [],
+      nativeDeletionTombstones: [{
+        sourceRevision: 'hash-1',
+        sourceRef: '10 0 R',
+        sourceName: 'original-native',
+        pageNumber: 1, pageId: 'stable-page', commandId,
+      }],
+    });
+    await expect(commitDocumentMutation({
+      command: command('hash-1', 'rotate-with-native-delete-pending'),
+      label: 'Rotate after native delete',
+      beforeBytes: Uint8Array.from([1]),
+      afterBytes: Uint8Array.from([2]),
+      revisionMetadata: { beforePageCount: 1, afterPageCount: 1 },
+    })).rejects.toThrow(/pending native annotation deletions/);
+    expect(useSessionStore.getState().documentKey).toBe('hash-1');
+    expect(useSessionStore.getState().workingBytes).toEqual(Uint8Array.from([1]));
+    expect(useAnnotationStore.getState().nativeDeletionTombstones[0].commandId).toBe(commandId);
+    expect(persistenceMocks.saveAnnotations).not.toHaveBeenCalled();
+  });
+
+  it('records native deletion command state in document history and persistence for same-revision commands', async () => {
+    const tombstone = {
+      sourceRevision: 'hash-1', sourceRef: '10 0 R',
+      sourceName: 'original-native', pageNumber: 1,
+      pageId: 'stable-page', commandId: 'explicit-delete-1',
+    };
+    useAnnotationStore.setState({ annotations: [], nativeDeletionTombstones: [tombstone] });
+    await commitDocumentMutation({
+      command: command('hash-1', 'unchanged-revision-document-command'),
+      label: 'Keep native deletion command ownership',
+      beforeBytes: Uint8Array.from([1]),
+      afterBytes: Uint8Array.from([1]),
+      revisionMetadata: { beforePageCount: 1, afterPageCount: 1 },
+    });
+    expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith(
+      'hash-1', [], { nativeDeletionTombstones: [tombstone] },
+    );
+    const history = useHistoryStore.getState().undoStack.at(-1);
+    expect(history?.before.nativeDeletionTombstones).toEqual([tombstone]);
+    expect(history?.after.nativeDeletionTombstones).toEqual([tombstone]);
   });
 
   it('publishes a revision before commit and restores revision identity through undo/redo', async () => {
