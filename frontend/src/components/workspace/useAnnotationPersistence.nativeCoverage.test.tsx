@@ -57,7 +57,11 @@ describe('native PDF annotation source coverage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useSessionStore.setState({ documentKey, workingBytes: bytes });
-    useAnnotationStore.setState({ annotations: [], hydratedDocumentKey: null });
+    useAnnotationStore.setState({
+      annotations: [], hydratedDocumentKey: null,
+      nativeIntegrity: { status: 'LOADING', documentKey: null },
+      nativeDeletionTombstones: [],
+    });
     mocks.save.mockResolvedValue(undefined);
     useToastStore.setState({ toasts: [] });
   });
@@ -74,6 +78,9 @@ describe('native PDF annotation source coverage', () => {
     const { unmount } = openHook();
     await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
     expect(useAnnotationStore.getState().annotations).toEqual([a]);
+    expect(useAnnotationStore.getState().nativeIntegrity).toMatchObject({
+      status: 'INCOMPLETE', cacheState: 'UNAVAILABLE',
+    });
     unmount();
   });
 
@@ -85,6 +92,7 @@ describe('native PDF annotation source coverage', () => {
     await waitFor(() => expect(useToastStore.getState().toasts.some((toast) =>
       toast.title === 'Native annotations unavailable')).toBe(true));
     expect(useAnnotationStore.getState().hydratedDocumentKey).toBeNull();
+    expect(useAnnotationStore.getState().nativeIntegrity.status).toBe('FAILED');
     unmount();
   });
 
@@ -106,12 +114,12 @@ describe('native PDF annotation source coverage', () => {
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(
       documentKey,
       expect.arrayContaining([b, c]),
-      { nativeSourceKeys: [key(a), key(b), key(c)] },
+      { nativeSourceKeys: [key(a), key(b), key(c)], nativeDeletionTombstones: [] },
     ));
     unmount();
   });
 
-  it('does not resurrect an intentionally deleted source annotation', async () => {
+  it('recovers missing native entries even if a legacy sidecar knew their IDs', async () => {
     const a = native('a', '10 0 R');
     const b = native('b', '11 0 R');
     mocks.load.mockResolvedValue({
@@ -123,10 +131,8 @@ describe('native PDF annotation source coverage', () => {
     const { unmount } = openHook();
     await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
 
-    expect(useAnnotationStore.getState().annotations.map((item) => item.id)).toEqual(['a']);
-    expect(mocks.save).toHaveBeenCalledWith(documentKey, [a], {
-      nativeSourceKeys: [key(a), key(b)],
-    });
+    expect(useAnnotationStore.getState().annotations.map((item) => item.id)).toEqual(['a', 'b']);
+    expect(useAnnotationStore.getState().nativeIntegrity.status).toBe('COMPLETE');
     unmount();
   });
 
@@ -140,6 +146,95 @@ describe('native PDF annotation source coverage', () => {
     await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
 
     expect(useAnnotationStore.getState().annotations.map((item) => item.id)).toEqual(['a', 'b']);
+    unmount();
+  });
+
+  it('preserves only explicitly edited callout fields across hydration and refresh', async () => {
+    const source = {
+      ...native('callout', '10 0 R'),
+      type: 'callout' as const,
+      data: {
+        ...native('callout', '10 0 R').data,
+        anchor: { x: 12, y: 15 },
+        knee: { x: 20, y: 24 },
+        leaderStyle: 'elbow' as const,
+        text: 'Source text',
+      },
+    };
+    const stored: PdfAnnotation = {
+      ...source,
+      rect: { ...source.rect, x: 80, y: 95 },
+      data: {
+        ...source.data,
+        text: 'User edited',
+        anchor: { x: 35, y: 50 },
+        knee: { x: 40, y: 50 },
+        nativeEditProvenance: {
+          sourceRevision: documentKey,
+          sourceRef: '10 0 R',
+          commandId: 'edit-command',
+          fields: ['rect', 'text', 'anchor', 'knee'],
+        },
+      },
+    };
+    mocks.load.mockResolvedValue({
+      annotations: [stored], nativeSourceKeys: [key(source)],
+      nativeDeletionTombstones: [],
+    });
+    mocks.read.mockResolvedValue({ annotations: [source] });
+    const { unmount } = openHook();
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
+    const recovered = useAnnotationStore.getState().annotations[0];
+    expect(recovered.rect).toEqual(stored.rect);
+    expect(recovered.data.text).toBe('User edited');
+    expect(recovered.data.anchor).toEqual({ x: 35, y: 50 });
+    expect(recovered.data.knee).toEqual({ x: 40, y: 50 });
+    expect(recovered.data.leaderStyle).toBe('elbow');
+    expect(useAnnotationStore.getState().nativeIntegrity.status).toBe('COMPLETE');
+    unmount();
+  });
+
+  it('rejects stale edit provenance and restores the authoritative PDF values', async () => {
+    const source = native('source', '10 0 R');
+    const stored: PdfAnnotation = {
+      ...source,
+      rect: { ...source.rect, x: 90 },
+      data: {
+        ...source.data,
+        text: 'Cache data',
+        nativeEditProvenance: {
+          sourceRevision: 'sha256:wrong-source',
+          sourceRef: '10 0 R', commandId: 'edit',
+          fields: ['text', 'rect'],
+        },
+      },
+    };
+    mocks.load.mockResolvedValue({ annotations: [stored] });
+    mocks.read.mockResolvedValue({ annotations: [source] });
+    const { unmount } = openHook();
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
+    const result = useAnnotationStore.getState().annotations[0];
+    expect(result.rect).toEqual(source.rect);
+    expect(result.data.text).toBe(source.data.text);
+    expect(result.data.nativeEditProvenance).toBeUndefined();
+    unmount();
+  });
+
+  it('marks supported parser omissions INCOMPLETE instead of allowing Save', async () => {
+    const a = native('a', '10 0 R');
+    mocks.load.mockResolvedValue(null);
+    mocks.read.mockResolvedValue({
+      annotations: [a],
+      sourceRoots: [
+        { pageNumber: 1, sourceRef: '10 0 R', subtype: 'Text', visible: true,
+          supported: true, hasAppearance: true, parsedId: 'a' },
+        { pageNumber: 1, sourceRef: '11 0 R', subtype: 'FreeText', visible: true,
+          supported: true, hasAppearance: true },
+      ],
+    });
+    const { unmount } = openHook();
+    await waitFor(() => expect(useAnnotationStore.getState().hydratedDocumentKey).toBe(documentKey));
+    expect(useAnnotationStore.getState().nativeIntegrity.status).toBe('INCOMPLETE');
     unmount();
   });
 
