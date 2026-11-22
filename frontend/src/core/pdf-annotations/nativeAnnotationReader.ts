@@ -135,12 +135,26 @@ export async function readNativePdfAnnotations(
       if (parsed.type === 'textbox' || parsed.type === 'callout') {
         parsed.data.nativeAppearancePageRotation = page.getRotation().angle;
       }
-      if (parsed.type === 'stamp' && parsed.data.hasCustomAppearance && record.refKey) {
+
+      // PDF.js can render each annotation's original /AP into an independent
+      // canvas. Preserve its *full* /Rect as well as the app's logical body
+      // rect: for FreeTextCallout these are different, and stretching the AP
+      // into the body rect would distort its leader and artwork.
+      if (record.refKey && record.dict.get(lib.PDFName.of('AP'))) {
         const match = /^(\d+)\s+(\d+)\s+R$/.exec(record.refKey);
-        if (match) {
+        const sourceRect = readNumberArray(record.dict, 'Rect', lib);
+        if (match && sourceRect && sourceRect.length >= 4) {
+          const space = createMarkupSpace(page.getCropBox(), page.getRotation().angle);
           parsed.data.nativeAppearanceRef = `${match[1]}R${match[2] === '0' ? '' : match[2]}`;
-          parsed.data.nativeAppearanceRotation = readNumber(record.dict, 'PDFHubRotation', lib) ?? 0;
+          parsed.data.nativeAppearanceRect = pdfRectToViewRect(sourceRect, space);
+          parsed.data.nativeAppearanceBodyRect = { ...parsed.rect };
+          // App-generated annotation previews remain live. Imported external
+          // artwork is rendered from /AP to preserve fonts, stamps and leaders.
+          parsed.data.nativeAppearanceImported = !record.dict.get(lib.PDFName.of('PDFHubType'));
           parsed.data.nativeAppearancePageRotation = page.getRotation().angle;
+          if (parsed.type === 'stamp') {
+            parsed.data.nativeAppearanceRotation = readNumber(record.dict, 'PDFHubRotation', lib) ?? 0;
+          }
         }
       }
 
