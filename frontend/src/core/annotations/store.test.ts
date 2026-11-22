@@ -71,6 +71,11 @@ describe('annotation store', () => {
       pageNumber: 1,
       commandId: expect.any(String),
     });
+    // A restored native source (Undo or recovery) revokes the old deletion.
+    // Corrupting the local cache later must never reuse that command.
+    state.setAnnotations([source]);
+    expect(useAnnotationStore.getState().annotations).toHaveLength(1);
+    expect(useAnnotationStore.getState().nativeDeletionTombstones).toEqual([]);
   });
 
   it('refuses a native delete when source import integrity is not complete', () => {
