@@ -50,6 +50,10 @@ describe('native appearance visual with interactive overlay', () => {
     expect(image.style.left).toBe('-30px');
     expect(image.style.top).toBe('0px');
     expect(image.style.width).toBe('150px');
+    // Tailwind's img { max-width: 100% } must never shrink a full /Rect
+    // preview into the narrower /RD text body.
+    expect(image.style.maxWidth).toBe('none');
+    expect(image.style.maxHeight).toBe('none');
     expect(body.style.left).toBe('0px');
     expect(body.style.width).toBe('100%');
     expect(image.style.pointerEvents).toBe('none');
