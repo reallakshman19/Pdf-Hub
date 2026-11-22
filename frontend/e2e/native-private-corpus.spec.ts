@@ -172,9 +172,6 @@ async function assertSourceDomAndSelection(
   if (!verifySelection) return;
 
   for (const item of sourceObjects.values()) {
-    const node = surface.locator('[data-native-source-ref]').filter({
-      has: page.locator('[data-native-annotation-hit-target]'),
-    });
     // Prefer the true pointer hit surface; normal stamps/notes/lines own
     // pointer events directly. Do not force-click through other annotations.
     const candidate = surface.locator(`[data-native-source-ref="${item.sourceRef}"]`);
@@ -184,8 +181,15 @@ async function assertSourceDomAndSelection(
     await clickable.click({ timeout: 10_000 });
     await expect(candidate, `Native ${item.sourceRef} is not pointer-selectable`)
       .toHaveAttribute('data-native-selected', 'true');
-    void node; // Selector kept locally for debugging hit-surface differences.
   }
+}
+
+async function ensurePagesSidebar(page: Page) {
+  const first = page.getByRole('button', { name: /^Page 1\b/ }).first();
+  if (!(await first.isVisible())) {
+    await page.getByRole('button', { name: 'Pages', exact: true }).click();
+  }
+  await expect(first).toBeVisible();
 }
 
 for (const entry of corpus) {
@@ -214,7 +218,7 @@ for (const entry of corpus) {
     }
 
     await open(page, entry.path, inputBytes);
-    await page.getByRole('button', { name: 'Pages', exact: true }).click();
+    await ensurePagesSidebar(page);
 
     for (const [index, count] of entry.pages.entries()) {
       const pageNumber = index + 1;
@@ -241,7 +245,7 @@ for (const entry of corpus) {
     // Reload the output as another browser session to expose local sidecar /
     // source-key reconciliation regressions, not just in-memory selection.
     await open(page, entry.path, savedBytes);
-    await page.getByRole('button', { name: 'Pages', exact: true }).click();
+    await ensurePagesSidebar(page);
     for (const [index, count] of entry.pages.entries()) {
       const pageNumber = index + 1;
       if (pageNumber > 1) {
