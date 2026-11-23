@@ -132,9 +132,9 @@ describe('TakeoffInspectorTab', () => {
     expect(screen.getByText(/XML Builder & CAESAR II/i)).toBeInTheDocument();
     expect(screen.getByText('5-Table Model')).toBeInTheDocument();
 
-    // Node 100 and Node 110 should be in the coordinate table
-    expect(screen.getByText('100')).toBeInTheDocument();
-    expect(screen.getByText('110')).toBeInTheDocument();
+    // Node 100 and Node 110 should be in the coordinate table / 3D wireframe
+    expect(screen.getAllByText('100').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('110').length).toBeGreaterThanOrEqual(1);
 
     const copyBtn = screen.getByRole('button', { name: /copy coord tsv/i });
     expect(copyBtn).toBeInTheDocument();
@@ -233,5 +233,33 @@ describe('TakeoffInspectorTab', () => {
     expect(tableAnnot?.type).toBe('textbox');
     expect(tableAnnot?.pageNumber).toBe(1);
     expect(tableAnnot?.data?.fontFamily).toBe('monospace');
+  });
+
+  it('renders 3D Wireframe viewer and toggles visibility', () => {
+    render(<TakeoffInspectorTab />);
+
+    // 3D viewer is rendered by default
+    expect(screen.getByTestId('piping-3d-viewer')).toBeInTheDocument();
+
+    // Toggle 3D View button
+    const toggle3dBtn = screen.getByRole('button', { name: /3D View/i });
+    fireEvent.click(toggle3dBtn);
+
+    // Should now be hidden
+    expect(screen.queryByTestId('piping-3d-viewer')).toBeNull();
+
+    // Toggle back on
+    fireEvent.click(toggle3dBtn);
+    expect(screen.getByTestId('piping-3d-viewer')).toBeInTheDocument();
+  });
+
+  it('allows switching 3D routing mode between Plan and ISO', () => {
+    render(<TakeoffInspectorTab />);
+
+    const modeSelect = screen.getByLabelText('3D Routing Mode') as HTMLSelectElement;
+    expect(modeSelect.value).toBe('plan');
+
+    fireEvent.change(modeSelect, { target: { value: 'isometric' } });
+    expect(modeSelect.value).toBe('isometric');
   });
 });

@@ -22,8 +22,11 @@ import {
   TableProperties,
   ExternalLink,
   FileCode,
+  Rotate3d,
 } from 'lucide-react';
 import { ScaleCalibrationDialog } from '@/components/dialogs/ScaleCalibrationDialog';
+import { Piping3DViewer } from './Piping3DViewer';
+import type { PipelineRoutingMode } from '@/core/pipeline-geometry/types';
 
 type XmlBuilderTab = 'coordinates' | 'branches' | 'restraints' | 'weights' | 'dtxr';
 
@@ -35,6 +38,9 @@ export const TakeoffInspectorTab: React.FC = () => {
   const [branchName, setBranchName] = useState('/CUSTOM-4"-PIPE/B1');
   const [startNode] = useState(100);
   const [elevationZ, setElevationZ] = useState(100000);
+  const [routingMode, setRoutingMode] = useState<PipelineRoutingMode>('plan');
+  const [selectedNode, setSelectedNode] = useState<number | null>(null);
+  const [show3DViewer, setShow3DViewer] = useState<boolean>(true);
 
   const currentPage = useSessionStore((state) => state.viewState.currentPage);
   const totalPages = useSessionStore((state) => state.pageCount || 1);
@@ -73,8 +79,9 @@ export const TakeoffInspectorTab: React.FC = () => {
       branchName,
       startNodeNumber: startNode,
       defaultElevationZ: elevationZ,
+      routingMode,
     });
-  }, [filteredAnnotations, getPageCalibration, branchName, startNode, elevationZ]);
+  }, [filteredAnnotations, getPageCalibration, branchName, startNode, elevationZ, routingMode]);
 
   const tsvTables = useMemo(() => {
     return serializeXmlBuilderTablesToTsv(fullModel);
@@ -339,13 +346,37 @@ export const TakeoffInspectorTab: React.FC = () => {
               XML Builder & CAESAR II
             </span>
           </div>
-          <span className="text-[10px] text-purple-600 dark:text-purple-400 font-mono font-semibold">
-            5-Table Model
-          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShow3DViewer((prev) => !prev)}
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${
+                show3DViewer
+                  ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-600 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900'
+              }`}
+              title="Toggle 3D Piping Wireframe View"
+            >
+              <Rotate3d className="w-3 h-3" />
+              <span>3D View</span>
+            </button>
+            <span className="text-[10px] text-purple-600 dark:text-purple-400 font-mono font-semibold">
+              5-Table Model
+            </span>
+          </div>
         </div>
 
-        {/* Branch & Elevation inputs */}
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        {/* 3D Wireframe Viewer */}
+        {show3DViewer && (
+          <Piping3DViewer
+            model={fullModel}
+            selectedNode={selectedNode}
+            onSelectNode={setSelectedNode}
+          />
+        )}
+
+        {/* Branch, Elevation & 3D Routing Mode inputs */}
+        <div className="grid grid-cols-3 gap-2 text-xs">
           <div>
             <label htmlFor="piping-branch-input" className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">
               Branch Name
@@ -371,6 +402,21 @@ export const TakeoffInspectorTab: React.FC = () => {
               onChange={(e) => setElevationZ(Number(e.target.value))}
               className="w-full text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 font-mono"
             />
+          </div>
+          <div>
+            <label htmlFor="piping-routing-mode-select" className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">
+              3D Routing
+            </label>
+            <select
+              id="piping-routing-mode-select"
+              aria-label="3D Routing Mode"
+              value={routingMode}
+              onChange={(e) => setRoutingMode(e.target.value as PipelineRoutingMode)}
+              className="w-full text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-1.5 py-1 font-mono font-medium"
+            >
+              <option value="plan">Plan (2D)</option>
+              <option value="isometric">ISO (3D Riser)</option>
+            </select>
           </div>
         </div>
 
@@ -452,15 +498,27 @@ export const TakeoffInspectorTab: React.FC = () => {
                     <td colSpan={5} className="p-3 text-center text-slate-400 italic">No coordinates drafted</td>
                   </tr>
                 ) : (
-                  fullModel.coordinateRows.slice(0, 10).map((r, i) => (
-                    <tr key={`${r.nodeNumber}-${i}`}>
-                      <td className="px-2 py-0.5 font-bold text-blue-600 dark:text-blue-400">{r.nodeNumber}</td>
-                      <td className="px-2 py-0.5">{r.x.toLocaleString()}</td>
-                      <td className="px-2 py-0.5">{r.y.toLocaleString()}</td>
-                      <td className="px-2 py-0.5">{r.z.toLocaleString()}</td>
-                      <td className="px-2 py-0.5 text-slate-400">{r.lengthToNextMm ? `${r.lengthToNextMm.toLocaleString()} mm` : '-'}</td>
-                    </tr>
-                  ))
+                  fullModel.coordinateRows.slice(0, 15).map((r, i) => {
+                    const isSelected = selectedNode === r.nodeNumber;
+                    return (
+                      <tr
+                        key={`${r.nodeNumber}-${i}`}
+                        onClick={() => setSelectedNode(r.nodeNumber)}
+                        className={`cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-cyan-100 dark:bg-cyan-950/70 font-semibold text-cyan-900 dark:text-cyan-200'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-900'
+                        }`}
+                        title="Click to inspect in 3D wireframe"
+                      >
+                        <td className="px-2 py-0.5 font-bold text-blue-600 dark:text-blue-400">{r.nodeNumber}</td>
+                        <td className="px-2 py-0.5">{r.x.toLocaleString()}</td>
+                        <td className="px-2 py-0.5">{r.y.toLocaleString()}</td>
+                        <td className="px-2 py-0.5 text-emerald-600 dark:text-emerald-400">{r.z.toLocaleString()}</td>
+                        <td className="px-2 py-0.5 text-slate-400">{r.lengthToNextMm ? `${r.lengthToNextMm.toLocaleString()} mm` : '-'}</td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

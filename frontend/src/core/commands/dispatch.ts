@@ -681,6 +681,9 @@ function usesPersistentMutationSession(
     || type === 'BATCH_REPLACE_EXISTING_TEXT'
     || type === 'EDIT_TABLE_CELL_TEXT'
     || type === 'DELETE_EXISTING_TEXT'
+    || type === 'REPLACE_MULTI_COLUMN_PARAGRAPH'
+    || type === 'CONVERT_OCR_TO_NATIVE_TEXT'
+    || type === 'REFLOW_CROSS_PAGE_TEXT'
     || type === 'DRAW_REDACTION_BOX'
     || type === 'APPLY_HEADER_FOOTER_TEMPLATE'
   );
@@ -2018,6 +2021,197 @@ export async function dispatchPdfCommand(
           command,
           true,
           `Deleted existing text "${deletionResult.originalText.slice(0, 24)}" (${deletionResult.strategyApplied})`,
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'REPLACE_MULTI_COLUMN_PARAGRAPH': {
+        const { pageIndex, pageId, intent } = command.payload;
+        if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= pageCount) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Invalid pageIndex ${pageIndex} for document with ${pageCount} pages.`,
+          );
+        }
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const page = pageGraph.pages[pageIndex];
+        if (!page || page.pageId !== pageId) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Multi-column target pageId '${pageId}' does not match PageGraph '${page?.pageId ?? 'missing'}'`,
+          );
+        }
+
+        const mutationSession = requirePersistentMutationSession(commandMutationSession);
+        const reflowResult = await mutationSession.replaceMultiColumnParagraph({
+          currentRevisionId: context.documentKey,
+          pageIndex,
+          intent,
+        });
+
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Replace multi-column paragraph changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const result = await applyCommittedSessionMutation(
+          input,
+          context.workingBytes,
+          pageCount,
+          committed,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          pageGraph,
+          {
+            ocrPagePolicy: {
+              invalidatePageIds: [pageId],
+            },
+          },
+        );
+
+        return commandSuccess(
+          command,
+          true,
+          `Replaced multi-column text across ${reflowResult.columnsUsed} column(s) (${reflowResult.totalLinesEmitted} lines)`,
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'CONVERT_OCR_TO_NATIVE_TEXT': {
+        const { pageIndex, pageId, intent } = command.payload;
+        if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= pageCount) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Invalid pageIndex ${pageIndex} for document with ${pageCount} pages.`,
+          );
+        }
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const page = pageGraph.pages[pageIndex];
+        if (!page || page.pageId !== pageId) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `OCR reconciliation target pageId '${pageId}' does not match PageGraph '${page?.pageId ?? 'missing'}'`,
+          );
+        }
+
+        const mutationSession = requirePersistentMutationSession(commandMutationSession);
+        const ocrResult = await mutationSession.convertOcrToNativeText({
+          currentRevisionId: context.documentKey,
+          pageIndex,
+          intent,
+        });
+
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Convert OCR text changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const result = await applyCommittedSessionMutation(
+          input,
+          context.workingBytes,
+          pageCount,
+          committed,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          pageGraph,
+          {
+            ocrPagePolicy: {
+              invalidatePageIds: [pageId],
+            },
+          },
+        );
+
+        return commandSuccess(
+          command,
+          true,
+          `Converted OCR text to native PDF text: "${ocrResult.details.textEmitted.slice(0, 24)}"`,
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'REFLOW_CROSS_PAGE_TEXT': {
+        const { sourcePageIndex, sourcePageId, targetPageIndex, targetPageId, intent } = command.payload;
+        if (!Number.isInteger(sourcePageIndex) || sourcePageIndex < 0 || sourcePageIndex >= pageCount) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Invalid sourcePageIndex ${sourcePageIndex} for document with ${pageCount} pages.`,
+          );
+        }
+        if (!Number.isInteger(targetPageIndex) || targetPageIndex < 0 || targetPageIndex >= pageCount) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Invalid targetPageIndex ${targetPageIndex} for document with ${pageCount} pages.`,
+          );
+        }
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const sourcePage = pageGraph.pages[sourcePageIndex];
+        if (!sourcePage || sourcePage.pageId !== sourcePageId) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Cross-page reflow source pageId '${sourcePageId}' does not match PageGraph '${sourcePage?.pageId ?? 'missing'}'`,
+          );
+        }
+        const targetPage = pageGraph.pages[targetPageIndex];
+        if (!targetPage || targetPage.pageId !== targetPageId) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Cross-page reflow target pageId '${targetPageId}' does not match PageGraph '${targetPage?.pageId ?? 'missing'}'`,
+          );
+        }
+
+        const mutationSession = requirePersistentMutationSession(commandMutationSession);
+        const reflowResult = await mutationSession.reflowCrossPageText({
+          currentRevisionId: context.documentKey,
+          intent,
+        });
+
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Cross-page text reflow unexpectedly modified page count from ${pageCount} to ${committed.pageCount}`,
+          );
+        }
+
+        const result = await applyCommittedSessionMutation(
+          input,
+          context.workingBytes,
+          pageCount,
+          committed,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          pageGraph,
+          {
+            ocrPagePolicy: {
+              invalidatePageIds: [sourcePageId, targetPageId],
+            },
+          },
+        );
+
+        return commandSuccess(
+          command,
+          true,
+          `Reflowed cross-page text: ${reflowResult.sourceLinesEmitted} lines on page ${sourcePageIndex + 1}, ${reflowResult.targetLinesEmitted} lines on page ${targetPageIndex + 1}`,
           result.nextBytes,
           result.nextPageCount,
         );

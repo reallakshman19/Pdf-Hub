@@ -35,7 +35,7 @@ export function extractPipelineCoordinates(
   getCalibration: (page: number) => ScaleCalibration = () => DEFAULT_SCALE_CALIBRATION,
   options?: PipelineCoordinateExportOptions,
 ): PipelineCoordinateRow[] {
-  const opts: Required<PipelineCoordinateExportOptions> = {
+  const opts = {
     ...DEFAULT_PIPELINE_EXPORT_OPTIONS,
     ...options,
   };
@@ -48,6 +48,7 @@ export function extractPipelineCoordinates(
     const scaleRatio = cal.scaleRatio > 0 ? cal.scaleRatio : 100;
     const branch = (ann.data?.branchName as string) || (ann.data?.text as string) || opts.branchName;
     const customElevation = typeof ann.data?.elevationZ === 'number' ? ann.data.elevationZ : opts.defaultElevationZ;
+    const customNodeElevations = (ann.data?.nodeElevations as Record<number, number> | undefined);
 
     // 1. Multi-vertex line / pipe run (points array [x1, y1, x2, y2, x3, y3...])
     const rawPoints = (ann.data?.points as number[]) ?? [];
@@ -64,36 +65,120 @@ export function extractPipelineCoordinates(
         }
       }
 
-      for (let i = 0; i < vertices.length; i++) {
-        const v = vertices[i];
-        const realX = pdfPointsToRealMm(v.x, scaleRatio) - opts.origin.x;
-        let realY = pdfPointsToRealMm(v.y, scaleRatio);
-        if (opts.invertYAxis) {
-          realY = -realY;
+      if (opts.routingMode === 'isometric') {
+        // Isometric 3D routing: decomposes 2D isometric drawing vectors into true 3D (X East, Y North, Z Elevation)
+        let curX = pdfPointsToRealMm(vertices[0].x, scaleRatio) - opts.origin.x;
+        let curY = pdfPointsToRealMm(vertices[0].y, scaleRatio);
+        if (opts.invertYAxis) curY = -curY;
+        curY -= opts.origin.y;
+        let curZ = customElevation;
+
+        const intermediateCoords: Array<{ x: number; y: number; z: number }> = [];
+
+        for (let i = 0; i < vertices.length; i++) {
+          if (i === 0) {
+            const zOverride = opts.nodeElevations?.[currentNode] ?? customNodeElevations?.[i] ?? curZ;
+            curZ = zOverride;
+            intermediateCoords.push({ x: curX, y: curY, z: curZ });
+          } else {
+            const prevV = vertices[i - 1];
+            const v = vertices[i];
+            const dx = v.x - prevV.x;
+            const dy = v.y - prevV.y;
+            const distPt = Math.hypot(dx, dy);
+            const distMm = pdfPointsToRealMm(distPt, scaleRatio);
+            const angle = Math.atan2(dy, dx); // dy > 0 is down in PDF
+
+            // Check if vertical (near -90° up or +90° down)
+            const isVertical = Math.abs(Math.abs(angle) - Math.PI / 2) < Math.PI / 7; // within ~25°
+
+            if (isVertical) {
+              // Upward on sheet (dy < 0) = Riser UP (+Z), downward (dy > 0) = Drop DOWN (-Z)
+              const dz = dy < 0 ? distMm : -distMm;
+              curZ += dz;
+            } else {
+              // Horizontal plane in isometric: check if East/West (~30° or ~210°) vs North/South (~150° or ~-30°)
+              // 30° is dx > 0, dy > 0 (down-right); -150° is dx < 0, dy < 0 (up-left)
+              const isEastWest = (dx > 0 && dy >= 0) || (dx < 0 && dy <= 0);
+              if (isEastWest) {
+                curX += dx > 0 ? distMm : -distMm;
+              } else {
+                curY += dy < 0 ? distMm : -distMm;
+              }
+            }
+
+            const zOverride = opts.nodeElevations?.[currentNode + i * opts.nodeIncrement] ?? customNodeElevations?.[i] ?? curZ;
+            curZ = zOverride;
+            intermediateCoords.push({ x: curX, y: curY, z: curZ });
+          }
         }
-        realY -= opts.origin.y;
 
-        let lengthToNextMm: number | undefined;
-        if (i < vertices.length - 1) {
-          const nextV = vertices[i + 1];
-          const dx = pdfPointsToRealMm(nextV.x - v.x, scaleRatio);
-          const dy = pdfPointsToRealMm(nextV.y - v.y, scaleRatio);
-          lengthToNextMm = Math.round(Math.hypot(dx, dy));
+        // Build coordinate rows with accurate 3D spatial cut length
+        for (let i = 0; i < intermediateCoords.length; i++) {
+          const coord = intermediateCoords[i];
+          let lengthToNextMm: number | undefined;
+          if (i < intermediateCoords.length - 1) {
+            const nextCoord = intermediateCoords[i + 1];
+            lengthToNextMm = Math.round(
+              Math.hypot(nextCoord.x - coord.x, nextCoord.y - coord.y, nextCoord.z - coord.z),
+            );
+          }
+
+          rows.push({
+            branchName: branch,
+            nodeNumber: currentNode,
+            x: Math.round(coord.x),
+            y: Math.round(coord.y),
+            z: Math.round(coord.z),
+            pageNumber: ann.pageNumber,
+            annotationId: ann.id,
+            segmentIndex: i,
+            lengthToNextMm,
+          });
+
+          currentNode += opts.nodeIncrement;
+        }
+      } else {
+        // Plan 2D routing (default): maps to horizontal (X, Y) plane with explicit node/line elevations
+        const intermediateCoords: Array<{ x: number; y: number; z: number }> = [];
+
+        for (let i = 0; i < vertices.length; i++) {
+          const v = vertices[i];
+          const realX = pdfPointsToRealMm(v.x, scaleRatio) - opts.origin.x;
+          let realY = pdfPointsToRealMm(v.y, scaleRatio);
+          if (opts.invertYAxis) {
+            realY = -realY;
+          }
+          realY -= opts.origin.y;
+
+          const nodeZ = opts.nodeElevations?.[currentNode + i * opts.nodeIncrement] ?? customNodeElevations?.[i] ?? customElevation;
+          intermediateCoords.push({ x: realX, y: realY, z: nodeZ });
         }
 
-        rows.push({
-          branchName: branch,
-          nodeNumber: currentNode,
-          x: Math.round(realX),
-          y: Math.round(realY),
-          z: Math.round(customElevation),
-          pageNumber: ann.pageNumber,
-          annotationId: ann.id,
-          segmentIndex: i,
-          lengthToNextMm,
-        });
+        for (let i = 0; i < intermediateCoords.length; i++) {
+          const coord = intermediateCoords[i];
+          let lengthToNextMm: number | undefined;
+          if (i < intermediateCoords.length - 1) {
+            const nextCoord = intermediateCoords[i + 1];
+            lengthToNextMm = Math.round(
+              Math.hypot(nextCoord.x - coord.x, nextCoord.y - coord.y, nextCoord.z - coord.z),
+            );
+          }
 
-        currentNode += opts.nodeIncrement;
+          rows.push({
+            branchName: branch,
+            nodeNumber: currentNode,
+            x: Math.round(coord.x),
+            y: Math.round(coord.y),
+            z: Math.round(coord.z),
+            pageNumber: ann.pageNumber,
+            annotationId: ann.id,
+            segmentIndex: i,
+            lengthToNextMm,
+          });
+
+          currentNode += opts.nodeIncrement;
+        }
       }
     } else if (ann.type === 'line' || ann.type === 'arrow') {
       // 2. Simple bounding box line (from (rect.x, rect.y) to (rect.x + width, rect.y + height))
@@ -110,7 +195,10 @@ export function extractPipelineCoordinates(
       y1 -= opts.origin.y;
       y2 -= opts.origin.y;
 
-      const lengthMm = Math.round(Math.hypot(x2 - x1, y2 - y1));
+      const z1 = opts.nodeElevations?.[currentNode] ?? customElevation;
+      const z2 = opts.nodeElevations?.[currentNode + opts.nodeIncrement] ?? customElevation;
+
+      const lengthMm = Math.round(Math.hypot(x2 - x1, y2 - y1, z2 - z1));
 
       // Start Node
       rows.push({
@@ -118,7 +206,7 @@ export function extractPipelineCoordinates(
         nodeNumber: currentNode,
         x: Math.round(x1),
         y: Math.round(y1),
-        z: Math.round(customElevation),
+        z: Math.round(z1),
         pageNumber: ann.pageNumber,
         annotationId: ann.id,
         segmentIndex: 0,
@@ -132,7 +220,7 @@ export function extractPipelineCoordinates(
         nodeNumber: currentNode,
         x: Math.round(x2),
         y: Math.round(y2),
-        z: Math.round(customElevation),
+        z: Math.round(z2),
         pageNumber: ann.pageNumber,
         annotationId: ann.id,
         segmentIndex: 1,

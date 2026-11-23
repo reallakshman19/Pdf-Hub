@@ -203,6 +203,38 @@ export type DeleteExistingTextCommand = PdfCommandBase<
   'DELETE_EXISTING_TEXT',
   DeleteExistingTextCommandPayload
 >;
+export interface ReplaceMultiColumnParagraphCommandPayload {
+  schemaVersion: 1;
+  pageIndex: number;
+  pageId: string;
+  intent: import('@/core/existing-text/columnFlowTypes').MultiColumnParagraphIntent;
+}
+export type ReplaceMultiColumnParagraphCommand = PdfCommandBase<
+  'REPLACE_MULTI_COLUMN_PARAGRAPH',
+  ReplaceMultiColumnParagraphCommandPayload
+>;
+export interface ConvertOcrToNativeTextCommandPayload {
+  schemaVersion: 1;
+  pageIndex: number;
+  pageId: string;
+  intent: import('@/core/existing-text/ocrNativeReconciliationTypes').OcrTextReconciliationIntent;
+}
+export type ConvertOcrToNativeTextCommand = PdfCommandBase<
+  'CONVERT_OCR_TO_NATIVE_TEXT',
+  ConvertOcrToNativeTextCommandPayload
+>;
+export interface ReflowCrossPageTextCommandPayload {
+  schemaVersion: 1;
+  sourcePageIndex: number;
+  sourcePageId: string;
+  targetPageIndex: number;
+  targetPageId: string;
+  intent: import('@/core/existing-text/crossPageFlowTypes').CrossPageFlowIntent;
+}
+export type ReflowCrossPageTextCommand = PdfCommandBase<
+  'REFLOW_CROSS_PAGE_TEXT',
+  ReflowCrossPageTextCommandPayload
+>;
 export type AnnotationChangeCommand = PdfCommandBase<
   'ANNOTATION_CHANGE',
   { action: string; annotationIds: string[] }
@@ -249,6 +281,9 @@ export type PdfCommand =
   | BatchReplaceExistingTextCommand
   | EditTableCellTextCommand
   | DeleteExistingTextCommand
+  | ReplaceMultiColumnParagraphCommand
+  | ConvertOcrToNativeTextCommand
+  | ReflowCrossPageTextCommand
   | AnnotationChangeCommand
   | WriterChangeCommand
   | ApplyWorkingCopyCommand;
@@ -366,6 +401,9 @@ const PREVIEW_REQUIRED_TYPES = new Set<PdfCommandType>([
   'BATCH_REPLACE_EXISTING_TEXT',
   'EDIT_TABLE_CELL_TEXT',
   'DELETE_EXISTING_TEXT',
+  'REPLACE_MULTI_COLUMN_PARAGRAPH',
+  'CONVERT_OCR_TO_NATIVE_TEXT',
+  'REFLOW_CROSS_PAGE_TEXT',
 ]);
 
 export function defaultRiskForCommand(type: PdfCommandType): PdfCommandRisk {

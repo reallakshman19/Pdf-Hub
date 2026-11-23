@@ -144,4 +144,75 @@ describe('pipelineCoordinateExport engine', () => {
     expect(csv).toContain('BranchName,NodeNumber,X_mm,Y_mm,Z_mm,LengthToNext_mm,Page,AnnotationId');
     expect(csv).toContain('"/BRANCH-1/B1",100,1000,2000,3000,500,1,"ann-1"');
   });
+
+  it('performs true 3D isometric routing with vertical risers/drops and spatial cut length', () => {
+    // Pipe run drawn on isometric sheet:
+    // (72, 72) -> vertical up to (72, 0) -> East to (144, 41.5)
+    const isoPipeRun: PdfAnnotation = {
+      id: 'pipe-iso-1',
+      type: 'line',
+      pageNumber: 1,
+      rect: { x: 0, y: 0, width: 200, height: 200 },
+      createdAt: 1,
+      updatedAt: 1,
+      data: {
+        branchName: '/ISO-RUN/B1',
+        // Start at (72, 72), draw UP on sheet to (72, 0) [dy = -72, vertical riser], then East
+        points: [72, 72, 72, 0, 144, 41.57],
+      },
+    };
+
+    const rows = extractPipelineCoordinates([isoPipeRun], () => cal100, {
+      startNodeNumber: 100,
+      nodeIncrement: 10,
+      defaultElevationZ: 100000,
+      routingMode: 'isometric',
+    });
+
+    expect(rows).toHaveLength(3);
+    // Node 100: baseline
+    expect(rows[0].nodeNumber).toBe(100);
+    expect(rows[0].z).toBe(100000);
+
+    // Node 110: vertical riser UP (+2540 mm elevation)
+    expect(rows[1].nodeNumber).toBe(110);
+    expect(rows[1].z).toBeCloseTo(102540, 0);
+    expect(rows[0].lengthToNextMm).toBeCloseTo(2540, 0);
+
+    // Node 120: horizontal run in elevation plane
+    expect(rows[2].nodeNumber).toBe(120);
+    expect(rows[2].z).toBeCloseTo(102540, 0);
+    expect(rows[1].lengthToNextMm).toBeGreaterThan(0);
+  });
+
+  it('respects custom node elevations when provided', () => {
+    const lineAnn: PdfAnnotation = {
+      id: 'line-elev',
+      type: 'line',
+      pageNumber: 1,
+      rect: { x: 0, y: 0, width: 72, height: 72 },
+      createdAt: 1,
+      updatedAt: 1,
+      data: {
+        branchName: '/ELEV-LINE/B1',
+        points: [0, 0, 72, 0],
+      },
+    };
+
+    const rows = extractPipelineCoordinates([lineAnn], () => cal100, {
+      startNodeNumber: 100,
+      defaultElevationZ: 100000,
+      nodeElevations: {
+        100: 105000,
+        110: 107500,
+      },
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0].z).toBe(105000);
+    expect(rows[1].z).toBe(107500);
+    // 3D spatial hypotenuse between (0, 0, 105000) and (2540, 0, 107500):
+    // dx = 2540, dz = 2500 -> hypot ~ 3564 mm
+    expect(rows[0].lengthToNextMm).toBeCloseTo(3564, -1);
+  });
 });

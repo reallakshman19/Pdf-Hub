@@ -909,3 +909,100 @@ export function validateDeleteExistingTextCommandPayload(value: unknown): string
   }
   return errors;
 }
+
+export function validateReplaceMultiColumnParagraphCommandPayload(value: unknown): string[] {
+  const errors: string[] = [];
+  if (!isRecord(value)) {
+    return ['payload must be an object.'];
+  }
+  if (value.schemaVersion !== 1) {
+    errors.push('payload.schemaVersion must be 1.');
+  }
+  if (!Number.isInteger(value.pageIndex) || (value.pageIndex as number) < 0) {
+    errors.push('payload.pageIndex must be a non-negative integer.');
+  }
+  if (typeof value.pageId !== 'string' || !value.pageId.trim()) {
+    errors.push('payload.pageId must be a non-empty string.');
+  }
+  if (!isRecord(value.intent)) {
+    errors.push('payload.intent must be an object.');
+  } else {
+    if (value.intent.schemaVersion !== 1) {
+      errors.push('payload.intent.schemaVersion must be 1.');
+    }
+    if (typeof value.intent.replacementText !== 'string') {
+      errors.push('payload.intent.replacementText must be a string.');
+    }
+  }
+  return errors;
+}
+
+export function validateConvertOcrToNativeTextCommandPayload(value: unknown): string[] {
+  const errors: string[] = [];
+  if (!isRecord(value)) {
+    return ['payload must be an object.'];
+  }
+  if (value.schemaVersion !== 1) {
+    errors.push('payload.schemaVersion must be 1.');
+  }
+  if (!Number.isInteger(value.pageIndex) || (value.pageIndex as number) < 0) {
+    errors.push('payload.pageIndex must be a non-negative integer.');
+  }
+  if (typeof value.pageId !== 'string' || !value.pageId.trim()) {
+    errors.push('payload.pageId must be a non-empty string.');
+  }
+  if (!isRecord(value.intent)) {
+    errors.push('payload.intent must be an object.');
+  } else {
+    if (value.intent.schemaVersion !== 1) {
+      errors.push('payload.intent.schemaVersion must be 1.');
+    }
+    if (typeof value.intent.editedText !== 'string') {
+      errors.push('payload.intent.editedText must be a string.');
+    }
+    if (!isRecord(value.intent.targetBoundsPt)) {
+      errors.push('payload.intent.targetBoundsPt must be an object.');
+    }
+  }
+  return errors;
+}
+
+export function validateReflowCrossPageTextCommandPayload(value: unknown): string[] {
+  const errors: string[] = [];
+  if (!isRecord(value)) {
+    return ['payload must be an object.'];
+  }
+  if (value.schemaVersion !== 1) {
+    errors.push('payload.schemaVersion must be 1.');
+  }
+  if (!Number.isInteger(value.sourcePageIndex) || (value.sourcePageIndex as number) < 0) {
+    errors.push('payload.sourcePageIndex must be a non-negative integer.');
+  }
+  if (typeof value.sourcePageId !== 'string' || !value.sourcePageId.trim()) {
+    errors.push('payload.sourcePageId must be a non-empty string.');
+  }
+  if (!Number.isInteger(value.targetPageIndex) || (value.targetPageIndex as number) < 0) {
+    errors.push('payload.targetPageIndex must be a non-negative integer.');
+  }
+  if (typeof value.targetPageId !== 'string' || !value.targetPageId.trim()) {
+    errors.push('payload.targetPageId must be a non-empty string.');
+  }
+  if (!isRecord(value.intent)) {
+    errors.push('payload.intent must be an object.');
+  } else {
+    if (value.intent.schemaVersion !== 1) {
+      errors.push('payload.intent.schemaVersion must be 1.');
+    }
+    if (typeof value.intent.text !== 'string') {
+      errors.push('payload.intent.text must be a string.');
+    }
+    if (!isRecord(value.intent.sourceLayout)) {
+      errors.push('payload.intent.sourceLayout must be an object.');
+    }
+    if (!isRecord(value.intent.targetLayout)) {
+      errors.push('payload.intent.targetLayout must be an object.');
+    }
+  }
+  return errors;
+}
+
