@@ -3,7 +3,7 @@ import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 import type { ComponentType } from '../../core/pipeline-geometry/types';
 
-export const PipingValveNode: React.FC<AnnotationNodeProps<any>> = ({
+export const PipingValveNode: React.FC<AnnotationNodeProps> = ({
   annotation,
   rect,
   scale,
@@ -33,11 +33,11 @@ export const PipingValveNode: React.FC<AnnotationNodeProps<any>> = ({
       data-component-type={componentType}
       onClick={(e) => {
         e.stopPropagation();
-        (onSelect as any)?.(e);
+        onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
       }}
       onPointerDown={(e) => {
         e.stopPropagation();
-        (onSelect as any)?.(e);
+        onSelect(e);
       }}
       style={{
         position: 'absolute',

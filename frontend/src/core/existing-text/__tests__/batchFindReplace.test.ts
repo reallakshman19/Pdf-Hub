@@ -9,13 +9,13 @@ vi.mock('@/adapters/pdf-renderer/PdfRendererAdapter', () => ({
   PdfRendererAdapter: {
     acquireDocument: vi.fn().mockResolvedValue({
       doc: {
-        getPage: vi.fn().mockImplementation((_pageNumber: number) => ({
+        getPage: vi.fn().mockImplementation(() => ({
           cleanup: vi.fn(),
         })),
       },
       release: vi.fn(),
     }),
-    getPageExistingTextSourceItems: vi.fn().mockImplementation((_page: any) => [
+    getPageExistingTextSourceItems: vi.fn().mockImplementation(() => [
       {
         sourceIndex: 0,
         text: 'Project Target on page',
@@ -30,7 +30,7 @@ vi.mock('@/adapters/pdf-renderer/PdfRendererAdapter', () => ({
   },
 }));
 
-function createMockSpan(text: string, _id = 'span-1', pageIndex = 0): any {
+function createMockSpan(text: string, pageIndex = 0) {
   return buildExistingTextSpan(
     { revisionId: 'rev-1', pageId: `page-${pageIndex + 1}`, pageIndex },
     {

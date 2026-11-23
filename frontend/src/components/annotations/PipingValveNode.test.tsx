@@ -22,7 +22,7 @@ describe('PipingValveNode', () => {
     const onSelect = vi.fn();
     render(
       <PipingValveNode
-        annotation={ann as any}
+        annotation={ann as never}
         rect={ann.rect}
         scale={1}
         isSelected={false}

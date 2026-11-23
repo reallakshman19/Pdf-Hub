@@ -15,10 +15,7 @@ export function validateReconstructExistingTextCommandPayload(
   );
 }
 
-export function validateReplaceExistingParagraphCommandPayload(
-  value: unknown,
-  _documentKey: string,
-): string[] {
+export function validateReplaceExistingParagraphCommandPayload(value: unknown): string[] {
   const errors: string[] = [];
 
   if (!isRecord(value)) {
@@ -812,10 +809,7 @@ function validateRange(
   }
 }
 
-export function validateBatchReplaceExistingTextCommandPayload(
-  value: unknown,
-  _documentKey: string,
-): string[] {
+export function validateBatchReplaceExistingTextCommandPayload(value: unknown): string[] {
   const errors: string[] = [];
   if (!isRecord(value)) {
     return ['payload must be an object.'];
@@ -849,10 +843,7 @@ export function validateBatchReplaceExistingTextCommandPayload(
   return errors;
 }
 
-export function validateEditTableCellTextCommandPayload(
-  value: unknown,
-  _documentKey: string,
-): string[] {
+export function validateEditTableCellTextCommandPayload(value: unknown): string[] {
   const errors: string[] = [];
   if (!isRecord(value)) {
     return ['payload must be an object.'];
@@ -895,10 +886,7 @@ export function validateEditTableCellTextCommandPayload(
   return errors;
 }
 
-export function validateDeleteExistingTextCommandPayload(
-  value: unknown,
-  _documentKey: string,
-): string[] {
+export function validateDeleteExistingTextCommandPayload(value: unknown): string[] {
   const errors: string[] = [];
   if (!isRecord(value)) {
     return ['payload must be an object.'];

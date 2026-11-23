@@ -13,7 +13,7 @@ import {
 class MockIDBDatabase {
   private data = new Map<string, unknown>();
 
-  transaction(_storeName: string, _mode: string) {
+  transaction() {
     const dataMap = this.data;
     return {
       objectStore: () => ({

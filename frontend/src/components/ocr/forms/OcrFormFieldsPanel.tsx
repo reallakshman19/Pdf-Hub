@@ -66,6 +66,7 @@ export const OcrFormFieldsPanel: React.FC<OcrFormFieldsPanelProps> = ({
 
   const [localOmrMarks, setLocalOmrMarks] = React.useState<OcrOmrMark[]>([]);
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resync local marks when OCR result changes
     setLocalOmrMarks(omrMarks);
   }, [omrMarks]);
 

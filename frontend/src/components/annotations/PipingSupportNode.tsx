@@ -3,7 +3,7 @@ import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 import type { RestraintType } from '../../core/pipeline-geometry/types';
 
-export const PipingSupportNode: React.FC<AnnotationNodeProps<any>> = ({
+export const PipingSupportNode: React.FC<AnnotationNodeProps> = ({
   annotation,
   rect,
   scale,
@@ -29,11 +29,11 @@ export const PipingSupportNode: React.FC<AnnotationNodeProps<any>> = ({
       data-restraint-type={restraintType}
       onClick={(e) => {
         e.stopPropagation();
-        (onSelect as any)?.(e);
+        onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
       }}
       onPointerDown={(e) => {
         e.stopPropagation();
-        (onSelect as any)?.(e);
+        onSelect(e);
       }}
       style={{
         position: 'absolute',

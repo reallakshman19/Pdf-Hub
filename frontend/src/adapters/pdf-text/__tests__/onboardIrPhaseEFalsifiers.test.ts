@@ -17,7 +17,7 @@ import {
 import { PDFDocument, PDFName, StandardFonts } from 'pdf-lib';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 
-function createToUnicodeStream(doc: PDFDocument): any {
+function createToUnicodeStream(doc: PDFDocument) {
   const cmapString = [
     '/CIDInit /ProcSet findresource begin',
     '12 dict begin',

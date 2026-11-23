@@ -55,7 +55,7 @@ vi.mock('virtua', () => ({
 
 vi.mock('@/core/session/store', () => {
   const fn = vi.fn();
-  (fn as any).getState = () => ({
+  (fn as unknown as { getState: unknown }).getState = () => ({
     documentKey: 'sha256:drag-doc',
     workingBytes: new Uint8Array([1, 2, 3]),
     pageCount: 2,
@@ -80,7 +80,7 @@ const mockAddToast = vi.fn();
 
 vi.mock('@/core/toast/store', () => {
   const store = Object.assign(
-    (selector?: (state: any) => any) => {
+    (selector?: (state: unknown) => unknown) => {
       const state = { addToast: mockAddToast, toasts: [] };
       return selector ? selector(state) : state;
     },
@@ -282,7 +282,7 @@ describe('ThumbnailSidebar external file drag-and-drop', () => {
         commandTarget: 'INSERT_PAGES',
         ownerDocumentKey: 'sha256:drag-doc',
         generation: 1,
-        donors: [mockDonor as any],
+        donors: [mockDonor as never],
         aggregateSourceBytes: 2048,
       },
       evidence: {
@@ -437,10 +437,10 @@ describe('ThumbnailSidebar external file drag-and-drop', () => {
         commandTarget: 'INSERT_PAGES',
         ownerDocumentKey: 'sha256:drag-doc',
         generation: 3,
-        donors: [donorA as any, donorB as any],
+        donors: [donorA as never, donorB as never],
         aggregateSourceBytes: 3072,
       },
-    } as any);
+    } as never);
 
     const pdfFile1 = new File(['%PDF-1.4 doc1'], 'doc1.pdf', { type: 'application/pdf' });
     const pdfFile2 = new File(['%PDF-1.4 doc2'], 'doc2.pdf', { type: 'application/pdf' });
@@ -520,10 +520,10 @@ describe('ThumbnailSidebar external file drag-and-drop', () => {
         commandTarget: 'INSERT_PAGES',
         ownerDocumentKey: 'sha256:drag-doc',
         generation: 2,
-        donors: [mockDonor as any],
+        donors: [mockDonor as never],
         aggregateSourceBytes: 1024,
       },
-    } as any);
+    } as never);
 
     const fakePdfFile = new File(['%PDF-1.4 append'], 'appended_donor.pdf', {
       type: 'application/pdf',

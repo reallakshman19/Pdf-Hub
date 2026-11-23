@@ -49,5 +49,5 @@ annotationRegistry.register('ink',            InkNode);
 annotationRegistry.register('stamp',          StampNode);
 annotationRegistry.register('comment',        CommentNode);
 annotationRegistry.register('redaction',      RedactionNode);
-annotationRegistry.register('piping-support', PipingSupportNode as any);
-annotationRegistry.register('piping-valve',   PipingValveNode as any);
+annotationRegistry.register('piping-support', PipingSupportNode);
+annotationRegistry.register('piping-valve',   PipingValveNode);

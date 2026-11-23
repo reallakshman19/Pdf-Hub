@@ -17,7 +17,7 @@ export const LineNode: React.FC<AnnotationNodeProps<'line'>> = ({
   if (annotation.data?.isPipeRun || (Array.isArray(annotation.data?.points) && annotation.data.points.length > 4)) {
     return (
       <PerimeterTakeoffNode
-        annotation={annotation as any}
+        annotation={annotation}
         rect={rect}
         scale={scale}
         isSelected={isSelected}
@@ -30,7 +30,7 @@ export const LineNode: React.FC<AnnotationNodeProps<'line'>> = ({
   if (annotation.data?.dimensionScale !== undefined || annotation.data?.isDimension) {
     return (
       <DimensionNode
-        annotation={annotation as any}
+        annotation={annotation}
         rect={rect}
         scale={scale}
         isSelected={isSelected}

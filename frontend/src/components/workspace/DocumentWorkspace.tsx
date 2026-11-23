@@ -57,8 +57,7 @@ import { error as logError } from '@/core/logger/service';
 import { SnapIndicatorOverlay } from '../annotations/SnapIndicatorOverlay';
 import {
   collectPageSnapPoints,
-  findSnapTarget,
-  constrainAngleTo45,
+  resolveLineEndpoint,
   type SnapResult,
 } from '@/core/annotations/cadSnapping';
 import { DrawingScaleBar } from '../annotations/DrawingScaleBar';
@@ -664,23 +663,10 @@ export const DocumentWorkspace: React.FC = () => {
       const currentY = (e.clientY - rect.top) / scale;
 
       const snapPoints = collectPageSnapPoints(annotations, drawingLineStart.pageNumber);
-      const snapResult = findSnapTarget({ x: currentX, y: currentY }, snapPoints);
-
-      const isShift = e.shiftKey;
-      let finalPoint = { x: currentX, y: currentY };
-
-      if (isShift) {
-        finalPoint = constrainAngleTo45(drawingLineStart, finalPoint);
-        setIsAngleConstrained(true);
-        setActiveSnapResult(null);
-      } else if (snapResult.snapped) {
-        finalPoint = snapResult.point;
-        setActiveSnapResult(snapResult);
-        setIsAngleConstrained(false);
-      } else {
-        setActiveSnapResult(null);
-        setIsAngleConstrained(false);
-      }
+      const resolved = resolveLineEndpoint(drawingLineStart, { x: currentX, y: currentY }, snapPoints, e.shiftKey);
+      const finalPoint = resolved.point;
+      setActiveSnapResult(resolved.snapResult);
+      setIsAngleConstrained(resolved.angleConstrained);
 
       setDrawingLineCurrent(finalPoint);
     };
@@ -2373,8 +2359,16 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       } else {
         const x1 = drawingLineStart.x;
         const y1 = drawingLineStart.y;
-        const x2 = drawingLineCurrent?.x ?? startX;
-        const y2 = drawingLineCurrent?.y ?? startY;
+        // Resolve the endpoint from the committing click itself; the hover
+        // preview state can lag (or never update) when clicks arrive quickly.
+        const endpoint = resolveLineEndpoint(
+          { x: x1, y: y1 },
+          { x: startX, y: startY },
+          collectPageSnapPoints(pageAnnotations, pageNumber),
+          event.shiftKey,
+        ).point;
+        const x2 = endpoint.x;
+        const y2 = endpoint.y;
 
         const rectX = Math.min(x1, x2);
         const rectY = Math.min(y1, y2);

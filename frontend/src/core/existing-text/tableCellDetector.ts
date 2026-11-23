@@ -6,7 +6,7 @@ import type {
 } from './tableCellTypes';
 import type { ExistingTextAlign } from './alignmentTypes';
 
-const NUMERIC_CURRENCY_PATTERN = /^[\$€£¥₹]?\s*[-+]?[\d,]+(\.\d+)?%?$/;
+const NUMERIC_CURRENCY_PATTERN = /^[$€£¥₹]?\s*[-+]?[\d,]+(\.\d+)?%?$/;
 const PARENTHESES_ACCOUNTING_PATTERN = /^\([\d,]+(\.\d+)?\)$/;
 const DATE_OR_CODE_PATTERN = /^(\d{2,4}[-/.]\d{1,2}[-/.]\d{1,4}|[A-Z0-9_-]{2,8})$/;
 

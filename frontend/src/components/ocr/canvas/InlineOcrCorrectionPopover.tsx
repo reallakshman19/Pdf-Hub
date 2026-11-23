@@ -30,6 +30,7 @@ export const InlineOcrCorrectionPopover: React.FC<InlineOcrCorrectionPopoverProp
   }, [word.text]);
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset draft when the target word changes
     setValue(initialText);
     if (inputRef.current) {
       inputRef.current.focus();

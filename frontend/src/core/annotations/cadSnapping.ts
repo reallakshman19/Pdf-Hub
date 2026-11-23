@@ -216,6 +216,28 @@ export function findSnapTarget(
 }
 
 /**
+ * Resolves the endpoint of a two-click line/arrow from the actual pointer
+ * position: Shift constrains to 45° increments, otherwise magnetic snapping
+ * applies. Used by both the hover preview and the committing click so the
+ * created geometry never depends on a possibly stale hover state.
+ */
+export function resolveLineEndpoint(
+  origin: Point2D,
+  cursor: Point2D,
+  snapPoints: SnapPoint[],
+  shiftKey: boolean,
+): { point: Point2D; snapResult: SnapResult | null; angleConstrained: boolean } {
+  if (shiftKey) {
+    return { point: constrainAngleTo45(origin, cursor), snapResult: null, angleConstrained: true };
+  }
+  const snapResult = findSnapTarget(cursor, snapPoints);
+  if (snapResult.snapped) {
+    return { point: snapResult.point, snapResult, angleConstrained: false };
+  }
+  return { point: { x: cursor.x, y: cursor.y }, snapResult: null, angleConstrained: false };
+}
+
+/**
  * Constrains a target point relative to an origin point to 45° angle increments
  * (0°, 45°, 90°, 135°, 180°, -45°, -90°, -135°), used for orthogonal/isometric CAD drafting.
  */

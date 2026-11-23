@@ -408,7 +408,7 @@ describe('InlineExistingTextEditor', () => {
       nextWorkingBytes: new Uint8Array([1, 2, 3]),
       commandId: 'cmd-cell-1',
       commandType: 'EDIT_TABLE_CELL_TEXT',
-    } as any);
+    } as never);
 
     await act(async () => {
       render(

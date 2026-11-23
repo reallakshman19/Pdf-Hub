@@ -53,7 +53,7 @@ describe('PdfLibExistingTextErasure', () => {
       currentRevisionId: documentKey,
       span,
       intent,
-      provenance: (match as any).provenance,
+      provenance: (match as unknown as { provenance: never }).provenance,
     });
 
     expect(result.success).toBe(true);
@@ -116,7 +116,7 @@ describe('PdfLibExistingTextErasure', () => {
       currentRevisionId: documentKey,
       span,
       intent,
-      provenance: (match as any).provenance,
+      provenance: (match as unknown as { provenance: never }).provenance,
     });
 
     expect(result.success).toBe(true);

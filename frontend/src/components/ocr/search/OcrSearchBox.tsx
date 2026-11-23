@@ -42,6 +42,7 @@ export const OcrSearchBox: React.FC<OcrSearchBoxProps> = ({
   // Evaluate query whenever input or options change
   useEffect(() => {
     if (!query.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear navigation when the query is emptied
       setNavState({ query: '', matches: [], activeIndex: -1 });
       onActiveMatchChange?.(null, []);
       return;

@@ -43,7 +43,7 @@ vi.mock('@/core/annotations/persistence', () => ({
   loadAnnotations: vi.fn().mockResolvedValue([]),
 }));
 
-function createToUnicodeStream(doc: PDFDocument): any {
+function createToUnicodeStream(doc: PDFDocument) {
   const cmapString = [
     '/CIDInit /ProcSet findresource begin',
     '12 dict begin',
@@ -289,7 +289,7 @@ describe('Existing Text End-to-End Test Suite', () => {
     if (capability.status !== 'native') throw new Error('Expected native status');
 
     expect(capability.fontMetadata?.subtype).toBe('Type0');
-    expect((capability.fontMetadata as any)?.isTwoByteCid ?? true).toBe(true);
+    expect((capability.fontMetadata as { isTwoByteCid?: boolean } | undefined)?.isTwoByteCid ?? true).toBe(true);
     expect(capability.nativeFit.status).toBe('fits');
 
     // 2. Dispatch REPLACE_EXISTING_TEXT command

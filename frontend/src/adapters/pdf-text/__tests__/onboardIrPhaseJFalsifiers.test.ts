@@ -78,7 +78,7 @@ describe('OnBoard IR Phase J Adversarial Falsifiers: Existing Text Erasure / Del
       currentRevisionId: documentKey,
       span,
       intent,
-      provenance: (match as any).provenance,
+      provenance: (match as unknown as { provenance: never }).provenance,
       strategy: 'native-excision',
     });
 
@@ -144,7 +144,7 @@ describe('OnBoard IR Phase J Adversarial Falsifiers: Existing Text Erasure / Del
       currentRevisionId: documentKey,
       span,
       intent,
-      provenance: (match as any).provenance,
+      provenance: (match as unknown as { provenance: never }).provenance,
       strategy: 'visual-inpaint',
     });
 
@@ -212,7 +212,7 @@ describe('OnBoard IR Phase J Adversarial Falsifiers: Existing Text Erasure / Del
       currentRevisionId: documentKey,
       span,
       intent,
-      provenance: (match as any).provenance,
+      provenance: (match as unknown as { provenance: never }).provenance,
     });
 
     expect(result.success).toBe(true);
@@ -308,7 +308,7 @@ describe('OnBoard IR Phase J Adversarial Falsifiers: Existing Text Erasure / Del
           schemaVersion: 1,
           span,
           intent,
-          provenance: (match as any).provenance,
+          provenance: (match as unknown as { provenance: never }).provenance,
           strategy: 'native-excision',
         },
       },
@@ -401,7 +401,7 @@ describe('OnBoard IR Phase J Adversarial Falsifiers: Existing Text Erasure / Del
           schemaVersion: 1,
           span,
           intent,
-          provenance: (match as any).provenance,
+          provenance: (match as unknown as { provenance: never }).provenance,
           strategy: 'native-excision',
         },
       },

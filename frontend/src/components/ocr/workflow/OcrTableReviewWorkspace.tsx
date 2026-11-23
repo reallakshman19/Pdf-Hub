@@ -21,6 +21,7 @@ export const OcrTableReviewWorkspace: React.FC<OcrTableReviewWorkspaceProps> = (
   const [lastAcceptedSummary, setLastAcceptedSummary] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear summary when the reviewed table changes
     setLastAcceptedSummary(null);
   }, [documentFingerprint, tableBlock]);
 

@@ -21,7 +21,7 @@ describe('PipingSupportNode', () => {
     const onSelect = vi.fn();
     render(
       <PipingSupportNode
-        annotation={ann as any}
+        annotation={ann as never}
         rect={ann.rect}
         scale={1}
         isSelected={false}
@@ -54,7 +54,7 @@ describe('PipingSupportNode', () => {
 
     render(
       <PipingSupportNode
-        annotation={ann as any}
+        annotation={ann as never}
         rect={ann.rect}
         scale={1}
         isSelected={false}

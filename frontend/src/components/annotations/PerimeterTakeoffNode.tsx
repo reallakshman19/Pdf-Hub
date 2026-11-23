@@ -20,7 +20,7 @@ export const PerimeterTakeoffNode: React.FC<AnnotationNodeProps<'line'>> = ({
 
   const calibration: ScaleCalibration = useMemo(() => ({
     scaleRatio: typeof annotation.data?.dimensionScale === 'number' ? annotation.data.dimensionScale : 100,
-    unit: (annotation.data?.dimensionUnit as any) ?? 'mm',
+    unit: annotation.data?.dimensionUnit ?? 'mm',
     precision: typeof annotation.data?.dimensionPrecision === 'number' ? annotation.data.dimensionPrecision : 0,
   }), [annotation.data?.dimensionScale, annotation.data?.dimensionUnit, annotation.data?.dimensionPrecision]);
 

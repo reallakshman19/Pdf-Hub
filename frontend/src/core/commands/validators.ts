@@ -260,7 +260,6 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
       errors.push(
         ...validateReplaceExistingParagraphCommandPayload(
           command.payload,
-          command.documentKey,
         ),
       );
       break;
@@ -269,7 +268,6 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
       errors.push(
         ...validateBatchReplaceExistingTextCommandPayload(
           command.payload,
-          command.documentKey,
         ),
       );
       break;
@@ -278,7 +276,6 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
       errors.push(
         ...validateEditTableCellTextCommandPayload(
           command.payload,
-          command.documentKey,
         ),
       );
       break;
@@ -287,7 +284,6 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
       errors.push(
         ...validateDeleteExistingTextCommandPayload(
           command.payload,
-          command.documentKey,
         ),
       );
       break;

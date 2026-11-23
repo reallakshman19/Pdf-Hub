@@ -28,11 +28,11 @@ export const OcrDiffModal: React.FC<OcrDiffModalProps> = ({
   ocrTitle = 'OCR Recognition Result',
   ocrText,
 }) => {
-  if (!isOpen) return null;
-
   const diffResult = useMemo(() => {
     return diffOcrText(referenceText, ocrText);
   }, [referenceText, ocrText]);
+
+  if (!isOpen) return null;
 
   const { metrics, segments } = diffResult;
 

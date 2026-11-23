@@ -4,6 +4,7 @@ import {
   extractSnapPointsFromAnnotation,
   collectPageSnapPoints,
   findSnapTarget,
+  resolveLineEndpoint,
 } from './cadSnapping';
 import type { PdfAnnotation } from './types';
 
@@ -183,5 +184,37 @@ describe('cadSnapping engine', () => {
       const constrained = constrainAngleTo45(origin, target);
       expect(constrained).toEqual({ x: 0, y: 0 });
     });
+  });
+});
+
+describe('resolveLineEndpoint', () => {
+  it('uses the raw cursor when nothing is in snap range', () => {
+    const result = resolveLineEndpoint({ x: 0, y: 0 }, { x: 120, y: 40 }, [], false);
+    expect(result.point).toEqual({ x: 120, y: 40 });
+    expect(result.snapResult).toBeNull();
+    expect(result.angleConstrained).toBe(false);
+  });
+
+  it('snaps to a nearby candidate', () => {
+    const result = resolveLineEndpoint(
+      { x: 0, y: 0 },
+      { x: 101, y: 99 },
+      [{ point: { x: 100, y: 100 }, kind: 'endpoint', annotationId: 'a' }],
+      false,
+    );
+    expect(result.point).toEqual({ x: 100, y: 100 });
+    expect(result.snapResult?.snapped).toBe(true);
+  });
+
+  it('constrains to 45 degree steps when shift is held, ignoring snaps', () => {
+    const result = resolveLineEndpoint(
+      { x: 0, y: 0 },
+      { x: 100, y: 5 },
+      [{ point: { x: 100, y: 5 }, kind: 'endpoint', annotationId: 'a' }],
+      true,
+    );
+    expect(result.point.y).toBeCloseTo(0, 3);
+    expect(result.angleConstrained).toBe(true);
+    expect(result.snapResult).toBeNull();
   });
 });

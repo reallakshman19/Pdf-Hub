@@ -21,7 +21,7 @@ const mockAddToast = vi.fn();
 
 vi.mock('@/core/toast/store', () => {
   const store = Object.assign(
-    (selector?: (state: any) => any) => {
+    (selector?: (state: unknown) => unknown) => {
       const state = { addToast: mockAddToast, toasts: [] };
       return selector ? selector(state) : state;
     },
@@ -174,10 +174,10 @@ describe('DocumentWorkspace drag-and-drop & shortcut insertion', () => {
         commandTarget: 'INSERT_PAGES',
         ownerDocumentKey: 'test-doc-key',
         generation: 1,
-        donors: [mockDonor as any],
+        donors: [mockDonor as never],
         aggregateSourceBytes: 2048,
       },
-    } as any);
+    } as never);
 
     await act(async () => {
       render(<DocumentWorkspace />);
@@ -285,10 +285,10 @@ describe('DocumentWorkspace drag-and-drop & shortcut insertion', () => {
         commandTarget: 'INSERT_PAGES',
         ownerDocumentKey: 'test-doc-key',
         generation: 2,
-        donors: [donor1 as any, donor2 as any],
+        donors: [donor1 as never, donor2 as never],
         aggregateSourceBytes: 4096,
       },
-    } as any);
+    } as never);
 
     await act(async () => {
       render(<DocumentWorkspace />);
@@ -352,7 +352,7 @@ describe('DocumentWorkspace drag-and-drop & shortcut insertion', () => {
     };
 
     vi.mocked(FileAdapter.pickPdfFileSources).mockResolvedValue([
-      { name: 'shortcut_donor.pdf', size: 1024 } as any,
+      { name: 'shortcut_donor.pdf', size: 1024 } as never,
     ]);
 
     vi.mocked(admitDonorPdfFiles).mockResolvedValue({
@@ -362,10 +362,10 @@ describe('DocumentWorkspace drag-and-drop & shortcut insertion', () => {
         commandTarget: 'INSERT_PAGES',
         ownerDocumentKey: 'test-doc-key',
         generation: 3,
-        donors: [mockDonor as any],
+        donors: [mockDonor as never],
         aggregateSourceBytes: 1024,
       },
-    } as any);
+    } as never);
 
     await act(async () => {
       render(<DocumentWorkspace />);
