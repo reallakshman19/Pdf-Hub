@@ -6,9 +6,22 @@ import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { upsertCustomMacroRecipe } from '@/core/macro/recipes/recipeStorage';
 import { runMacroRecipeAgainstSession } from '@/core/macro/sessionRunner';
+import { runGenerationRecipeOnSnapshot } from '@/core/macro/generateDocument/runIsolatedGeneration';
 import { AutomateSidebar } from './AutomateSidebar';
 
 const mockCommandExecute = vi.hoisted(() => vi.fn());
+
+vi.mock('@/core/macro/generateDocument/runIsolatedGeneration', () => ({
+  runGenerationRecipeOnSnapshot: vi.fn().mockResolvedValue({
+    success: true,
+    status: 'success',
+    outputFiles: [],
+    logs: ['done'],
+    finalBytes: new Uint8Array([1]),
+    selectedPages: [],
+    stepResults: [],
+  }),
+}));
 
 vi.mock('@/core/macro/sessionRunner', () => ({
   runMacroRecipeAgainstSession: vi.fn().mockResolvedValue({
@@ -288,14 +301,14 @@ describe('AutomateSidebar', () => {
   });
 
   it('keeps Generate Document mounted by locking Automate tabs while generation runs', async () => {
-    type SessionRunResult = Awaited<
-      ReturnType<typeof runMacroRecipeAgainstSession>
+    type GenerationRunResult = Awaited<
+      ReturnType<typeof runGenerationRecipeOnSnapshot>
     >;
-    let resolveGeneration: ((value: SessionRunResult) => void) | undefined;
+    let resolveGeneration: ((value: GenerationRunResult) => void) | undefined;
 
-    runMock.mockImplementationOnce(
+    vi.mocked(runGenerationRecipeOnSnapshot).mockImplementationOnce(
       () =>
-        new Promise<SessionRunResult>((resolve) => {
+        new Promise<GenerationRunResult>((resolve) => {
           resolveGeneration = resolve;
         }),
     );
