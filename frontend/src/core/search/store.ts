@@ -11,11 +11,32 @@ export interface SearchActions {
   setIsSearching: (isSearching: boolean) => void;
   setHits: (hits: SearchHit[]) => void;
   setActiveHit: (id: string | null) => void;
+  setActiveHitByIndex: (index: number) => SearchHit | null;
   setError: (error: string | null) => void;
   setIndexProgress: (progress: SearchIndexProgress) => void;
   clearSearch: () => void;
-  nextHit: () => void;
-  prevHit: () => void;
+  nextHit: () => SearchHit | null;
+  prevHit: () => SearchHit | null;
+  setOverlayVisible: (visible: boolean) => void;
+  toggleOverlayVisible: () => void;
+}
+
+export function selectActiveHitProgress(state: SearchState): { index: number; count: number } {
+  if (state.hits.length === 0) {
+    return { index: 0, count: 0 };
+  }
+  const currentIndex = state.activeHitId
+    ? state.hits.findIndex((h) => h.id === state.activeHitId)
+    : -1;
+  return {
+    index: currentIndex >= 0 ? currentIndex + 1 : 0,
+    count: state.hits.length,
+  };
+}
+
+export function selectActiveHit(state: SearchState): SearchHit | null {
+  if (!state.activeHitId || state.hits.length === 0) return null;
+  return state.hits.find((h) => h.id === state.activeHitId) ?? null;
 }
 
 export const useSearchStore = create<SearchState & SearchActions>((set) => ({
@@ -24,6 +45,7 @@ export const useSearchStore = create<SearchState & SearchActions>((set) => ({
   hits: [],
   activeHitId: null,
   error: null,
+  isOverlayVisible: true,
   indexProgress: {
     ...EMPTY_SEARCH_INDEX_PROGRESS,
   },
@@ -31,7 +53,7 @@ export const useSearchStore = create<SearchState & SearchActions>((set) => ({
   setQuery: (query) =>
     set((state) => {
       if (state.query === query) return state;
-      return { query, hits: [], activeHitId: null, error: null };
+      return { query, hits: [], activeHitId: null, error: null, isOverlayVisible: true };
     }),
 
   setIsSearching: (isSearching) => set({ isSearching }),
@@ -49,9 +71,25 @@ export const useSearchStore = create<SearchState & SearchActions>((set) => ({
     }),
 
   setActiveHit: (id) => set({ activeHitId: id }),
+
+  setActiveHitByIndex: (index) => {
+    let targetHit: SearchHit | null = null;
+    set((state) => {
+      if (state.hits.length === 0) return state;
+      const zeroBasedIndex = Math.max(0, Math.min(index - 1, state.hits.length - 1));
+      targetHit = state.hits[zeroBasedIndex] ?? null;
+      return { activeHitId: targetHit ? targetHit.id : null };
+    });
+    return targetHit;
+  },
+
   setError: (error) => set({ error }),
   setIndexProgress: (indexProgress) =>
     set({ indexProgress: { ...indexProgress } }),
+
+  setOverlayVisible: (isOverlayVisible) => set({ isOverlayVisible }),
+  toggleOverlayVisible: () =>
+    set((state) => ({ isOverlayVisible: !state.isOverlayVisible })),
 
   clearSearch: () => set({
     query: '',
@@ -59,21 +97,30 @@ export const useSearchStore = create<SearchState & SearchActions>((set) => ({
     activeHitId: null,
     isSearching: false,
     error: null,
+    isOverlayVisible: true,
   }),
 
-  nextHit: () =>
+  nextHit: () => {
+    let nextHitItem: SearchHit | null = null;
     set((state) => {
       if (state.hits.length === 0) return state;
       const currentIndex = state.hits.findIndex((h) => h.id === state.activeHitId);
       const nextIndex = currentIndex === -1 || currentIndex === state.hits.length - 1 ? 0 : currentIndex + 1;
-      return { activeHitId: state.hits[nextIndex].id };
-    }),
+      nextHitItem = state.hits[nextIndex] ?? null;
+      return { activeHitId: nextHitItem ? nextHitItem.id : null };
+    });
+    return nextHitItem;
+  },
 
-  prevHit: () =>
+  prevHit: () => {
+    let prevHitItem: SearchHit | null = null;
     set((state) => {
       if (state.hits.length === 0) return state;
       const currentIndex = state.hits.findIndex((h) => h.id === state.activeHitId);
       const prevIndex = currentIndex === -1 || currentIndex === 0 ? state.hits.length - 1 : currentIndex - 1;
-      return { activeHitId: state.hits[prevIndex].id };
-    }),
+      prevHitItem = state.hits[prevIndex] ?? null;
+      return { activeHitId: prevHitItem ? prevHitItem.id : null };
+    });
+    return prevHitItem;
+  },
 }));

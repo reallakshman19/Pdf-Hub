@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useSearchStore } from './store';
+import {
+  selectActiveHit,
+  selectActiveHitProgress,
+  useSearchStore,
+} from './store';
 import {
   EMPTY_SEARCH_INDEX_PROGRESS,
   type SearchHit,
@@ -147,5 +151,88 @@ describe('search store', () => {
     expect(state.activeHitId).toBeNull();
     expect(state.error).toBeNull();
     expect(state.isSearching).toBe(false);
+    expect(state.isOverlayVisible).toBe(true);
+  });
+
+  it('manages overlay visibility state', () => {
+    expect(useSearchStore.getState().isOverlayVisible).toBe(true);
+
+    useSearchStore.getState().setOverlayVisible(false);
+    expect(useSearchStore.getState().isOverlayVisible).toBe(false);
+
+    useSearchStore.getState().toggleOverlayVisible();
+    expect(useSearchStore.getState().isOverlayVisible).toBe(true);
+
+    useSearchStore.getState().toggleOverlayVisible();
+    expect(useSearchStore.getState().isOverlayVisible).toBe(false);
+  });
+
+  it('selectActiveHitProgress computes 1-based index and total count', () => {
+    useSearchStore.setState({
+      hits: [],
+      activeHitId: null,
+    });
+    expect(selectActiveHitProgress(useSearchStore.getState())).toEqual({ index: 0, count: 0 });
+
+    useSearchStore.setState({
+      hits: [makeHit('a', 1), makeHit('b', 1), makeHit('c', 2)],
+      activeHitId: 'b',
+    });
+    expect(selectActiveHitProgress(useSearchStore.getState())).toEqual({ index: 2, count: 3 });
+
+    useSearchStore.setState({
+      hits: [makeHit('a', 1), makeHit('b', 1)],
+      activeHitId: 'non-existent',
+    });
+    expect(selectActiveHitProgress(useSearchStore.getState())).toEqual({ index: 0, count: 2 });
+  });
+
+  it('selectActiveHit finds active SearchHit entity', () => {
+    const hitA = makeHit('a', 1);
+    const hitB = makeHit('b', 2);
+    useSearchStore.setState({
+      hits: [hitA, hitB],
+      activeHitId: 'b',
+    });
+    expect(selectActiveHit(useSearchStore.getState())).toEqual(hitB);
+
+    useSearchStore.setState({ activeHitId: null });
+    expect(selectActiveHit(useSearchStore.getState())).toBeNull();
+  });
+
+  it('setActiveHitByIndex selects hit by 1-based index', () => {
+    const hitA = makeHit('a', 1);
+    const hitB = makeHit('b', 2);
+    const hitC = makeHit('c', 3);
+    useSearchStore.setState({
+      hits: [hitA, hitB, hitC],
+      activeHitId: 'a',
+    });
+
+    const selected = useSearchStore.getState().setActiveHitByIndex(2);
+    expect(selected?.id).toBe('b');
+    expect(useSearchStore.getState().activeHitId).toBe('b');
+
+    // Clamps to bounds
+    useSearchStore.getState().setActiveHitByIndex(999);
+    expect(useSearchStore.getState().activeHitId).toBe('c');
+
+    useSearchStore.getState().setActiveHitByIndex(0);
+    expect(useSearchStore.getState().activeHitId).toBe('a');
+  });
+
+  it('nextHit and prevHit return the target hit', () => {
+    const hitA = makeHit('a', 1);
+    const hitB = makeHit('b', 2);
+    useSearchStore.setState({
+      hits: [hitA, hitB],
+      activeHitId: 'a',
+    });
+
+    const next = useSearchStore.getState().nextHit();
+    expect(next?.id).toBe('b');
+
+    const prev = useSearchStore.getState().prevHit();
+    expect(prev?.id).toBe('a');
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   constrainAngleTo45,
+  constrainAngleToIsometric,
   extractSnapPointsFromAnnotation,
   collectPageSnapPoints,
   findSnapTarget,
@@ -183,6 +184,34 @@ describe('cadSnapping engine', () => {
       const target = { x: 0, y: 0 };
       const constrained = constrainAngleTo45(origin, target);
       expect(constrained).toEqual({ x: 0, y: 0 });
+    });
+  });
+
+  describe('constrainAngleToIsometric', () => {
+    const origin = { x: 0, y: 0 };
+
+    it('locks ~35° vectors to standard 30° isometric axis', () => {
+      const target = { x: 86.6, y: 55 }; // ~32.4 degrees
+      const constrained = constrainAngleToIsometric(origin, target);
+      const dist = Math.hypot(86.6, 55);
+      expect(constrained.x).toBeCloseTo(dist * Math.cos(Math.PI / 6), 1);
+      expect(constrained.y).toBeCloseTo(dist * Math.sin(Math.PI / 6), 1);
+    });
+
+    it('locks ~85° vectors to vertical 90° elevation axis', () => {
+      const target = { x: 10, y: 100 }; // ~84.3 degrees
+      const constrained = constrainAngleToIsometric(origin, target);
+      const dist = Math.hypot(10, 100);
+      expect(constrained.x).toBeCloseTo(0, 1);
+      expect(constrained.y).toBeCloseTo(dist, 1);
+    });
+
+    it('locks ~145° vectors to 150° isometric axis', () => {
+      const target = { x: -85, y: 50 }; // ~149.5 degrees
+      const constrained = constrainAngleToIsometric(origin, target);
+      const dist = Math.hypot(-85, 50);
+      expect(constrained.x).toBeCloseTo(dist * Math.cos((5 * Math.PI) / 6), 1);
+      expect(constrained.y).toBeCloseTo(dist * Math.sin((5 * Math.PI) / 6), 1);
     });
   });
 });

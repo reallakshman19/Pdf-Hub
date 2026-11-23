@@ -11,7 +11,16 @@ import { useAnnotationStore } from '@/core/annotations/store';
 import { initializeMarkupDraft, remapAnnotationGeometry } from '@/core/annotations/geometryTransform';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
 
-import { isAnnotationType, TEXT_SELECTION_TYPES } from '@/core/annotations/annotationTypes';
+import { isAnnotationType } from '@/core/annotations/annotationTypes';
+import type { ActiveTool } from '@/core/editor/types';
+import {
+  isTextMarkTool as matrixIsTextMark,
+  isDualModalityNoteTool as matrixIsDualModalityNote,
+  isCanvasPlacementTool as matrixIsCanvasPlacement,
+  isFreehandInkTool as matrixIsInk,
+  calculateGroupResize,
+} from '@/core/tools/toolInteractionMatrix';
+import { TextSelectionActionBubble } from './TextSelectionActionBubble';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { usePdfStore } from '@/core/session/pdfStore';
@@ -52,6 +61,8 @@ import { OcrCanvasTextLayer } from '@/components/ocr/canvas/OcrCanvasTextLayer';
 import { InlineOcrCorrectionPopover } from '@/components/ocr/canvas/InlineOcrCorrectionPopover';
 import type { OcrWord } from '@/core/ocr/types';
 import EquationOverlay from '@/components/viewer/EquationOverlay';
+import { SearchHighlightOverlay } from '@/components/viewer/SearchHighlightOverlay';
+import { SearchFloatingHud } from '@/components/viewer/SearchFloatingHud';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { error as logError } from '@/core/logger/service';
 import { SnapIndicatorOverlay } from '../annotations/SnapIndicatorOverlay';
@@ -180,6 +191,12 @@ export const DocumentWorkspace: React.FC = () => {
   const { hideResolved } = useReviewStore(useShallow((state) => ({
     hideResolved: state.hideResolved,
   })));
+  const { searchHits, activeHitId } = useSearchStore(
+    useShallow((state) => ({
+      searchHits: state.hits,
+      activeHitId: state.activeHitId,
+    })),
+  );
 
   const sortedVisibleAnnotations = React.useMemo(
     () =>
@@ -841,6 +858,10 @@ export const DocumentWorkspace: React.FC = () => {
     if (viewState.viewMode === 'continuous' && vlistRef.current) {
       vlistRef.current.scrollToIndex(viewState.currentPage - 1, { align: 'start' });
     } else {
+      const scrollWrapper = containerRef.current.querySelector('[data-vlist-wrapper]') as HTMLElement | null;
+      if (scrollWrapper && viewState.viewMode === 'single') {
+        scrollWrapper.scrollTop = 0;
+      }
       const pageEl = containerRef.current.querySelector(`[data-page="${viewState.currentPage}"]`);
       if (pageEl && typeof pageEl.scrollIntoView === 'function') {
         pageEl.scrollIntoView({ behavior: docChanged ? 'auto' : 'smooth', block: 'start' });
@@ -858,6 +879,19 @@ export const DocumentWorkspace: React.FC = () => {
     ocrReviewFocus,
     setPage,
   ]);
+
+  React.useEffect(() => {
+    if (!activeHitId || !pdfDoc) return;
+    const activeHit = searchHits.find((h) => h.id === activeHitId);
+    if (!activeHit) return;
+
+    if (activeHit.pageNumber !== viewState.currentPage) {
+      setPage(activeHit.pageNumber);
+      if (viewState.viewMode === 'continuous' && vlistRef.current) {
+        vlistRef.current.scrollToIndex(activeHit.pageNumber - 1, { align: 'start' });
+      }
+    }
+  }, [activeHitId, searchHits, pdfDoc, viewState.currentPage, viewState.viewMode, setPage]);
 
   const selectExistingText =
     React.useCallback(
@@ -1222,7 +1256,7 @@ export const DocumentWorkspace: React.FC = () => {
         className="flex-1"
         style={{
           overflowX: 'auto',
-          overflowY: 'hidden',
+          overflowY: viewState.viewMode === 'continuous' ? 'hidden' : 'auto',
           minWidth: 0,
         }}
       >
@@ -1254,6 +1288,8 @@ export const DocumentWorkspace: React.FC = () => {
           />
         </div>
       )}
+
+      {pdfDoc && <SearchFloatingHud />}
 
       {showScaleDialog && pdfDoc && (
         <ScaleCalibrationDialog
@@ -1374,10 +1410,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const pageRef = React.useRef<HTMLDivElement | null>(null);
   const ocrFocusRef = React.useRef<HTMLDivElement | null>(null);
-  const { hits, activeHitId } = useSearchStore(useShallow((state) => ({
-    hits: state.hits,
-    activeHitId: state.activeHitId,
-  })));
+  const activeHitId = useSearchStore((state) => state.activeHitId);
   const ocrReviewFocus = useOcrReviewStore((state) => state.reviewFocus);
   const ocrDocumentResult = useOcrReviewStore((state) => state.correctedResult);
   const pageOcrResult = ocrDocumentResult?.pages?.find(
@@ -1394,28 +1427,19 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       : null;
   const activeMode = useEditorStore((state) => state.activeMode);
   const annotationMode = activeMode === 'annotate' || activeMode === 'draw';
-  const isSelectTool = activeTool === 'select' || !annotationMode;
-  const isTextMarkTool = annotationMode && isAnnotationType(activeTool) && TEXT_SELECTION_TYPES.includes(activeTool);
-  const isNoteTool = annotationMode && activeTool === 'comment';
-  const isPlacementOnlyTool = annotationMode && (
-    activeTool === 'textbox' ||
-    activeTool === 'shape-rect' ||
-    activeTool === 'shape-ellipse' ||
-    activeTool === 'shape-polygon' ||
-    activeTool === 'shape-cloud' ||
-    activeTool === 'redaction' ||
-    activeTool === 'squiggly' ||
-    // 'ink' is intentionally excluded — it is handled by the text-layer's startMarquee
-    activeTool === 'sticky-note' ||
-    activeTool === 'line' ||
-    activeTool === 'arrow' ||
-    activeTool === 'stamp' ||
-    activeTool === 'callout' ||
-    activeTool === 'comment');
-  const isInkTool = annotationMode && activeTool === 'ink';
+  const isSelectTool = activeTool === 'select' || (!annotationMode && activeTool !== 'hand');
+  const matrixTool = activeTool as ActiveTool;
+  const isHand = activeTool === 'hand';
+  const isTextMarkTool = annotationMode && matrixIsTextMark(matrixTool);
+  const isNoteTool = annotationMode && matrixIsDualModalityNote(matrixTool);
+  const isPlacementOnlyTool = annotationMode && (matrixIsCanvasPlacement(matrixTool) || activeTool === 'squiggly');
+  const isInkTool = annotationMode && matrixIsInk(matrixTool);
 
   const [size, setSize] = React.useState({ width: 800, height: 1000 });
-  const pageIdentity = React.useMemo(() => ({ doc, pageNumber }), [doc, pageNumber]);
+  const pageIdentity = React.useMemo(
+    () => ({ doc, pageNumber, documentKey: resolvedDocumentKey }),
+    [doc, pageNumber, resolvedDocumentKey],
+  );
   const [viewportBasis, setViewportBasis] = React.useState<{
     identity: typeof pageIdentity; rotation: number | null;
   } | null>(null);
@@ -1593,13 +1617,24 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   };
 
   React.useEffect(() => {
-    if (activeHitId) {
+    if (!activeHitId) return;
+
+    const tryScroll = () => {
       const activeHitElement = document.getElementById(`search-hit-${activeHitId}`);
       if (activeHitElement) {
-        activeHitElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        activeHitElement.scrollIntoView?.({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        return true;
       }
+      return false;
+    };
+
+    if (!tryScroll()) {
+      const raf = requestAnimationFrame(() => {
+        tryScroll();
+      });
+      return () => cancelAnimationFrame(raf);
     }
-  }, [activeHitId]);
+  }, [activeHitId, pageNumber]);
 
   React.useEffect(() => {
     if (!pageOcrFocus || !ocrFocusRef.current) return;
@@ -1823,6 +1858,21 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         updateDraftRects((state) => ({ ...state, ...nextRects }));
         updateDraftAnchors((state) => ({ ...state, ...nextAnchors }));
         updateDraftKnees((state) => ({ ...state, ...nextKnees }));
+      } else if (current.ids.length > 1) {
+        const items = current.ids.map((id) => {
+          const item = pageAnnotations.find((a) => a.id === id);
+          return {
+            id,
+            rect: current.startRects[id] ?? { x: 0, y: 0, width: 0, height: 0 },
+            type: item?.type ?? 'textbox',
+          };
+        });
+        const groupUnion = unionRects(items.map((i) => i.rect));
+        const resizedGroup = calculateGroupResize(groupUnion, items, dx, dy);
+        updateDraftRects((state) => ({
+          ...state,
+          ...resizedGroup,
+        }));
       } else {
         const baseRect = current.startRects[current.targetId];
         const target = pageAnnotations.find((item) => item.id === current.targetId);
@@ -1882,6 +1932,21 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
                   ...(startAnchor ? { anchor: liveAnchor } : {}),
                   ...(startAnchor ? { knee: liveKnee } : {}),
                 },
+              } as Partial<PdfAnnotation>,
+            };
+          }),
+        );
+      } else if (moved && current.ids.length > 1) {
+        const liveRects = draftRectsRef.current;
+        onCommitManyAnnotations(
+          current.ids.map((id) => {
+            const item = pageAnnotations.find((value) => value.id === id);
+            const nextRect = liveRects[id] ?? current.startRects[id];
+            return {
+              id,
+              data: {
+                rect: nextRect,
+                data: item ? remapAnnotationGeometry(item, nextRect) : {},
               } as Partial<PdfAnnotation>,
             };
           }),
@@ -2120,7 +2185,16 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       } else if (activeTool === 'squiggly') {
         const items = draft.rects.map((rect) => buildSquigglyAnnotation(pageNumber, rect));
         onCreateManyAnnotations(items);
-      } else if (activeTool === 'comment') {
+      } else if (activeTool === 'comment' || activeTool === 'sticky-note') {
+        const item = buildStickyNoteFromSelection(
+          pageNumber,
+          draft.unionRect,
+          draft.text,
+          pageWidth,
+          pageHeight,
+        );
+        onCreateAnnotation(item);
+      } else if (activeTool === 'callout') {
         const item = buildCalloutFromSelection(
           pageNumber,
           draft.unionRect,
@@ -2128,12 +2202,6 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
           pageWidth,
           pageHeight,
         );
-        if (activeTool === 'comment') {
-          item.type = 'comment';
-          item.data.backgroundColor = '#fff7cc';
-          item.data.borderColor = '#d4b106';
-          item.data.title = 'Note';
-        }
         onCreateAnnotation(item);
       }
 
@@ -2180,22 +2248,27 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     clearTextSelectionDraft();
   };
 
-  const createNoteFromSelection = (type: 'comment' | 'callout' = 'comment') => {
+  const createNoteFromSelection = (type: 'sticky-note' | 'comment' | 'callout' = 'sticky-note') => {
     if (!textSelectionDraft || !isCurrentPage()) return;
-    const item = buildCalloutFromSelection(
-      pageNumber,
-      textSelectionDraft.unionRect,
-      textSelectionDraft.text,
-      pageWidth,
-      pageHeight,
-    );
-    if (type === 'comment') {
-      item.type = 'comment';
-      item.data.backgroundColor = '#fff7cc';
-      item.data.borderColor = '#d4b106';
-      item.data.title = 'Note';
+    if (type === 'callout') {
+      const item = buildCalloutFromSelection(
+        pageNumber,
+        textSelectionDraft.unionRect,
+        textSelectionDraft.text,
+        pageWidth,
+        pageHeight,
+      );
+      onCreateAnnotation(item);
+    } else {
+      const item = buildStickyNoteFromSelection(
+        pageNumber,
+        textSelectionDraft.unionRect,
+        textSelectionDraft.text,
+        pageWidth,
+        pageHeight,
+      );
+      onCreateAnnotation(item);
     }
-    onCreateAnnotation(item);
     clearTextSelectionDraft();
   };
 
@@ -2319,7 +2392,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
    */
   const startShapeDraw = (event: React.MouseEvent<HTMLDivElement>) => {
     // Only the creation hit surface may start a placement gesture.
-    if (event.button !== 0 || !isPlacementOnlyTool) return;
+    if (event.button !== 0 || (!isPlacementOnlyTool && !isNoteTool)) return;
     const isTextTarget = event.target instanceof Element && !!event.target.closest('[data-text-item]');
     if (event.target !== event.currentTarget && !((isNoteTool || activeTool === 'squiggly') && isTextTarget)) return;
     cancelGestureRef.current?.();
@@ -2393,8 +2466,8 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       return;
     }
 
-    // A comment can either be placed with a click or attached to selected text.
-    if (tool === 'comment') {
+    // A note can either be placed with a click or attached to selected text.
+    if (tool === 'comment' || tool === 'sticky-note') {
       listenForGesture(() => {}, (upEvent) => {
         if (window.getSelection()?.toString().trim()) {
           handleTextSelectionMouseUp(upEvent);
@@ -2404,14 +2477,18 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         const endY = (upEvent.clientY - hostRect.top) / scale;
         if (Math.hypot(upEvent.clientX - event.clientX, upEvent.clientY - event.clientY) >= 3 ||
             endX < 0 || endY < 0 || endX > pageWidth || endY > pageHeight) return;
-        onCreateAnnotation(buildAnnotation('comment', pageNumber, startX, startY));
+        onCreateAnnotation(buildAnnotation(tool, pageNumber, startX, startY));
         resetInteractionState();
       }, () => {});
       return;
     }
 
-    // Callout is placed directly via a single click event.
+    // Callout is placed directly via a single click event or attached to selected text.
     if (tool === 'callout') {
+      if (window.getSelection()?.toString().trim()) {
+        handleTextSelectionMouseUp(event);
+        return;
+      }
       const annotation = buildAnnotation('callout', pageNumber, startX, startY);
       onCreateAnnotation(annotation);
       resetInteractionState();
@@ -2548,8 +2625,8 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         data-testid="annotation-interaction-layer"
         className="absolute inset-0"
         style={{
-          pointerEvents: isSelectTool || isTextMarkTool || isNoteTool || isInkTool ? 'auto' : 'none',
-          userSelect: isSelectTool || isTextMarkTool || isNoteTool ? 'text' : 'none',
+          pointerEvents: !isHand && (isSelectTool || isTextMarkTool || isNoteTool || isInkTool) ? 'auto' : 'none',
+          userSelect: !isHand && (isSelectTool || isTextMarkTool || isNoteTool) ? 'text' : 'none',
         }}
         onMouseDown={startMarquee}
         onMouseUp={handleTextSelectionMouseUp}
@@ -2569,28 +2646,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             ))}
           </svg>
         )}
-        {hits
-          .filter((hit) => hit.pageNumber === pageNumber)
-          .map((hit) =>
-            hit.rects.map((rect, index) => {
-              const isActive = hit.id === activeHitId;
-              return (
-                <div
-                  id={isActive && index === 0 ? `search-hit-${hit.id}` : undefined}
-                  key={`hit-${hit.id}-${index}`}
-                  className={`absolute pointer-events-none ${
-                    isActive ? 'bg-orange-300/35 border border-orange-500/60' : 'bg-yellow-200/30 border border-yellow-400/35'
-                  }`}
-                  style={{
-                    left: rect.x * scale,
-                    top: rect.y * scale,
-                    width: rect.width * scale,
-                    height: rect.height * scale,
-                  }}
-                />
-              );
-            }),
-          )}
+        <SearchHighlightOverlay pageNumber={pageNumber} scale={scale} />
 
         {textItems.map((item) => (
           <span
@@ -2746,56 +2802,20 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
           ))}
 
           {isSelectTool && (
-            <div
-              className="absolute z-30 flex items-center gap-2 rounded-lg bg-slate-900 text-white px-2 py-1 shadow-lg"
-              style={{
-                left: Math.max(6, textSelectionDraft.unionRect.x * scale),
-                top: Math.max(6, textSelectionDraft.unionRect.y * scale - 34),
-              }}
-            >
-              <button
-                className="text-xs hover:text-yellow-300"
-                onClick={createHighlightsFromSelection}
-              >
-                Highlight
-              </button>
-              <button
-                className="text-xs hover:text-red-300"
-                onClick={createUnderlineFromSelection}
-              >
-                Underline
-              </button>
-              <button
-                className="text-xs hover:text-red-300"
-                onClick={createStrikeoutFromSelection}
-              >
-                Strikeout
-              </button>
-              <button
-                className="text-xs hover:text-red-300"
-                onClick={createSquigglyFromSelection}
-              >
-                Squiggly
-              </button>
-              <button
-                className="text-xs hover:text-blue-300"
-                onClick={() => createNoteFromSelection('comment')}
-              >
-                Note
-              </button>
-              <button
-                className="text-xs hover:text-blue-300"
-                onClick={() => createNoteFromSelection('callout')}
-              >
-                Callout
-              </button>
-              <button
-                className="text-xs opacity-70 hover:opacity-100"
-                onClick={clearTextSelectionDraft}
-              >
-                x
-              </button>
-            </div>
+            <TextSelectionActionBubble
+              pageWidth={pageWidth}
+              pageHeight={pageHeight}
+              scale={scale}
+              unionRect={textSelectionDraft.unionRect}
+              selectedText={textSelectionDraft.text}
+              onHighlight={createHighlightsFromSelection}
+              onUnderline={createUnderlineFromSelection}
+              onStrikeout={createStrikeoutFromSelection}
+              onSquiggly={createSquigglyFromSelection}
+              onStickyNote={() => createNoteFromSelection('sticky-note')}
+              onCallout={() => createNoteFromSelection('callout')}
+              onDismiss={clearTextSelectionDraft}
+            />
           )}
         </>
       )}
@@ -2805,7 +2825,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         className={`absolute inset-0 ${
           activeTool !== 'select' ? 'cursor-crosshair' : ''
         }`}
-        style={{ pointerEvents: isPlacementOnlyTool ? 'auto' : 'none', zIndex: isPlacementOnlyTool || isInkTool ? 13 : 0 }}
+        style={{ pointerEvents: !isHand && isPlacementOnlyTool ? 'auto' : 'none', zIndex: isPlacementOnlyTool || isInkTool ? 13 : 0 }}
       >
         {/* Rubber-band preview while dragging to draw */}
         {shapeDraft && (
@@ -2976,11 +2996,11 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             }}
           />
         )}
-        {(isPlacementOnlyTool || isInkTool) && (
+        {(isPlacementOnlyTool || isInkTool || isNoteTool) && (
           <div
             data-testid="annotation-creation-hit-target"
             className="absolute inset-0"
-            style={{ pointerEvents: 'auto', zIndex: 100 }}
+            style={{ pointerEvents: isHand ? 'none' : 'auto', zIndex: 100 }}
             onMouseDown={isInkTool ? startMarquee : startShapeDraw}
           >
             {(isNoteTool || activeTool === 'squiggly') && textItems.map((item) => (
@@ -3365,6 +3385,34 @@ function buildCalloutFromSelection(
       knee,
       leaderStyle: 'elbow',
       arrowHead: 'open',
+    },
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function buildStickyNoteFromSelection(
+  pageNumber: number,
+  sourceRect: Rect,
+  text: string,
+  pageWidth: number,
+  pageHeight: number,
+): PdfAnnotation {
+  const now = Date.now();
+  const noteX = clamp(sourceRect.x + sourceRect.width + 12, 0, Math.max(0, pageWidth - 28));
+  const noteY = clamp(sourceRect.y, 0, Math.max(0, pageHeight - 28));
+  return {
+    id: uuidv4(),
+    type: 'sticky-note',
+    pageNumber,
+    rect: { x: noteX, y: noteY, width: 28, height: 28 },
+    data: {
+      text: `Note on: "${text.length > 60 ? text.slice(0, 57) + '...' : text}"`,
+      author: 'Current User',
+      backgroundColor: '#fde047',
+      borderColor: '#facc15',
+      isCollapsed: false,
+      attachedSelectionRect: sourceRect,
     },
     createdAt: now,
     updatedAt: now,

@@ -6,6 +6,7 @@ export interface SnapIndicatorOverlayProps {
   snapResult: SnapResult | null;
   originPoint?: Point2D | null;
   isAngleConstrained?: boolean;
+  constraintAngleLabel?: string;
   scale: number;
 }
 
@@ -13,6 +14,7 @@ export const SnapIndicatorOverlay: React.FC<SnapIndicatorOverlayProps> = ({
   snapResult,
   originPoint,
   isAngleConstrained = false,
+  constraintAngleLabel,
   scale,
 }) => {
   if (!snapResult || (!snapResult.snapped && !isAngleConstrained)) {
@@ -24,7 +26,7 @@ export const SnapIndicatorOverlay: React.FC<SnapIndicatorOverlayProps> = ({
   const kind = snapResult.kind ?? 'vertex';
 
   const label = isAngleConstrained
-    ? '45° Ortho'
+    ? (constraintAngleLabel ?? '45° Ortho')
     : kind === 'endpoint'
       ? 'Endpoint'
       : kind === 'midpoint'

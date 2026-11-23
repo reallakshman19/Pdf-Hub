@@ -108,15 +108,30 @@ export const TopNav: React.FC = () => {
 
   const {
     query,
+    hits,
+    activeHitId,
     setQuery,
     clearSearch,
     nextHit,
+    prevHit,
   } = useSearchStore(useShallow((state) => ({
     query: state.query,
+    hits: state.hits,
+    activeHitId: state.activeHitId,
     setQuery: state.setQuery,
     clearSearch: state.clearSearch,
     nextHit: state.nextHit,
+    prevHit: state.prevHit,
   })));
+
+  const { matchIndex, matchCount } = React.useMemo(() => {
+    if (hits.length === 0) return { matchIndex: 0, matchCount: 0 };
+    const idx = activeHitId ? hits.findIndex((h) => h.id === activeHitId) : -1;
+    return {
+      matchIndex: idx >= 0 ? idx + 1 : 0,
+      matchCount: hits.length,
+    };
+  }, [hits, activeHitId]);
 
   const [localQuery, setLocalQuery] = useState(query);
   const [previousQuery, setPreviousQuery] = useState(query);
@@ -167,7 +182,14 @@ export const TopNav: React.FC = () => {
     setSidebarTab('search');
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     if (!localQuery.trim()) return;
-    if (localQuery === query) { nextHit(); return; }
+    if (localQuery === query) {
+      if (event.shiftKey) {
+        prevHit();
+      } else {
+        nextHit();
+      }
+      return;
+    }
     setQuery(localQuery);
   };
 
@@ -329,15 +351,26 @@ export const TopNav: React.FC = () => {
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               placeholder="Search or run command…"
-              className="h-[28px] w-full pl-8 pr-8 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              className={`h-[28px] w-full pl-8 ${matchCount > 0 ? 'pr-16' : 'pr-8'} text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
             />
             {localQuery ? (
-              <button
-                onClick={handleClear}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {matchCount > 0 && (
+                  <span
+                    data-testid="topnav-search-match-badge"
+                    className="font-mono text-[10px] text-slate-500 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-700/80 px-1 py-0.5 rounded leading-none tabular-nums"
+                  >
+                    {matchIndex}/{matchCount}
+                  </span>
+                )}
+                <button
+                  onClick={handleClear}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             ) : (
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-0.5 pointer-events-none">
                 <span className="font-mono text-[9px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 py-px rounded border border-slate-300/40">⌘</span>

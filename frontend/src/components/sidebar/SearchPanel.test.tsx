@@ -322,5 +322,31 @@ describe(
         indexPdfDocumentIncrementally,
       ).toHaveBeenCalledTimes(1);
     });
+
+    it('displays active match index telemetry and highlights the active hit card', async () => {
+      render(<SearchPanel />);
+      const input = screen.getByPlaceholderText('Search in document...');
+
+      fireEvent.change(input, {
+        target: {
+          value: 'needle',
+        },
+      });
+      fireEvent.keyDown(input, {
+        key: 'Enter',
+      });
+
+      expect(
+        await screen.findByText('needle cached valve'),
+      ).toBeInTheDocument();
+
+      // Check counter
+      const counter = screen.getByTestId('search-panel-counter');
+      expect(counter).toHaveTextContent(/Result 1 of 1/);
+
+      // Check active hit
+      expect(screen.getByTestId('search-panel-hit-active')).toBeInTheDocument();
+      expect(screen.getByTestId('search-panel-hit-active')).toHaveTextContent('needle cached valve');
+    });
   },
 );
