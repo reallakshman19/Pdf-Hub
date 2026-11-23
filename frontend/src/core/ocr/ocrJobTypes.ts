@@ -16,6 +16,10 @@ export interface OcrJobProgress {
   completedPages: number;
   failedPages: number;
   currentPageIndex?: number;
+  stage?: 'rasterizing' | 'preprocessing' | 'recognizing' | 'table-detection' | 'finalizing';
+  estimatedRemainingMs?: number;
+  batchIndex?: number;
+  totalBatches?: number;
 }
 
 export interface OcrJob {

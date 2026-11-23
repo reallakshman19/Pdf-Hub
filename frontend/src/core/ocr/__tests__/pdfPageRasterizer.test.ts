@@ -4,6 +4,7 @@ import type {
   PdfRasterizerPageLike,
 } from '../pdfPageRasterizer';
 import {
+  calculateAdaptiveOcrScale,
   createMemoryPdfRasterCanvasFactory,
   pdfRectToRasterCropRect,
   rasterizePdfPageForOcr,
@@ -253,6 +254,25 @@ describe('pdfPageRasterizer', () => {
     expect(engineInputs).toHaveLength(2);
     expect(engineInputs[0].pageIndex).toBe(0);
     expect(engineInputs[1].pageIndex).toBe(1);
+  });
+
+  it('calculates adaptive scale for standard pages at 300 DPI', () => {
+    const scale = calculateAdaptiveOcrScale({
+      width: 595,
+      height: 842,
+      targetDpi: 300,
+    });
+    expect(scale).toBeCloseTo(300 / 72, 3);
+  });
+
+  it('calculates adaptive scale boosting small region crops', () => {
+    const scale = calculateAdaptiveOcrScale({
+      width: 100,
+      height: 20,
+      isRegionCrop: true,
+    });
+    // minTextScale = 180 / 20 = 9
+    expect(scale).toBe(9);
   });
 });
 

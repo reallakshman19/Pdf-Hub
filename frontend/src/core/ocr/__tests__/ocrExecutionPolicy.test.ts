@@ -11,6 +11,7 @@ import {
   estimateRasterMemoryBytes,
   estimateRasterPixels,
   formatBytes,
+  isLowMemoryDevice,
   normalizeRequestedPageIndexes,
   runWithOcrTimeout,
 } from '../ocrExecutionPolicy';
@@ -20,7 +21,8 @@ describe('ocrExecutionPolicy', () => {
     const policy = createOcrExecutionPolicy();
 
     expect(policy.preset).toBe('balanced');
-    expect(policy.rasterScale).toBe(2);
+    expect(policy.rasterScale).toBe(2.5);
+    expect(policy.preprocessing).toEqual({ mode: 'contrast' });
     expect(policy.maxPagesPerJob).toBe(25);
     expect(policy.timeoutMs).toBe(90_000);
   });
@@ -35,7 +37,8 @@ describe('ocrExecutionPolicy', () => {
     });
 
     expect(policy.preset).toBe('accurate');
-    expect(policy.rasterScale).toBe(4);
+    expect(policy.rasterScale).toBe(5);
+    expect(policy.preprocessing).toEqual({ mode: 'sauvola' });
     expect(policy.maxPagesPerJob).toBe(1);
     expect(policy.maxCanvasPixels).toBe(1_000_000);
     expect(policy.timeoutMs).toBe(5_000);
@@ -156,6 +159,7 @@ describe('ocrExecutionPolicy', () => {
     expect(policy.rasterScale).toBe(3);
     expect(policy.batchChunkSize).toBe(10);
     expect(policy.allowLargeJobs).toBe(true);
+    expect(policy.preprocessing).toEqual({ mode: 'sauvola' });
 
     const plan = createOcrExecutionPlan({
       requestedPageIndexes: Array.from({ length: 15 }, (_, i) => i),
@@ -164,5 +168,36 @@ describe('ocrExecutionPolicy', () => {
     });
     expect(plan.allowedPageIndexes.length).toBe(15);
     expect(plan.diagnostics.some((d) => d.message.includes('10-page batch mode active'))).toBe(true);
+  });
+
+  it('detects and guards low-memory devices', () => {
+    expect(typeof isLowMemoryDevice()).toBe('boolean');
+
+    // Simulate low-memory device
+    const originalNavigator = globalThis.navigator;
+    try {
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { deviceMemory: 2, userAgent: 'Android' },
+        configurable: true,
+      });
+
+      expect(isLowMemoryDevice()).toBe(true);
+
+      const policy = createOcrExecutionPolicy();
+      expect(policy.preset).toBe('fast');
+      expect(policy.maxCanvasPixels).toBeLessThanOrEqual(8_000_000);
+
+      const plan = createOcrExecutionPlan({
+        requestedPageIndexes: [0],
+        totalPages: 1,
+        policy,
+      });
+      expect(plan.diagnostics.some((d) => d.code === 'OCR_LOW_MEMORY_GUARD')).toBe(true);
+    } finally {
+      Object.defineProperty(globalThis, 'navigator', {
+        value: originalNavigator,
+        configurable: true,
+      });
+    }
   });
 });

@@ -39,7 +39,11 @@ import {
 } from './PdfLibExistingTextFit';
 import {
   resolveExistingTextStandard14BaseFont,
+  resolveBestMatchingStandard14Font,
+  standardFontForBaseFont,
 } from './PdfLibExistingTextFont';
+import { extractPdfFontFromPage } from './PdfLibFontExtractor';
+import type { PdfFontMetadata } from '@/core/pdf-fonts';
 
 type PdfLibDocument =
   import('pdf-lib').PDFDocument;
@@ -110,6 +114,7 @@ export async function analyzeExistingTextVisualClearanceInDocument(
   if (
     input.span.editability
     !== 'native-replacement-candidate'
+    && !input.span.reasons.includes('ROTATED_TEXT')
   ) {
     return unproved(
       'SPAN_NOT_NATIVE_REPLACEMENT_CANDIDATE',
@@ -167,15 +172,6 @@ export async function analyzeExistingTextVisualClearanceInDocument(
         ),
       );
     }
-    if (content.streams.length !== 1) {
-      return unproved(
-        'MULTIPLE_CONTENT_STREAMS',
-        [
-          `Visual-clearance proof requires exactly one decoded page content stream; found ${content.streams.length}.`,
-        ],
-      );
-    }
-
     const currentMatch =
       matchExistingTextSpanToContentStream({
         span: input.span,
@@ -208,14 +204,24 @@ export async function analyzeExistingTextVisualClearanceInDocument(
         input.span.pageIndex,
       );
     let baseFont: string;
+    let fontMetadata: PdfFontMetadata | null = null;
     try {
-      baseFont =
-        resolveExistingTextStandard14BaseFont(
-          page,
-          input.provenance
-            .fontResourceName,
-          lib,
-        );
+      fontMetadata = extractPdfFontFromPage(
+        page,
+        input.provenance.fontResourceName,
+        lib,
+      );
+      if (fontMetadata) {
+        baseFont = fontMetadata.baseFont;
+      } else {
+        baseFont =
+          resolveExistingTextStandard14BaseFont(
+            page,
+            input.provenance
+              .fontResourceName,
+            lib,
+          );
+      }
     } catch (error) {
       if (
         error
@@ -236,6 +242,7 @@ export async function analyzeExistingTextVisualClearanceInDocument(
       await measureExistingTextNativeFit(
         {
           baseFont,
+          fontMetadata,
           sourceText:
             input.intent.expectedText,
           replacementText:
@@ -267,40 +274,70 @@ export async function analyzeExistingTextVisualClearanceInDocument(
           'Recomputed fit diagnostic does not match the active span/intent/provenance identity.',
         ],
         nativeFit,
+        fontMetadata,
       );
     }
 
+    const isSubsetMissingGlyphs =
+      nativeFit.status === 'unmeasurable' &&
+      nativeFit.reason === 'MISSING_SUBSET_GLYPHS';
+
+    const isStyleOverridden = Boolean(input.intent.styleOverride);
+
+    const isRotated = Math.abs(input.span.rotationDegrees ?? 0) > 0.5;
+
+    const isErasure = input.intent.replacementText === '';
+
     if (
-      nativeFit.status
-      !== 'overflows'
+      nativeFit.status !== 'overflows' &&
+      !isSubsetMissingGlyphs &&
+      !isStyleOverridden &&
+      !isRotated &&
+      !isErasure
     ) {
       return unproved(
         'NATIVE_OVERFLOW_FIT_REQUIRED',
         [
-          `Visual fallback evidence is only produced for measurable native overflow; fit status is ${nativeFit.status}.`,
+          `Visual fallback evidence is only produced for measurable native overflow, subset/style fallback, or rotated text; fit status is ${nativeFit.status}.`,
         ],
         nativeFit,
+        fontMetadata,
       );
     }
+
+    const targetSizePt =
+      input.intent.styleOverride?.fontSizePt ?? input.provenance.fontSizePt;
 
     // The reconstructed writer draws the resolved Standard-14 font at its
     // natural metric width. PDF.js observed advance can differ slightly from
     // pdf-lib metrics even though the admitted source subset rejects Tz/Tc/Tw.
     // Prove clearance for the larger width so the actual redraw can never
     // extend beyond the independently cleared envelope.
-    const reconstructedAdvancePt =
-      Math.max(
-        nativeFit
-          .projectedReplacementAdvancePt,
-        nativeFit
-          .measuredReplacementWidthPt,
+    let reconstructedAdvancePt: number;
+    if (isErasure) {
+      reconstructedAdvancePt = input.span.advanceWidthPt;
+    } else if (nativeFit.status === 'overflows' && !isStyleOverridden) {
+      reconstructedAdvancePt = Math.max(
+        nativeFit.projectedReplacementAdvancePt,
+        nativeFit.measuredReplacementWidthPt,
       );
+    } else {
+      const substituteFontName = resolveBestMatchingStandard14Font(fontMetadata, baseFont);
+      const standardFontEnum = standardFontForBaseFont(substituteFontName, lib);
+      const measurementDoc = await lib.PDFDocument.create();
+      const embeddedFont = await measurementDoc.embedFont(standardFontEnum);
+      const measuredWidth = embeddedFont.widthOfTextAtSize(
+        input.intent.replacementText,
+        targetSizePt,
+      );
+      reconstructedAdvancePt = Math.max(input.span.advanceWidthPt, measuredWidth);
+    }
+
     const geometry =
       buildClearanceGeometry(
         input.span,
         reconstructedAdvancePt,
-        input.provenance
-          .fontSizePt,
+        targetSizePt,
       );
     if (!geometry) {
       return unproved(
@@ -309,6 +346,18 @@ export async function analyzeExistingTextVisualClearanceInDocument(
           'Unable to derive finite positive source/replacement clearance geometry.',
         ],
         nativeFit,
+        fontMetadata,
+      );
+    }
+
+    if (content.streams.length !== 1) {
+      return unproved(
+        'MULTIPLE_CONTENT_STREAMS',
+        [
+          `Visual-clearance proof requires exactly one decoded page content stream; found ${content.streams.length}.`,
+        ],
+        nativeFit,
+        fontMetadata,
       );
     }
 
@@ -386,6 +435,7 @@ export async function analyzeExistingTextVisualClearanceInDocument(
           geometry.clearanceRectPt,
         foreignPaintIntersections: 0,
       },
+      fontMetadata,
     };
   } catch (error) {
     if (
@@ -528,6 +578,8 @@ function unproved(
   diagnostics: string[],
   nativeFit?:
     ExistingTextNativeFitDiagnostic,
+  fontMetadata?:
+    PdfFontMetadata | null,
 ): ExistingTextVisualClearanceAnalysisResult {
   return {
     status: 'unproved',
@@ -536,5 +588,6 @@ function unproved(
     ...(nativeFit
       ? { nativeFit }
       : {}),
+    ...(fontMetadata !== undefined ? { fontMetadata } : {}),
   };
 }

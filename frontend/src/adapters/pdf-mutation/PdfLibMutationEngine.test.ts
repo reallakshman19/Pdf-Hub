@@ -455,6 +455,34 @@ describe('PdfLibMutationEngine', () => {
     session.dispose();
   });
 
+  it('inserts selective donor pages when donorPageIndices is specified', async () => {
+    const activeDoc = await PDFDocument.create();
+    activeDoc.addPage([100, 200]);
+    activeDoc.addPage([110, 210]);
+    const activeBytes = new Uint8Array(await activeDoc.save());
+
+    const donorDoc = await PDFDocument.create();
+    donorDoc.addPage([200, 300]);
+    donorDoc.addPage([210, 310]);
+    donorDoc.addPage([220, 320]);
+    const donorBytes = new Uint8Array(await donorDoc.save());
+
+    const engine = new PdfLibMutationEngine();
+    const session = await engine.open({ bytes: activeBytes });
+
+    await session.insertPdf(1, donorBytes, [0, 2]);
+
+    expect(session.pageCount).toBe(4);
+    expect(session.getPageMetrics(0)).toMatchObject({ width: 100, height: 200 });
+    expect(session.getPageMetrics(1)).toMatchObject({ width: 200, height: 300 });
+    expect(session.getPageMetrics(2)).toMatchObject({ width: 220, height: 320 });
+    expect(session.getPageMetrics(3)).toMatchObject({ width: 110, height: 210 });
+
+    const committed = await session.commit();
+    expect(committed.pageCount).toBe(4);
+    session.dispose();
+  });
+
   it('validates donor replacement page indices inside the session', async () => {
     const donor = await PDFDocument.create();
     donor.addPage([200, 300]);

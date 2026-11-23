@@ -17,6 +17,7 @@ export interface FloatingFormatToolbarProps {
   fontStyle?: string;
   textColor?: string;
   backgroundColor?: string;
+  opacity?: number;
   textAlign?: 'left' | 'center' | 'right';
   rotation?: number;
   isUnrotated?: boolean;
@@ -62,6 +63,7 @@ export const FloatingFormatToolbar: React.FC<FloatingFormatToolbarProps> = ({
   fontStyle = 'normal',
   textColor = '#111827',
   backgroundColor,
+  opacity = 1,
   textAlign = 'left',
   rotation = 0,
   isUnrotated = false,
@@ -226,20 +228,53 @@ export const FloatingFormatToolbar: React.FC<FloatingFormatToolbarProps> = ({
               <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">
                 Background Fill
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  onUpdateStyle({ backgroundColor: isTransparentBg ? '#ffffff' : 'transparent' });
-                  setShowColorPicker(false);
-                }}
-                className={`w-full py-1 text-[11px] font-medium rounded border transition-colors ${
-                  isTransparentBg
-                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-600'
-                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                }`}
-              >
-                {isTransparentBg ? 'Transparent Fill (Active)' : 'Make Transparent'}
-              </button>
+              <div className="grid grid-cols-3 gap-1 mb-1.5">
+                <button
+                  type="button"
+                  title="Opaque 100% background"
+                  onClick={() => {
+                    onUpdateStyle({ backgroundColor: isTransparentBg ? '#ffffff' : (backgroundColor ?? '#ffffff'), opacity: 1 });
+                    setShowColorPicker(false);
+                  }}
+                  className={`py-1 text-[10px] font-medium rounded border transition-colors ${
+                    !isTransparentBg && opacity >= 0.8
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  Solid
+                </button>
+                <button
+                  type="button"
+                  title="Translucent 50% background wash"
+                  onClick={() => {
+                    onUpdateStyle({ backgroundColor: isTransparentBg ? '#ffffff' : (backgroundColor ?? '#ffffff'), opacity: 0.5 });
+                    setShowColorPicker(false);
+                  }}
+                  className={`py-1 text-[10px] font-medium rounded border transition-colors ${
+                    !isTransparentBg && opacity < 0.8
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  Translucent
+                </button>
+                <button
+                  type="button"
+                  title="Completely transparent (no background)"
+                  onClick={() => {
+                    onUpdateStyle({ backgroundColor: 'transparent' });
+                    setShowColorPicker(false);
+                  }}
+                  className={`py-1 text-[10px] font-medium rounded border transition-colors ${
+                    isTransparentBg
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  No BG
+                </button>
+              </div>
             </div>
           </div>
         )}

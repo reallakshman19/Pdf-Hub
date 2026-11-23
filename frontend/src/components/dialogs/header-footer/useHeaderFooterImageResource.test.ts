@@ -31,10 +31,6 @@ describe('useHeaderFooterImageResource', () => {
       configurable: true,
       value: revokeObjectUrl,
     });
-
-    createObjectUrl
-      .mockReturnValueOnce('blob:logo-1')
-      .mockReturnValueOnce('blob:logo-2');
   });
 
   afterEach(() => {
@@ -49,6 +45,10 @@ describe('useHeaderFooterImageResource', () => {
   });
 
   it('revokes the previous preview when an admitted image is replaced', async () => {
+    createObjectUrl
+      .mockReturnValueOnce('blob:logo-1')
+      .mockReturnValueOnce('blob:logo-2');
+
     admissionMocks.admitHeaderFooterImageFile
       .mockResolvedValueOnce({
         resourceId: 'header-footer-image:1',
@@ -89,6 +89,10 @@ describe('useHeaderFooterImageResource', () => {
   });
 
   it('revokes the active preview when cleared or closed', async () => {
+    createObjectUrl
+      .mockReturnValueOnce('blob:logo-1')
+      .mockReturnValueOnce('blob:logo-3');
+
     admissionMocks.admitHeaderFooterImageFile.mockResolvedValue({
       resourceId: 'header-footer-image:1',
       fileName: 'logo.png',
@@ -116,7 +120,6 @@ describe('useHeaderFooterImageResource', () => {
     expect(result.current.previewUrl).toBeNull();
     expect(result.current.admitted).toBeNull();
 
-    createObjectUrl.mockReturnValueOnce('blob:logo-3');
     await act(async () => {
       await result.current.admit(
         new File([], 'logo.png', { type: 'image/png' }),

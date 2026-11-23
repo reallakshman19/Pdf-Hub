@@ -4,7 +4,14 @@ import type { HeaderFooterTemplate } from '@/core/header-footer/types';
 import type {
   ExistingTextEditIntent,
   ExistingTextSpan,
+  ExistingTextStyleOverride,
 } from '@/core/existing-text/types';
+import type {
+  ExistingTextParagraphBlock,
+  ExistingTextParagraphEditIntent,
+} from '@/core/existing-text/paragraphTypes';
+import type { DetectedTableCell } from '@/core/existing-text/tableCellTypes';
+import type { ExistingTextAlign } from '@/core/existing-text/alignmentTypes';
 import type {
   ExistingTextSimpleTextOperator,
 } from '@/core/existing-text/provenanceTypes';
@@ -12,6 +19,8 @@ import type {
 export type PdfCommandSource =
   | 'toolbar'
   | 'thumbnail-menu'
+  | 'thumbnail-drag-drop'
+  | 'document-workspace'
   | 'macro-runner'
   | 'shortcut'
   | 'api'
@@ -90,7 +99,11 @@ export type DeletePagesCommand = PdfCommandBase<
 >;
 export type InsertPagesCommand = PdfCommandBase<
   'INSERT_PAGES',
-  { atIndex: number; donorResourceId: string }
+  {
+    atIndex: number;
+    donorResourceId: string;
+    donorPageIndices?: number[];
+  }
 >;
 export type InsertBlankPageCommand = PdfCommandBase<
   'INSERT_BLANK_PAGE',
@@ -141,6 +154,55 @@ export type ReconstructExistingTextCommand = PdfCommandBase<
   'RECONSTRUCT_EXISTING_TEXT',
   ReconstructExistingTextCommandPayload
 >;
+export interface ReplaceExistingParagraphCommandPayload {
+  schemaVersion: 1;
+  paragraph: ExistingTextParagraphBlock;
+  intent: ExistingTextParagraphEditIntent;
+}
+export type ReplaceExistingParagraphCommand = PdfCommandBase<
+  'REPLACE_EXISTING_PARAGRAPH',
+  ReplaceExistingParagraphCommandPayload
+>;
+export interface BatchReplaceExistingTextCommandItem {
+  pageIndex: number;
+  pageId: string;
+  span: ExistingTextSpan;
+  replacementText: string;
+  capability?: import('@/adapters/pdf-text/PdfLibExistingTextUiEvaluation').ExistingTextUiCapability;
+}
+export interface BatchReplaceExistingTextCommandPayload {
+  schemaVersion: 1;
+  items: BatchReplaceExistingTextCommandItem[];
+}
+export type BatchReplaceExistingTextCommand = PdfCommandBase<
+  'BATCH_REPLACE_EXISTING_TEXT',
+  BatchReplaceExistingTextCommandPayload
+>;
+export interface EditTableCellTextCommandPayload {
+  schemaVersion: 1;
+  pageId: string;
+  cell: DetectedTableCell;
+  span: ExistingTextSpan;
+  replacementText: string;
+  alignment?: ExistingTextAlign;
+  horizontalScalingPercent?: number;
+  styleOverride?: ExistingTextStyleOverride;
+}
+export type EditTableCellTextCommand = PdfCommandBase<
+  'EDIT_TABLE_CELL_TEXT',
+  EditTableCellTextCommandPayload
+>;
+export interface DeleteExistingTextCommandPayload {
+  schemaVersion: 1;
+  span: ExistingTextSpan;
+  intent: import('@/core/existing-text/erasureTypes').ExistingTextDeleteIntent;
+  provenance?: import('@/core/existing-text/provenanceTypes').ExistingTextSimpleTextOperator;
+  strategy?: import('@/core/existing-text/erasureTypes').ExistingTextDeleteStrategy;
+}
+export type DeleteExistingTextCommand = PdfCommandBase<
+  'DELETE_EXISTING_TEXT',
+  DeleteExistingTextCommandPayload
+>;
 export type AnnotationChangeCommand = PdfCommandBase<
   'ANNOTATION_CHANGE',
   { action: string; annotationIds: string[] }
@@ -183,6 +245,10 @@ export type PdfCommand =
   | DrawRedactionBoxCommand
   | ReplaceExistingTextCommand
   | ReconstructExistingTextCommand
+  | ReplaceExistingParagraphCommand
+  | BatchReplaceExistingTextCommand
+  | EditTableCellTextCommand
+  | DeleteExistingTextCommand
   | AnnotationChangeCommand
   | WriterChangeCommand
   | ApplyWorkingCopyCommand;
@@ -296,6 +362,10 @@ const PREVIEW_REQUIRED_TYPES = new Set<PdfCommandType>([
   'REORDER_PAGES_BY_ORDER',
   'REPLACE_EXISTING_TEXT',
   'RECONSTRUCT_EXISTING_TEXT',
+  'REPLACE_EXISTING_PARAGRAPH',
+  'BATCH_REPLACE_EXISTING_TEXT',
+  'EDIT_TABLE_CELL_TEXT',
+  'DELETE_EXISTING_TEXT',
 ]);
 
 export function defaultRiskForCommand(type: PdfCommandType): PdfCommandRisk {

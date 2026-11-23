@@ -2,6 +2,7 @@ import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { DimensionNode } from './DimensionNode';
+import { PerimeterTakeoffNode } from './PerimeterTakeoffNode';
 
 type LineCap = 'none' | 'arrow' | 'circle' | 'square';
 
@@ -13,6 +14,19 @@ export const LineNode: React.FC<AnnotationNodeProps<'line'>> = ({
   onSelect,
   onTransformStart,
 }) => {
+  if (annotation.data?.isPipeRun || (Array.isArray(annotation.data?.points) && annotation.data.points.length > 4)) {
+    return (
+      <PerimeterTakeoffNode
+        annotation={annotation as any}
+        rect={rect}
+        scale={scale}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        onTransformStart={onTransformStart}
+      />
+    );
+  }
+
   if (annotation.data?.dimensionScale !== undefined || annotation.data?.isDimension) {
     return (
       <DimensionNode

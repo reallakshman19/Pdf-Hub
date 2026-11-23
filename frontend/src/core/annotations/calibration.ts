@@ -104,3 +104,97 @@ export function calibrateScaleFromPoints(
     precision: unit === 'm' || unit === 'ft' ? 2 : 0,
   };
 }
+
+/**
+ * Computes real-world area from polygon vertices in PDF points using the Shoelace formula.
+ */
+export function computePolygonArea(
+  vertices: Point2D[],
+  calibration: ScaleCalibration = DEFAULT_SCALE_CALIBRATION,
+): number {
+  const n = vertices.length;
+  if (n < 3) return 0;
+
+  let shoelace = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    shoelace += vertices[i].x * vertices[j].y - vertices[j].x * vertices[i].y;
+  }
+  const areaPts = Math.abs(shoelace) / 2;
+
+  // Linear scaling factor: 1 pt on sheet -> real world mm
+  const mmPerPt = (25.4 / 72) * calibration.scaleRatio;
+  const areaMm2 = areaPts * mmPerPt * mmPerPt;
+
+  switch (calibration.unit) {
+    case 'mm':
+      return areaMm2;
+    case 'cm':
+      return areaMm2 / 100;
+    case 'm':
+      return areaMm2 / 1_000_000;
+    case 'in':
+      return areaMm2 / (25.4 * 25.4);
+    case 'ft':
+      return areaMm2 / (304.8 * 304.8);
+    default:
+      return areaMm2 / 1_000_000;
+  }
+}
+
+/**
+ * Computes polygon visual centroid for positioning measurement badges.
+ */
+export function computeCentroid(vertices: Point2D[]): Point2D {
+  const n = vertices.length;
+  if (n === 0) return { x: 0, y: 0 };
+  if (n === 1) return { ...vertices[0] };
+  if (n === 2) return { x: (vertices[0].x + vertices[1].x) / 2, y: (vertices[0].y + vertices[1].y) / 2 };
+
+  let shoelace = 0;
+  let cx = 0;
+  let cy = 0;
+
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const factor = vertices[i].x * vertices[j].y - vertices[j].x * vertices[i].y;
+    shoelace += factor;
+    cx += (vertices[i].x + vertices[j].x) * factor;
+    cy += (vertices[i].y + vertices[j].y) * factor;
+  }
+
+  const area = shoelace / 2;
+  if (Math.abs(area) < 1e-4) {
+    // Degenerate collinear polygon, return average
+    const avgX = vertices.reduce((sum, v) => sum + v.x, 0) / n;
+    const avgY = vertices.reduce((sum, v) => sum + v.y, 0) / n;
+    return { x: avgX, y: avgY };
+  }
+
+  return {
+    x: cx / (6 * area),
+    y: cy / (6 * area),
+  };
+}
+
+/**
+ * Formats area into a human-readable engineering takeoff badge (e.g. "45.2 m²", "1,250 sq ft").
+ */
+export function formatAreaLabel(
+  area: number,
+  unit: DimensionUnit,
+  precision?: number,
+): string {
+  const defaultPrec = unit === 'm' || unit === 'ft' ? 1 : 0;
+  const prec = precision !== undefined ? precision : defaultPrec;
+  const rounded = Number(area.toFixed(prec));
+
+  let unitSuffix = 'm²';
+  if (unit === 'mm') unitSuffix = 'mm²';
+  else if (unit === 'cm') unitSuffix = 'cm²';
+  else if (unit === 'in') unitSuffix = 'sq in';
+  else if (unit === 'ft') unitSuffix = 'sq ft';
+
+  return `${rounded.toLocaleString()} ${unitSuffix}`;
+}
+

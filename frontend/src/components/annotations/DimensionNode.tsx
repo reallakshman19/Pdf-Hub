@@ -1,13 +1,12 @@
 import React from 'react';
 import type { AnnotationNodeProps, Point2D } from '../../core/annotations/types';
 import {
-  computeRealWorldDistance,
   formatDimensionLabel,
   type ScaleCalibration,
 } from '../../core/annotations/calibration';
 import { SelectionHandles } from './shared/SelectionHandles';
 
-export const DimensionNode: React.FC<AnnotationNodeProps<'line' | 'dimension'>> = ({
+export const DimensionNode: React.FC<AnnotationNodeProps<'line'>> = ({
   annotation,
   rect,
   scale,

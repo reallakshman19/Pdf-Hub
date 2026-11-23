@@ -13,12 +13,13 @@ const callbacks = () => ({
 describe('DimensionNode engineering caliper', () => {
   it('renders caliper lines and formatted metric readout', () => {
     const handlers = callbacks();
-    const annotation: PdfAnnotation & { type: 'dimension' } = {
+    const annotation: PdfAnnotation & { type: 'line' } = {
       id: 'dim-1',
-      type: 'dimension',
+      type: 'line',
       pageNumber: 1,
       rect: { x: 100, y: 100, width: 200, height: 20 },
       data: {
+        isDimension: true,
         p1: { x: 100, y: 100 },
         p2: { x: 300, y: 100 },
         dimensionScale: 100, // 1:100
@@ -52,12 +53,13 @@ describe('DimensionNode engineering caliper', () => {
 
   it('renders explicit custom dimensionText when provided', () => {
     const handlers = callbacks();
-    const annotation: PdfAnnotation & { type: 'dimension' } = {
+    const annotation: PdfAnnotation & { type: 'line' } = {
       id: 'dim-2',
-      type: 'dimension',
+      type: 'line',
       pageNumber: 1,
       rect: { x: 100, y: 100, width: 200, height: 20 },
       data: {
+        isDimension: true,
         p1: { x: 100, y: 100 },
         p2: { x: 300, y: 100 },
         dimensionText: '2200 mm',

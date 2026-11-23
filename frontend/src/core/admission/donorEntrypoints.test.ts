@@ -36,6 +36,28 @@ describe('donor PDF admission source boundaries', () => {
     expect(source).not.toMatch(/\.arrayBuffer\s*\(/);
   });
 
+  it('routes thumbnail external drag-and-drop through shared admission without raw arrayBuffer calls', () => {
+    const source = readSource(
+      'components/sidebar/panels/ThumbnailSidebar.tsx',
+    );
+
+    expect(source).toContain('admitDonorPdfFiles');
+    expect(source).toContain("'THUMBNAIL_DRAG_DROP'");
+    expect(source).not.toContain('FileAdapter.pickPdfFiles');
+    expect(source).not.toMatch(/\.arrayBuffer\s*\(/);
+  });
+
+  it('routes workspace external drag-and-drop through shared admission without raw arrayBuffer calls', () => {
+    const source = readSource(
+      'components/workspace/DocumentWorkspace.tsx',
+    );
+
+    expect(source).toContain('admitDonorPdfFiles');
+    expect(source).toContain("'DOCUMENT_VIEWPORT'");
+    expect(source).not.toContain('FileAdapter.pickPdfFiles');
+    expect(source).not.toMatch(/\.arrayBuffer\s*\(/);
+  });
+
   it('keeps donor capabilities outside canonical serializable command payloads', () => {
     const source = readSource('core/commands/types.ts');
     const commands = source.slice(

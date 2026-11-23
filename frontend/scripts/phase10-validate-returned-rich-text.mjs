@@ -44,6 +44,7 @@ const run = spawnSync(
     cwd: frontendRoot,
     encoding: 'utf8',
     stdio: 'inherit',
+    shell: process.platform === 'win32',
     env: {
       ...process.env,
       PHASE10_RETURN_RICH_TEXT_PROBE_MODE: '1',

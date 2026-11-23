@@ -81,4 +81,34 @@ describe('InspectorPanel style controls: No background and Translucent options',
     expect(updated?.data.opacity).toBe(0.7);
     expect(screen.getByText('70%')).toBeInTheDocument();
   });
+
+  it('toggles fill mode across Solid, Translucent, and No BG pills', () => {
+    const item = makeAnnotation('tb-3');
+    useAnnotationStore.setState({ annotations: [item], selectedAnnotationIds: [item.id], activeAnnotationId: item.id });
+
+    render(<InspectorPanel />);
+
+    // Click No BG
+    const noBgBtn = screen.getByTitle('No Background Fill');
+    fireEvent.click(noBgBtn);
+
+    let updated = useAnnotationStore.getState().annotations.find((a) => a.id === 'tb-3');
+    expect(updated?.data.backgroundColor).toBe('transparent');
+
+    // Click Translucent
+    const translucentBtn = screen.getByTitle('Translucent Fill');
+    fireEvent.click(translucentBtn);
+
+    updated = useAnnotationStore.getState().annotations.find((a) => a.id === 'tb-3');
+    expect(updated?.data.backgroundColor).toBe('#ffffff');
+    expect(updated?.data.opacity).toBe(0.5);
+
+    // Click Solid
+    const solidBtn = screen.getByTitle('Solid Fill');
+    fireEvent.click(solidBtn);
+
+    updated = useAnnotationStore.getState().annotations.find((a) => a.id === 'tb-3');
+    expect(updated?.data.backgroundColor).toBe('#ffffff');
+    expect(updated?.data.opacity).toBe(1);
+  });
 });

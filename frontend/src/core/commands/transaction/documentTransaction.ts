@@ -543,17 +543,17 @@ export async function commitDocumentMutation(
 
   assertDocumentMutationOwner(owner);
   try {
-    useSessionStore.getState().replaceWorkingCopy(
-      effectiveAfterBytes,
-      afterPageCount,
-      publishedRevisionId,
-    );
-    useSessionStore.getState().setDocumentKey(nextDocumentKey);
-    useSessionStore.getState().setPageGraph(
-      pageGraphForCommit
+    useSessionStore.getState().commitMutation({
+      bytes: effectiveAfterBytes,
+      pageCount: afterPageCount,
+      documentKey: nextDocumentKey,
+      activeRevisionId: publishedRevisionId,
+      pageGraph: pageGraphForCommit
         ? rekeyPageGraph(pageGraphForCommit, nextDocumentKey)
         : null,
-    );
+      selectedPages: input.nextSelectedPages,
+      currentPage: typeof input.nextCurrentPage === 'number' ? input.nextCurrentPage : undefined,
+    });
 
     if (input.nextAnnotations) {
       useAnnotationStore.getState().setAnnotations(annotationsToPersist);
@@ -589,14 +589,6 @@ export async function commitDocumentMutation(
     }
 
     commitOcrPageState(ocrForCommit);
-
-    if (input.nextSelectedPages) {
-      useSessionStore.getState().setSelectedPages(input.nextSelectedPages);
-    }
-
-    if (typeof input.nextCurrentPage === 'number') {
-      useSessionStore.getState().setPage(input.nextCurrentPage);
-    }
 
     const sessionAfter = useSessionStore.getState();
     const afterRevisionBacking = revisionHistoryBacking(

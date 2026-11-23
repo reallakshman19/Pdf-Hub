@@ -155,7 +155,7 @@ export class AnnotationInteroperabilityOracle {
 
       default: {
         const match = Object.entries(manifest.fixtures).find(
-          ([_, meta]) => meta.pdfSubtype === subtype,
+          ([, meta]) => meta.pdfSubtype === subtype,
         );
         if (!match) {
           throw new Error(`Unrecognized PDF Subtype: ${subtype}`);

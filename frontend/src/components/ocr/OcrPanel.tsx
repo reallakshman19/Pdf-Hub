@@ -13,6 +13,7 @@ import {
 } from '@/core/ocr/ocrWriterInsertion';
 import { OcrProgressPanel } from './OcrProgressPanel';
 import { OcrSearchablePdfExportPanel } from './OcrSearchablePdfExportPanel';
+import { OcrStructuredExportPanel } from './OcrStructuredExportPanel';
 import { OcrProjectRestorePanel } from './OcrProjectRestorePanel';
 import type { OcrProjectPayloadV1 } from '@/core/ocr/ocrProjectCodec';
 import { OcrExecutionSettingsPanel } from './OcrExecutionSettingsPanel';
@@ -299,6 +300,13 @@ export const OcrPanel: React.FC<OcrPanelProps> = ({
 
       {hasCurrentResult ? (
         <OcrExportSection
+          structuredExport={
+            <OcrStructuredExportPanel
+              ocrResult={store.correctedResult}
+              documentFingerprint={documentFingerprint ?? undefined}
+              onInsertWriterElements={onInsertWriterElements}
+            />
+          }
           searchablePdfExport={
             <OcrSearchablePdfExportPanel
               pdfBytes={pdfBytes}

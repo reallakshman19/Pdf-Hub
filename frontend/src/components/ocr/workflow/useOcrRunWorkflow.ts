@@ -341,6 +341,20 @@ export function useOcrRunWorkflow({
         onBatchSnapshot: (snapshot) => {
           if (isCurrentRun(run)) setBatchSnapshot(snapshot);
         },
+        onBatchCheckpoint: (_task, batchResult, batchIndex) => {
+          if (!isCurrentRun(run)) return;
+          setPipelineMessages((current) => [
+            ...current.slice(-8),
+            `Batch ${batchIndex + 1} checkpoint saved (${batchResult.pages.length} page(s)).`,
+          ]);
+        },
+        onRecycleWorker: (batchIndex) => {
+          if (!isCurrentRun(run)) return;
+          setPipelineMessages((current) => [
+            ...current.slice(-8),
+            `Worker memory recycled after batch ${batchIndex + 1}.`,
+          ]);
+        },
         onProgress: (snapshot) => {
           if (isCurrentRun(run)) useOcrStore.getState().applyOcrJobSnapshot(snapshot);
         },

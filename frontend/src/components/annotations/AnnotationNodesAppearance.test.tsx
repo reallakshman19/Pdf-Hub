@@ -219,4 +219,34 @@ describe('AnnotationNodes translucency and transparent background', () => {
     expect(stampEl.style.opacity).toBe('0.5');
     expect(stampEl.style.background).toBe('transparent');
   });
+
+  it('CalloutNode auto-expands multi-line editor without clamping to 1-line height', () => {
+    const handlers = callbacks();
+    const annotation: PdfAnnotation & { type: 'callout' } = {
+      id: 'callout-multiline',
+      type: 'callout',
+      pageNumber: 1,
+      rect: { x: 100, y: 100, width: 120, height: 26 },
+      data: { text: 'Rest\nAxial Stop- Normal', backgroundColor: 'transparent' },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+
+    render(
+      <CalloutNode
+        annotation={annotation}
+        rect={annotation.rect}
+        scale={1}
+        isSelected
+        isEditing
+        editingValue={'Rest\nAxial Stop- Normal'}
+        {...handlers}
+      />,
+    );
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+    const parsedHeight = parseFloat(textarea.style.height);
+    expect(parsedHeight).toBeGreaterThanOrEqual(32);
+    expect(textarea.value).toBe('Rest\nAxial Stop- Normal');
+  });
 });

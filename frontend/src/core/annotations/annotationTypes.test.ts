@@ -27,6 +27,10 @@ describe('annotationTypes', () => {
       'stamp',
       'comment',
       'redaction',
+      'piping-support',
+      'piping-valve',
+      'perimeter-takeoff',
+      'area-takeoff',
     ]);
   });
 

@@ -482,13 +482,26 @@ export const AutomateSidebar: React.FC = () => {
               )
               || (!nextOpen && specializedBusy)
             ) {
+              event.currentTarget.open = specializedOpen;
               setSpecializedOpen(specializedBusy);
               return;
             }
             setSpecializedOpen(nextOpen);
           }}
         >
-          <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+          <summary
+            className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200"
+            onClick={(event) => {
+              event.preventDefault();
+              if (
+                (!specializedOpen && (generationBusy || batchBusy || runningRecipeId !== null)) ||
+                (specializedOpen && specializedBusy)
+              ) {
+                return;
+              }
+              setSpecializedOpen((open) => !open);
+            }}
+          >
             <Wrench className="h-3.5 w-3.5" />
             Specialized workflows
           </summary>

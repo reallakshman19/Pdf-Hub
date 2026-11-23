@@ -97,30 +97,18 @@ function restoreHistoryState(
 ): void {
   const session = useSessionStore.getState();
 
-  session.replaceWorkingCopy(
-    pdf.bytes,
-    state.pageCount,
-    pdf.activeRevisionId,
-  );
+  session.commitMutation({
+    bytes: pdf.bytes,
+    pageCount: state.pageCount,
+    documentKey: state.documentKey ?? session.documentKey ?? 'restored',
+    activeRevisionId: pdf.activeRevisionId,
+    pageGraph: state.pageGraph ? clonePageGraph(state.pageGraph) : null,
+    selectedPageIds: state.selectedPageIds.length > 0 ? state.selectedPageIds : undefined,
+    selectedPages: state.selectedPages.length > 0 ? state.selectedPages : undefined,
+    currentPageId: state.currentPageId ?? undefined,
+    currentPage: state.currentPage,
+  });
 
-  if (state.documentKey !== undefined) {
-    useSessionStore.getState().setDocumentKey(state.documentKey);
-  }
-
-  useSessionStore.getState().setPageGraph(
-    state.pageGraph ? clonePageGraph(state.pageGraph) : null,
-  );
-  if (state.selectedPageIds.length > 0) {
-    useSessionStore.getState().setSelectedPageIds(state.selectedPageIds);
-  } else {
-    useSessionStore.getState().setSelectedPages(state.selectedPages);
-  }
-
-  if (state.currentPageId) {
-    useSessionStore.getState().setPageById(state.currentPageId);
-  } else {
-    useSessionStore.getState().setPage(state.currentPage);
-  }
   useAnnotationStore.getState().setAnnotations(
     normalizeAnnotationPageAnchors(state.annotations, state.pageGraph),
   );

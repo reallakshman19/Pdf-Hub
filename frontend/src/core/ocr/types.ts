@@ -1,4 +1,5 @@
 import type { PdfRect } from '../writer-v2/types';
+export type { PdfRect };
 import type { PageId } from '../pages/types';
 import type { OcrJob } from './ocrJobTypes';
 
@@ -374,3 +375,8 @@ export function validateOcrDocumentResult(
     diagnostics,
   };
 }
+
+export type {
+  OcrCorrection,
+  OcrCorrectionTargetType,
+} from './ocrCorrections';

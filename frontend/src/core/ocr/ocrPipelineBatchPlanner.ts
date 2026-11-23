@@ -15,6 +15,7 @@ import {
 } from './ocrBatchScheduler';
 import type { OcrRasterWorkerClient } from './workers/ocrRasterWorkerClient';
 import type { OcrRasterWorkerProgressPayload } from './workers/ocrRasterWorkerTypes';
+import type { OcrPreprocessingOptions } from './preprocessing/ocrImagePreprocessor';
 
 export type OcrPipelineRasterPlanKind =
   | 'explicit-pages'
@@ -34,6 +35,7 @@ export interface OcrPipelineBatchPlannerInput {
 
   rasterScale: number;
   maxCanvasPixels: number;
+  preprocessing?: OcrPreprocessingOptions;
 
   rasterWorkerClient?: Pick<OcrRasterWorkerClient, 'rasterizePages' | 'dispose'>;
   signal?: AbortSignal;
@@ -189,6 +191,7 @@ export async function resolvePipelinePageInputsForBatchPlan(
     pageIndexes: input.pageIndexes,
     scale: input.rasterScale,
     maxCanvasPixels: input.maxCanvasPixels,
+    preprocessing: input.preprocessing,
     useWorker: useWorkerRaster,
     workerClient: input.rasterWorkerClient,
     disposeClientAfterRun: false,

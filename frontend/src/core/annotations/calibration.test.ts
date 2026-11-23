@@ -3,6 +3,9 @@ import {
   computeRealWorldDistance,
   formatDimensionLabel,
   calibrateScaleFromPoints,
+  computePolygonArea,
+  computeCentroid,
+  formatAreaLabel,
   DEFAULT_SCALE_CALIBRATION,
 } from './calibration';
 
@@ -40,5 +43,30 @@ describe('calibration math & dimension formatting', () => {
     const calibrated = calibrateScaleFromPoints(p1, p2, 5080, 'mm'); // 5080 mm = 1:200
     expect(calibrated.scaleRatio).toBe(200);
     expect(calibrated.unit).toBe('mm');
+  });
+
+  it('computes real-world area from polygon vertices in m²', () => {
+    // A square of 72 x 72 pt = 2.54m x 2.54m at 1:100 scale = 6.4516 m²
+    const square = [
+      { x: 0, y: 0 },
+      { x: 72, y: 0 },
+      { x: 72, y: 72 },
+      { x: 0, y: 72 },
+    ];
+    const area = computePolygonArea(square, { scaleRatio: 100, unit: 'm', precision: 1 });
+    expect(Number(area.toFixed(2))).toBe(6.45);
+    expect(formatAreaLabel(area, 'm', 1)).toBe('6.5 m²');
+  });
+
+  it('computes polygon centroid for measurement badge positioning', () => {
+    const square = [
+      { x: 10, y: 20 },
+      { x: 50, y: 20 },
+      { x: 50, y: 60 },
+      { x: 10, y: 60 },
+    ];
+    const center = computeCentroid(square);
+    expect(center.x).toBe(30);
+    expect(center.y).toBe(40);
   });
 });

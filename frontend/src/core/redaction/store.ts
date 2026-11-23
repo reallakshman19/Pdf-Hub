@@ -81,10 +81,9 @@ export function deleteRegions(regionIds: string[]): number {
 }
 
 export function clearRegions(): void {
-  if (state.regions.length > 0) {
-    state.regions.length = 0;
-    notify();
-  }
+  state.regions.length = 0;
+  state.nextId = 1;
+  notify();
 }
 
 export function exportPlan(): {

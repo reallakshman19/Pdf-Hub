@@ -44,13 +44,23 @@ describe('FloatingFormatToolbar', () => {
     fireEvent.click(alignCenterBtn);
     expect(onUpdateStyle).toHaveBeenCalledWith({ textAlign: 'center' });
 
-    // Open color popover and click make transparent
+    // Open color popover and test fill buttons: No BG, Translucent, Solid
     const paletteBtn = screen.getByTitle('Text & Background Color');
     fireEvent.click(paletteBtn);
 
-    const transparentBtn = screen.getByRole('button', { name: /make transparent/i });
+    const transparentBtn = screen.getByRole('button', { name: /no bg/i });
     fireEvent.click(transparentBtn);
     expect(onUpdateStyle).toHaveBeenCalledWith({ backgroundColor: 'transparent' });
+
+    fireEvent.click(paletteBtn);
+    const translucentBtn = screen.getByRole('button', { name: /translucent/i });
+    fireEvent.click(translucentBtn);
+    expect(onUpdateStyle).toHaveBeenCalledWith({ backgroundColor: '#ffffff', opacity: 0.5 });
+
+    fireEvent.click(paletteBtn);
+    const solidBtn = screen.getByRole('button', { name: /solid/i });
+    fireEvent.click(solidBtn);
+    expect(onUpdateStyle).toHaveBeenCalledWith({ backgroundColor: '#ffffff', opacity: 1 });
   });
 
   it('renders unrotate button when annotation has rotation and toggles rotation', () => {

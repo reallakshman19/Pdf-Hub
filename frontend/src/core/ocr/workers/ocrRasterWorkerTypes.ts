@@ -1,6 +1,7 @@
 import type { PdfRect } from '../../writer-v2/types';
 import type { OcrEnginePageInput } from '../engines/ocrEngineContract';
 import type { PdfRasterImageMimeType } from '../pdfPageRasterizer';
+import type { OcrPreprocessingOptions } from '../preprocessing/ocrImagePreprocessor';
 
 export type OcrRasterWorkerRequestType =
   | 'PING'
@@ -52,6 +53,7 @@ export interface OcrRasterizePagesPayload {
   maxCanvasPixels: number;
   mimeType: PdfRasterImageMimeType;
   quality?: number;
+  preprocessing?: OcrPreprocessingOptions;
 }
 
 export interface OcrRasterizeRegionPayload {
@@ -62,6 +64,7 @@ export interface OcrRasterizeRegionPayload {
   maxCanvasPixels: number;
   mimeType: PdfRasterImageMimeType;
   quality?: number;
+  preprocessing?: OcrPreprocessingOptions;
 }
 
 export interface OcrRasterWorkerBaseResponse {

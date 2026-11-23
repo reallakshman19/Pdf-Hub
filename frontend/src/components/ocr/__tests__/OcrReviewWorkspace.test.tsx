@@ -92,6 +92,28 @@ describe('OcrReviewWorkspace', () => {
     expect(focus?.bbox.width).toBeGreaterThan(0);
   });
 
+  it('renders table review panel and accepts document-level OCR table into Writer insertion queue', async () => {
+    useOcrStore.getState().setOcrResult(
+      createOcrDemoResult('simple-table', 'review-doc'),
+    );
+
+    render(
+      <OcrReviewWorkspace
+        {...defaultProps}
+      />,
+    );
+
+    expect(screen.getByTestId('ocr-review-workspace-table')).toBeTruthy();
+    expect(screen.getByTestId('ocr-table-review-panel')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('ocr-table-accept'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ocr-table-accepted-summary')).toBeTruthy();
+      expect(defaultProps.onWriterInsertionQueueChange).toHaveBeenCalled();
+    });
+  });
+
   it('does not render stale OCR result from another document', () => {
     useOcrStore.getState().setOcrResult(
       createOcrDemoResult('clean-text', 'old-doc'),

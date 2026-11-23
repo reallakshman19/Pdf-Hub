@@ -48,7 +48,28 @@ describe('OcrExecutionSettingsPanel', () => {
     });
 
     expect(policy.preset).toBe('fast');
-    expect(policy.rasterScale).toBe(1.25);
+    expect(policy.rasterScale).toBe(1.5);
+  });
+
+  it('updates preprocessing mode', () => {
+    let policy: OcrExecutionPolicy = createOcrExecutionPolicy();
+
+    render(
+      <OcrExecutionSettingsPanel
+        policy={policy}
+        onChange={(next) => {
+          policy = next;
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId('ocr-execution-preprocessing'), {
+      target: {
+        value: 'sauvola',
+      },
+    });
+
+    expect(policy.preprocessing).toEqual({ mode: 'sauvola' });
   });
 
   it('updates numeric policy fields', () => {
@@ -116,6 +137,32 @@ describe('OcrExecutionSettingsPanel', () => {
     expect(cancelled).toBe(true);
   });
 
+  it('updates domain lexicon and fallback settings', () => {
+    let policy: OcrExecutionPolicy = createOcrExecutionPolicy();
+
+    render(
+      <OcrExecutionSettingsPanel
+        policy={policy}
+        onChange={(next) => {
+          policy = next;
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId('ocr-execution-domain-lexicon'), {
+      target: {
+        value: 'none',
+      },
+    });
+    expect(policy.domainLexicon).toBe('none');
+
+    fireEvent.click(screen.getByTestId('ocr-execution-multi-pass'));
+    expect(policy.multiPass).toBe(false);
+
+    fireEvent.click(screen.getByTestId('ocr-execution-preserve-spaces'));
+    expect(policy.preserveInterwordSpaces).toBe(false);
+  });
+
   it('selects fast mode and 10-page batch mode from shortcut buttons', () => {
     let policy: OcrExecutionPolicy = createOcrExecutionPolicy();
 
@@ -135,6 +182,6 @@ describe('OcrExecutionSettingsPanel', () => {
 
     fireEvent.click(screen.getByTestId('ocr-mode-fast-button'));
     expect(policy.preset).toBe('fast');
-    expect(policy.rasterScale).toBe(1.25);
+    expect(policy.rasterScale).toBe(1.5);
   });
 });

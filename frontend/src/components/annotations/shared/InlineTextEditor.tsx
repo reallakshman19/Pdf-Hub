@@ -35,11 +35,18 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
   onCancel,
   onChangeStyle,
 }) => {
-  const [text, setText] = useState(() => normalizeNewlines(defaultValue));
+  const normalizedInitial = normalizeNewlines(defaultValue);
+  const initialLines = normalizedInitial.split('\n').length || 1;
+  const initialLineH = Math.max(16, Math.round(((typeof style.fontSize === 'number' ? style.fontSize : 12) * scale * 1.25)));
+  const initialMinH = initialLines * initialLineH + 8;
+  const initialH = Math.max(bounds.height, initialMinH);
+  const initialW = Math.max(bounds.width, 120);
+
+  const [text, setText] = useState(() => normalizedInitial);
   const [stylePatch, setStylePatch] = useState<Record<string, unknown>>({});
   const [isUnrotated, setIsUnrotated] = useState(false);
-  const [measuredHeight, setMeasuredHeight] = useState(bounds.height);
-  const [measuredWidth, setMeasuredWidth] = useState(bounds.width);
+  const [measuredHeight, setMeasuredHeight] = useState(initialH);
+  const [measuredWidth, setMeasuredWidth] = useState(initialW);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -62,9 +69,9 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
       const scrollW = measureRef.current.scrollWidth;
       const lineCount = text.split('\n').length || 1;
       const lineH = Math.max(16, Math.round(liveFontSize * scale * 1.25));
-      const minTextH = lineCount * lineH + 6;
-      setMeasuredHeight(Math.max(bounds.height, scrollH + 6, minTextH));
-      setMeasuredWidth(Math.max(bounds.width, Math.min(scrollW + 10, Math.max(bounds.width, 420))));
+      const minTextH = lineCount * lineH + 8;
+      setMeasuredHeight(Math.max(bounds.height, scrollH + 8, minTextH));
+      setMeasuredWidth(Math.max(bounds.width, Math.min(scrollW + 16, Math.max(bounds.width, 420))));
     }
   }, [text, liveFontSize, bounds.width, bounds.height, scale]);
 
@@ -170,6 +177,15 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
         {text || ' '}
       </div>
 
+      {/* Scoped scrollbar suppression for Windows Chromium chevrons */}
+      <style>{`
+        .inline-text-editor-textarea::-webkit-scrollbar {
+          display: none !important;
+          width: 0 !important;
+          height: 0 !important;
+        }
+      `}</style>
+
       {/* Floating Formatting Mini-Toolbar */}
       {allowToolbar && (
         <FloatingFormatToolbar
@@ -178,6 +194,7 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
           fontStyle={liveFontStyle}
           textColor={liveColor}
           backgroundColor={liveBg}
+          opacity={typeof stylePatch.opacity === 'number' ? (stylePatch.opacity as number) : (style.opacity ?? 1)}
           textAlign={liveTextAlign}
           rotation={rotation}
           isUnrotated={isUnrotated}
@@ -228,9 +245,11 @@ export const InlineTextEditor: React.FC<InlineTextEditorProps> = ({
           textAlign: liveTextAlign,
           color: liveColor,
           background: isTransparentBg
-            ? 'rgba(255, 255, 255, 0.85)'
-            : (liveBg ?? 'rgba(255, 255, 255, 0.95)'),
-          backdropFilter: 'blur(2px)',
+            ? 'rgba(255, 255, 255, 0.45)'
+            : (liveBg === 'transparent'
+                ? 'rgba(255, 255, 255, 0.45)'
+                : (liveBg ?? 'rgba(255, 255, 255, 0.95)')),
+          backdropFilter: (isTransparentBg || liveBg === 'transparent') ? 'blur(4px)' : 'blur(2px)',
           borderRadius: 2,
         }}
       />

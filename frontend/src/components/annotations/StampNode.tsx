@@ -1,10 +1,37 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
+import { PipingSupportNode } from './PipingSupportNode';
+import { PipingValveNode } from './PipingValveNode';
 
 export const StampNode: React.FC<AnnotationNodeProps<'stamp'>> = ({
   annotation, rect, scale, isSelected, onSelect, onTransformStart, pageRotation = 0, nativeAppearanceUrl,
 }) => {
+  if (annotation.data?.restraintType) {
+    return (
+      <PipingSupportNode
+        annotation={annotation}
+        rect={rect}
+        scale={scale}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        onTransformStart={onTransformStart}
+      />
+    );
+  }
+  if (annotation.data?.componentType) {
+    return (
+      <PipingValveNode
+        annotation={annotation}
+        rect={rect}
+        scale={scale}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        onTransformStart={onTransformStart}
+      />
+    );
+  }
+
   const isCustom = annotation.data.nativeStampAppearanceKind !== 'generated'
     && (annotation.data?.stampStyle === 'custom' || Boolean(annotation.data?.hasCustomAppearance));
   // Generated stamps remain editable after reopening, so their live preview

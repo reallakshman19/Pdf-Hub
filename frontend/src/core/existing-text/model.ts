@@ -146,6 +146,7 @@ export function buildExistingTextSpan(
 export function createExistingTextEditIntent(
   span: ExistingTextSpan,
   replacementText: string,
+  styleOverride?: import('./types').ExistingTextStyleOverride,
 ): ExistingTextEditIntent {
   if (
     span.editability === 'unsupported'
@@ -181,6 +182,7 @@ export function createExistingTextEditIntent(
     replacementText,
     sourceEditability:
       span.editability,
+    ...(styleOverride ? { styleOverride } : {}),
   };
 }
 
@@ -243,6 +245,59 @@ export function validateExistingTextEditIntentAgainstSpan(
     errors.push(
       'editability classification changed since intent creation',
     );
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+  };
+}
+
+export function createExistingTextDeleteIntent(
+  span: ExistingTextSpan,
+  strategy: import('./erasureTypes').ExistingTextDeleteStrategy = 'auto',
+): import('./erasureTypes').ExistingTextDeleteIntent {
+  if (span.editability === 'unsupported') {
+    throw new Error(
+      'Unsupported existing-text spans cannot create a delete intent.',
+    );
+  }
+
+  return {
+    schemaVersion: 1,
+    sourceRevisionId: span.revisionId,
+    pageId: span.pageId,
+    pageIndex: span.pageIndex,
+    spanId: span.id,
+    sourceIndex: span.sourceIndex,
+    expectedText: span.text,
+    strategy,
+  };
+}
+
+export function validateExistingTextDeleteIntentAgainstSpan(
+  intent: import('./erasureTypes').ExistingTextDeleteIntent,
+  span: ExistingTextSpan,
+): ExistingTextIntentValidation {
+  const errors: string[] = [];
+
+  if (intent.sourceRevisionId !== span.revisionId) {
+    errors.push('source revision does not match the inspected span revision');
+  }
+  if (intent.pageId !== span.pageId) {
+    errors.push('PageId does not match the inspected span');
+  }
+  if (intent.spanId !== span.id) {
+    errors.push('spanId does not match the inspected span');
+  }
+  if (intent.sourceIndex !== span.sourceIndex) {
+    errors.push('source item index does not match the inspected span');
+  }
+  if (intent.expectedText !== span.text) {
+    errors.push('expected source text does not match the inspected span');
+  }
+  if (span.editability === 'unsupported') {
+    errors.push('inspected span is unsupported');
   }
 
   return {

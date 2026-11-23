@@ -292,6 +292,13 @@ export async function writeNativePdfAnnotations(
     const page = doc.getPage(pageNumber - 1);
     const annots = getOrCreateAnnotsArray(doc, page, lib);
 
+    const scaleAnnot = pageAnnotations.find(
+      (a) => typeof a.data?.dimensionScale === 'number' && (a.data.dimensionScale as number) > 0,
+    );
+    if (scaleAnnot && typeof scaleAnnot.data?.dimensionScale === 'number') {
+      attachPageViewportScale(doc, page, scaleAnnot.data.dimensionScale, (scaleAnnot.data.dimensionUnit as string) ?? 'mm', lib);
+    }
+
     for (const candidate of pageAnnotations) {
       let annotation = candidate;
       if (annotation.data.nativeIdentityAmbiguous) {
@@ -812,6 +819,42 @@ function getOrCreateAnnotsArray(
 
   page.node.set(lib.PDFName.of('Annots'), existing);
   return existing;
+}
+
+function attachPageViewportScale(
+  doc: PDFDocument,
+  page: PDFPage,
+  scaleRatio: number,
+  unit: string,
+  lib: PdfLibModule,
+): void {
+  const existingVp = page.node.lookupMaybe(lib.PDFName.of('VP'), lib.PDFArray);
+  if (existingVp && existingVp.size() > 0) return;
+
+  const width = page.getWidth();
+  const height = page.getHeight();
+
+  const measureDict = doc.context.obj({
+    Type: lib.PDFName.of('Measure'),
+    Subtype: lib.PDFName.of('RL'),
+    R: lib.PDFString.of(`1 / ${scaleRatio}`),
+    X: doc.context.obj([
+      doc.context.obj({
+        Type: lib.PDFName.of('NumberFormat'),
+        U: lib.PDFString.of(unit),
+        C: scaleRatio,
+      }),
+    ]),
+  });
+
+  const viewportDict = doc.context.obj({
+    Type: lib.PDFName.of('Viewport'),
+    BBox: doc.context.obj([0, 0, width, height]),
+    Name: lib.PDFString.of('CAD Scale'),
+    Measure: measureDict,
+  });
+
+  page.node.set(lib.PDFName.of('VP'), doc.context.obj([viewportDict]));
 }
 
 function findManagedRootDict(
@@ -3128,6 +3171,11 @@ function addSubtypeFields(
 
     case 'shape-polygon':
       target.Vertices = polygonVertices(annotation, geometry);
+      if (sourceDict?.get(lib.PDFName.of('IT'))) {
+        target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
+      } else if (annotation.data?.isAreaTakeoff) {
+        target.IT = lib.PDFName.of('PolygonDimension');
+      }
       colorField('C', annotation.data.borderColor, stroke);
       if (annotation.data.backgroundColor !== 'transparent'
         && (sourceDict || annotation.data.backgroundColor !== undefined)) {
@@ -3147,7 +3195,11 @@ function addSubtypeFields(
     case 'arrow': {
       target.L = lineCoordinates(annotation, geometry, sourceDict, lib);
       if (sourceDict?.get(lib.PDFName.of('IC'))) target.IC = sourceDict.get(lib.PDFName.of('IC'))!;
-      if (sourceDict?.get(lib.PDFName.of('IT'))) target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
+      if (sourceDict?.get(lib.PDFName.of('IT'))) {
+        target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
+      } else if (annotation.data?.isDimension || annotation.data?.dimensionScale !== undefined) {
+        target.IT = lib.PDFName.of('LineDimension');
+      }
       const endings = lineEndingsValue(
         annotation,
         sourceDict,
@@ -3243,6 +3295,12 @@ function subtypeFor(type: PdfAnnotation['type']): string {
       return 'Ink';
     case 'stamp':
       return 'Stamp';
+    case 'piping-support':
+    case 'piping-valve':
+    case 'perimeter-takeoff':
+    case 'area-takeoff':
+    default:
+      return 'Square';
   }
 }
 

@@ -295,7 +295,27 @@ describe('PdfLibExistingTextUiEvaluation', () => {
     });
   });
 
-  it('rejects non-ASCII replacement before content/provenance analysis', async () => {
+  it('reports missing subset glyphs when replacement contains unsupported characters', async () => {
+    vi.mocked(
+      analyzeExistingTextVisualClearance,
+    ).mockResolvedValue({
+      status: 'unproved',
+      reasons: ['FONT_RESOURCE_UNSUPPORTED'],
+      diagnostics: [],
+      nativeFit: {
+        schemaVersion: 1,
+        status: 'unmeasurable',
+        reason: 'MISSING_SUBSET_GLYPHS',
+        missingCharacters: ['Ω'],
+        baseFont: 'TestSubsetFont',
+        sourceText: 'Hello',
+        replacementText: 'Ω',
+        observedAdvancePt: 30,
+        fontSizePt: 12,
+        tolerancePt: 0.25,
+      },
+    });
+
     const result =
       await evaluateExistingTextUiCapability({
         pdfBytes:
@@ -308,9 +328,12 @@ describe('PdfLibExistingTextUiEvaluation', () => {
 
     expect(result.status)
       .toBe('unavailable');
-    expect(
-      readExistingTextPageContentStreams,
-    ).not.toHaveBeenCalled();
+    if ('reasons' in result) {
+      expect(result.reasons[0])
+        .toContain('The font subset does not contain characters: Ω');
+    } else {
+      expect.fail('Expected unavailable status');
+    }
   });
 
   it('reports unavailable when exact current provenance cannot be rematched', async () => {

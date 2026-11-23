@@ -203,6 +203,70 @@ describe('ocrBatchScheduler', () => {
     expect(result.snapshot.totalCount).toBe(0);
     expect(result.snapshot.diagnostics[0].code).toBe('OCR_BATCH_EMPTY');
   });
+
+  it('triggers checkpoints, worker recycling, and computes duration metrics', async () => {
+    const checkpoints: string[] = [];
+    const recycledBatches: number[] = [];
+
+    const tasks = createOcrBatchTasksFromPages({
+      pages: makePages(4),
+      batchSize: 2,
+      idPrefix: 'batch-metrics',
+    });
+
+    let mockClock = 1000;
+    const now = () => new Date(mockClock).toISOString();
+
+    const result = await runOcrBatchScheduler({
+      tasks,
+      now,
+      concurrency: 1,
+      recycleAfterBatch: true,
+      runTask: async (task) => {
+        mockClock += 200; // simulate 200ms duration per batch
+        return task.pageIndexes;
+      },
+      onBatchCheckpoint: async (task) => {
+        checkpoints.push(task.id);
+      },
+      onRecycleWorker: async (batchIndex) => {
+        recycledBatches.push(batchIndex);
+      },
+    });
+
+    expect(result.snapshot.status).toBe('completed');
+    expect(checkpoints).toEqual(['batch-metrics-1', 'batch-metrics-2']);
+    expect(recycledBatches).toEqual([0, 1]);
+    expect(result.snapshot.diagnostics.some((d) => d.code === 'OCR_BATCH_CHECKPOINT_SAVED')).toBe(true);
+    expect(result.snapshot.diagnostics.some((d) => d.code === 'OCR_BATCH_WORKER_RECYCLED')).toBe(true);
+    expect(result.snapshot.averageBatchDurationMs).toBeGreaterThan(0);
+    expect(result.snapshot.estimatedRemainingMs).toBe(0);
+  });
+
+  it('records diagnostic warnings when checkpoint or recycle worker hooks fail', async () => {
+    const tasks = createOcrBatchTasksFromPages({
+      pages: makePages(1),
+      batchSize: 1,
+      idPrefix: 'batch-err',
+    });
+
+    const result = await runOcrBatchScheduler({
+      tasks,
+      concurrency: 1,
+      recycleAfterBatch: true,
+      runTask: async (task) => task.pageIndexes,
+      onBatchCheckpoint: async () => {
+        throw new Error('Disk quota exceeded');
+      },
+      onRecycleWorker: async () => {
+        throw new Error('Worker termination error');
+      },
+    });
+
+    expect(result.snapshot.status).toBe('completed');
+    expect(result.snapshot.diagnostics.some((d) => d.code === 'OCR_BATCH_CHECKPOINT_FAILED')).toBe(true);
+    expect(result.snapshot.diagnostics.some((d) => d.code === 'OCR_BATCH_WORKER_RECYCLE_FAILED')).toBe(true);
+  });
 });
 
 function makePages(count: number): OcrEnginePageInput[] {

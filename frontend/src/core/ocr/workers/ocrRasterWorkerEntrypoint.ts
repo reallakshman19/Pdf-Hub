@@ -160,6 +160,7 @@ async function handleRasterizePagesRequest(input: {
       maxCanvasPixels: request.payload.maxCanvasPixels,
       mimeType: request.payload.mimeType,
       quality: request.payload.quality,
+      preprocessing: request.payload.preprocessing,
     });
 
     throwIfAborted(controller.signal);
@@ -219,6 +220,7 @@ async function handleRasterizeRegionRequest(input: {
       maxCanvasPixels: request.payload.maxCanvasPixels,
       mimeType: request.payload.mimeType,
       quality: request.payload.quality,
+      preprocessing: request.payload.preprocessing,
     });
 
     throwIfAborted(controller.signal);

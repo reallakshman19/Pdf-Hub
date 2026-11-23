@@ -313,7 +313,9 @@ describe('AutomateSidebar', () => {
     });
 
     fireEvent.click(screen.getByText('Specialized workflows'));
-    expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
+    });
 
     resolveGeneration?.({
       success: true,
@@ -332,7 +334,7 @@ describe('AutomateSidebar', () => {
     });
   });
 
-  it('keeps Specialized workflows mounted and navigation locked while specialized work is active', () => {
+  it('keeps Specialized workflows mounted and navigation locked while specialized work is active', async () => {
     render(<AutomateSidebar />);
 
     fireEvent.click(screen.getByText('Specialized workflows'));
@@ -348,7 +350,9 @@ describe('AutomateSidebar', () => {
     expect(screen.getByRole('button', { name: 'My Workflows' })).not.toBeDisabled();
 
     fireEvent.click(screen.getByText('Specialized workflows'));
-    expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByTestId('ps-specialized-workflow')).toBeNull();
+    });
   });
 
   it('keeps specialized workflows available without restoring the legacy Advanced surface', () => {

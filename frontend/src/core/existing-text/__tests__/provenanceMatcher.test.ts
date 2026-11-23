@@ -981,4 +981,38 @@ describe('existing-text provenance matcher', () => {
       candidateCount: 2,
     });
   });
+
+  it('matches span successfully across multi-stream page with split q and Q operators (ISO 32000-1 §7.8.2)', () => {
+    // Stream 0 pushes graphics state (q)
+    // Stream 1 pops graphics state (Q)
+    // Previously failed with "stream 0: Unbalanced q/Q graphics-state operators."
+    const result = matchExistingTextSpanToContentStream({
+      span,
+      content: content([
+        'q 1 0 0 1 0 0 cm',
+        'BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET Q',
+      ]),
+    });
+
+    expect(result.status).toBe('matched');
+    if (result.status === 'matched') {
+      expect(result.provenance.decodedText).toBe('Hello');
+      expect(result.provenance.streamIndex).toBe(1);
+    }
+  });
+
+  it('matches span successfully when page has unclosed q at EOF (ISO 32000-1 §8.4.1 page teardown)', () => {
+    // PDF generator opened q at start of stream and omitted closing Q at EOF
+    const result = matchExistingTextSpanToContentStream({
+      span,
+      content: content([
+        'q BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET',
+      ]),
+    });
+
+    expect(result.status).toBe('matched');
+    if (result.status === 'matched') {
+      expect(result.provenance.decodedText).toBe('Hello');
+    }
+  });
 });

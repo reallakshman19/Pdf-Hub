@@ -4,11 +4,22 @@ import type { OcrJob } from '@/core/ocr/ocrJobTypes';
 export interface OcrProgressPanelProps {
   jobs: OcrJob[];
   activeJobId: string | null;
+  estimatedRemainingMs?: number;
+}
+
+function formatEta(ms?: number): string | null {
+  if (ms === undefined || ms <= 0) return null;
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds < 60) return `~${seconds}s remaining`;
+  const minutes = Math.floor(seconds / 60);
+  const remSec = seconds % 60;
+  return `~${minutes}m ${remSec}s remaining`;
 }
 
 export const OcrProgressPanel: React.FC<OcrProgressPanelProps> = ({
   jobs,
   activeJobId,
+  estimatedRemainingMs,
 }) => {
   if (jobs.length === 0) {
     return (
@@ -32,6 +43,7 @@ export const OcrProgressPanel: React.FC<OcrProgressPanelProps> = ({
         const total = Math.max(1, progress.totalPages);
         const processed = progress.completedPages + progress.failedPages;
         const pct = Math.round((processed / total) * 100);
+        const etaText = formatEta(progress.estimatedRemainingMs ?? (isActive ? estimatedRemainingMs : undefined));
 
         return (
           <div
@@ -56,13 +68,32 @@ export const OcrProgressPanel: React.FC<OcrProgressPanelProps> = ({
               </span>
             </div>
 
-            <div className="mb-1 text-slate-500 dark:text-slate-400">
-              {processed}/{progress.totalPages} pages processed
+            <div className="mb-1 flex items-center justify-between text-slate-500 dark:text-slate-400">
+              <span>
+                {processed}/{progress.totalPages} pages processed
+                {progress.batchIndex !== undefined && progress.totalBatches !== undefined ? (
+                  <span className="ml-1.5 font-mono text-[10px] text-slate-400">
+                    (Batch {progress.batchIndex + 1}/{progress.totalBatches})
+                  </span>
+                ) : null}
+              </span>
+              {etaText ? (
+                <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400" data-testid="ocr-job-eta">
+                  {etaText}
+                </span>
+              ) : null}
             </div>
+
+            {progress.stage ? (
+              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                <span>{progress.stage}</span>
+              </div>
+            ) : null}
 
             <div className="h-1.5 overflow-hidden rounded bg-slate-200 dark:bg-slate-800">
               <div
-                className="h-full bg-blue-500"
+                className="h-full bg-blue-500 transition-all duration-300"
                 style={{
                   width: `${pct}%`,
                 }}

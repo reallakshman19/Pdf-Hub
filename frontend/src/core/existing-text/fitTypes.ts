@@ -55,7 +55,9 @@ export type ExistingTextNativeFitDiagnostic =
           | 'INVALID_OBSERVED_ADVANCE'
           | 'INVALID_FONT_SIZE'
           | 'SOURCE_METRIC_ZERO'
-          | 'NON_FINITE_METRIC';
+          | 'NON_FINITE_METRIC'
+          | 'MISSING_SUBSET_GLYPHS';
+        missingCharacters?: string[];
       }
     );
 

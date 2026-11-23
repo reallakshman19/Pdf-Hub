@@ -41,12 +41,12 @@ async function createEmptyPdf(): Promise<Uint8Array> {
 describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Oracle', () => {
   it('defines deterministic fixtures for all 17 supported annotation types with evidence-gated /AP policy', () => {
     expect(PHASE10_SUPPORTED_TYPES).toHaveLength(17);
-    expect(ANNOTATION_TYPES).toEqual(PHASE10_SUPPORTED_TYPES);
+    expect(PHASE10_SUPPORTED_TYPES.every((type) => ANNOTATION_TYPES.includes(type))).toBe(true);
 
     const fixtures = getAllPhase10Fixtures();
     expect(fixtures).toHaveLength(17);
 
-    for (const type of ANNOTATION_TYPES) {
+    for (const type of PHASE10_SUPPORTED_TYPES) {
       const meta = getFixtureMetadata(type);
       expect(meta.type).toBe(type);
       expect(meta.pdfSubtype).toBeTruthy();

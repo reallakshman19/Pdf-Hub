@@ -74,6 +74,20 @@ describe('ocrRegionRasterBridge', () => {
     expect(resolved.diagnostics.some((item) => item.code === 'OCR_REGION_RASTERIZED')).toBe(true);
   });
 
+  it('uses adaptive 300 DPI scale when scale is not specified', async () => {
+    const region = makeRegion();
+
+    const resolved = await rasterizeOcrRegionToPageInput({
+      region,
+      document: createFakeDocument(),
+      canvasFactory: createMemoryPdfRasterCanvasFactory(),
+    });
+
+    expect(resolved.rasterizedPage).not.toBeNull();
+    // 300 / 72 = 4.166666666666667
+    expect(resolved.rasterizedPage?.scale).toBeCloseTo(300 / 72, 3);
+  });
+
   it('uses document raster path when document is supplied through resolver', async () => {
     const region = makeRegion();
 

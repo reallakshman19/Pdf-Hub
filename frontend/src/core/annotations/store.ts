@@ -29,6 +29,11 @@ import {
   guardNativeInteropStylePatch,
   markNativeAppearanceDirty,
 } from './nativeInteropFidelity';
+export { hasNativeRichTextSemantics } from './nativeInteropFidelity';
+import {
+  DEFAULT_SCALE_CALIBRATION,
+  type ScaleCalibration,
+} from './calibration';
 
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -69,6 +74,8 @@ interface AnnotationState {
   clipboardDocumentKey: string | null;
   /** Page identities and geometry at the moment markup was copied. */
   clipboardPageSnapshot: string | null;
+  /** Per-page drawing scale calibration for CAD dimensions and takeoffs. */
+  pageCalibrations: Record<number, ScaleCalibration>;
 }
 
 function markupNeedsStableClipboardPage(annotation: PdfAnnotation): boolean {
@@ -115,6 +122,9 @@ interface AnnotationActions {
   deleteReviewReply: (id: string, replyId: string) => void;
   toggleLockSelection: () => void;
   updateStyleForSelection: (stylePatch: Partial<AnnotationStyle> & Partial<AnnotationData>) => void;
+  setPageCalibration: (pageNumber: number, calibration: ScaleCalibration) => void;
+  setAllPagesCalibration: (calibration: ScaleCalibration) => void;
+  getPageCalibration: (pageNumber: number) => ScaleCalibration;
 }
 
 function createAnnotationTransactionInput(
@@ -329,6 +339,7 @@ function annotationStateSnapshot(
     clipboard: [...state.clipboard],
     clipboardDocumentKey: state.clipboardDocumentKey,
     clipboardPageSnapshot: state.clipboardPageSnapshot,
+    pageCalibrations: { ...state.pageCalibrations },
   };
 }
 
@@ -522,6 +533,7 @@ export const useAnnotationStore =
   clipboard: [],
   clipboardDocumentKey: null,
   clipboardPageSnapshot: null,
+  pageCalibrations: {},
 
   addAnnotation: (annotation) =>
     runMutation((state) => {
@@ -1188,6 +1200,28 @@ export const useAnnotationStore =
         nextAnnotations,
       );
     });
+  },
+
+  setPageCalibration: (pageNumber, calibration) => {
+    set((state) => ({
+      pageCalibrations: { ...state.pageCalibrations, [pageNumber]: calibration },
+    }));
+  },
+
+  setAllPagesCalibration: (calibration) => {
+    set(() => {
+      const graph = useSessionStore.getState().pageGraph;
+      const count = graph && graph.pages.length > 0 ? graph.pages.length : 100;
+      const next: Record<number, ScaleCalibration> = {};
+      for (let p = 1; p <= count; p++) {
+        next[p] = calibration;
+      }
+      return { pageCalibrations: next };
+    });
+  },
+
+  getPageCalibration: (pageNumber) => {
+    return get().pageCalibrations[pageNumber] ?? DEFAULT_SCALE_CALIBRATION;
   },
     };
   });

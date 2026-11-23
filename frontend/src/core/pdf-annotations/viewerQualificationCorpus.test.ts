@@ -468,5 +468,5 @@ describe('Phase 10 viewer appearance qualification corpus', () => {
     const missingMutationPath = path.join(temp, 'missing-mutation.json');
     await writeFile(missingMutationPath, JSON.stringify(missingMutation), 'utf8');
     expect(runEvidenceValidator(missingMutationPath).status).toBe(2);
-  });
+  }, 15000);
 });

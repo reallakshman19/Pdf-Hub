@@ -162,14 +162,15 @@ export const NativeAppearanceNode: React.FC<Props> = ({
           left: 0,
           top: 0,
           width: '100%',
-          height: '100%',
+          height: isEditing ? 'auto' : '100%',
+          minHeight: isEditing ? '100%' : undefined,
           boxSizing: 'border-box',
           background: isEditing
             ? (annotation.data?.backgroundColor === 'transparent'
-                ? 'rgba(255, 255, 255, 0.85)'
+                ? 'transparent'
                 : (annotation.data?.backgroundColor ?? 'rgba(255, 255, 255, 0.95)'))
             : 'transparent',
-          border: isSelected ? '1px solid rgba(37, 99, 235, 0.65)' : 'none',
+          border: (isSelected && !isEditing) ? '1px solid rgba(37, 99, 235, 0.65)' : 'none',
           cursor: isLocked ? 'pointer' : isEditing ? 'text' : isSelected ? 'move' : 'pointer',
           pointerEvents: 'all',
           touchAction: 'none',

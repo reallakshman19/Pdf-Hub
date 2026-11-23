@@ -223,12 +223,12 @@ export const ToolbarFile: React.FC = () => {
 
   const handleSave = async () => {
     const owner = captureDocumentMutationOwner();
-    const bytes = owner.session.workingBytes;
-    if (!bytes || !owner.session.fileName) {
+    const workingBytes = owner.session.workingBytes;
+    if (!workingBytes || !owner.session.fileName) {
       return;
     }
     const sequence = ++savePreflightSequence.current;
-    const risk = await inspectPdfSignatureRisk(bytes);
+    const risk = await inspectPdfSignatureRisk(workingBytes);
     if (sequence !== savePreflightSequence.current || !isDocumentMutationOwnerCurrent(owner)) return;
     if (risk.status === 'SIGNED' || risk.status === 'UNKNOWN') {
       if (risk.status === 'UNKNOWN') {

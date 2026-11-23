@@ -39,6 +39,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { applyUndo, applyRedo } from '@/core/document-history/transactions';
 import { InsertBlankPageDialog } from '../dialogs/InsertBlankPageDialog';
 import { ReplacePageDialog } from '../dialogs/ReplacePageDialog';
+import { InsertPdfDialog } from '../dialogs/InsertPdfDialog';
 import { PageLabelsDialog } from '../dialogs/PageLabelsDialog';
 import { HeaderFooterDialog } from '../dialogs/HeaderFooterDialog';
 import type { PageLabelRange } from '@/core/pages/types';
@@ -47,9 +48,11 @@ import type { HeaderFooterTemplate } from '@/core/header-footer/types';
 export const ToolbarOrganize: React.FC = () => {
   const [isBlankPageDialogOpen, setIsBlankPageDialogOpen] = useState(false);
   const [isReplacePageDialogOpen, setIsReplacePageDialogOpen] = useState(false);
+  const [isInsertPdfDialogOpen, setIsInsertPdfDialogOpen] = useState(false);
   const [isPageLabelsDialogOpen, setIsPageLabelsDialogOpen] = useState(false);
   const [isHeaderFooterDialogOpen, setIsHeaderFooterDialogOpen] = useState(false);
   const [replaceDonorSet, setReplaceDonorSet] = useState<AdmittedDonorSet | null>(null);
+  const [insertDonorSet, setInsertDonorSet] = useState<AdmittedDonorSet | null>(null);
   const donorOperationRef = useRef<{
     controller: AbortController;
     documentKey: string;
@@ -93,6 +96,8 @@ export const ToolbarOrganize: React.FC = () => {
     donorOperationRef.current?.controller.abort('superseded by a newer donor operation');
     setIsReplacePageDialogOpen(false);
     setReplaceDonorSet(null);
+    setIsInsertPdfDialogOpen(false);
+    setInsertDonorSet(null);
     const operation = {
       controller: new AbortController(),
       documentKey: expectedDocumentKey,
@@ -114,6 +119,13 @@ export const ToolbarOrganize: React.FC = () => {
     setReplaceDonorSet(null);
   };
 
+  const closeInsertDonor = () => {
+    donorOperationRef.current?.controller.abort('insert dialog closed');
+    donorOperationRef.current = null;
+    setIsInsertPdfDialogOpen(false);
+    setInsertDonorSet(null);
+  };
+
   useEffect(() => {
     const operation = donorOperationRef.current;
     if (operation && operation.documentKey !== documentKey) {
@@ -121,6 +133,8 @@ export const ToolbarOrganize: React.FC = () => {
       donorOperationRef.current = null;
       setIsReplacePageDialogOpen(false);
       setReplaceDonorSet(null);
+      setIsInsertPdfDialogOpen(false);
+      setInsertDonorSet(null);
     }
   }, [documentKey]);
 
@@ -346,21 +360,46 @@ export const ToolbarOrganize: React.FC = () => {
   const handleInsertFromPdf = async () => {
     const admitted = await admitDonorSelection(false, 'INSERT_PAGES');
     if (!admitted) return;
-    const donor = admitted.admitted.donors[0];
+    if (donorOperationRef.current !== admitted.operation) return;
+    setInsertDonorSet(admitted.admitted);
+    setIsInsertPdfDialogOpen(true);
+  };
+
+  const confirmInsertPdf = async (config: {
+    donorPageIndices?: number[];
+    placement: 'before' | 'after';
+    targetPage: number;
+  }) => {
+    const operation = donorOperationRef.current;
+    const staged = insertDonorSet;
+    const donor = staged?.donors[0];
+    if (!workingBytes || !operation || !staged || !donor) return;
+
+    const atIndex = config.placement === 'before'
+      ? config.targetPage - 1
+      : config.targetPage;
+    const count = config.donorPageIndices?.length ?? donor.pageCount;
+
     try {
+      assertAdmittedDonorSetDispatchAllowed(staged, {
+        signal: operation.controller.signal,
+        ownerDocumentKey: operation.documentKey,
+        isContextCurrent: () => useSessionStore.getState().documentKey === operation.documentKey,
+      });
       await runMutation(
         {
           type: 'INSERT_PAGES',
           payload: {
-            atIndex: viewState.currentPage - 1,
+            atIndex,
             donorResourceId: 'donor:0',
+            donorPageIndices: config.donorPageIndices,
           },
         },
-        `Inserted pages from ${donor.fileName}.`,
-        viewState.currentPage,
+        `Inserted ${count} page(s) from ${donor.fileName} ${config.placement} page ${config.targetPage}.`,
+        config.targetPage,
         {
-          signal: admitted.operation.controller.signal,
-          documentKey: admitted.operation.documentKey,
+          signal: operation.controller.signal,
+          documentKey: operation.documentKey,
           resources: {
             donors: {
               'donor:0': donor,
@@ -369,7 +408,9 @@ export const ToolbarOrganize: React.FC = () => {
         },
       );
     } finally {
-      finishDonorOperation(admitted.operation);
+      finishDonorOperation(operation);
+      setIsInsertPdfDialogOpen(false);
+      setInsertDonorSet(null);
     }
   };
 
@@ -387,7 +428,7 @@ export const ToolbarOrganize: React.FC = () => {
     await runMutation(
       { type: 'DELETE_PAGES', payload: { pageIndices: activeIndices } },
       `Deleted ${activePages.length} page(s).`,
-      1,
+      null,
     );
   };
 
@@ -412,7 +453,7 @@ export const ToolbarOrganize: React.FC = () => {
         },
       },
       `Split ${activePages.length} page(s) into a new file.`,
-      1,
+      null,
     );
 
     if (!result || !result.artifacts || result.artifacts.length === 0) return;
@@ -537,6 +578,16 @@ export const ToolbarOrganize: React.FC = () => {
         onConfirm={confirmReplacePage}
         maxPages={replaceDonorSet?.donors[0]?.pageCount ?? 1}
       />
+      <InsertPdfDialog
+        isOpen={isInsertPdfDialogOpen}
+        donorFileName={insertDonorSet?.donors[0]?.fileName ?? ''}
+        donorPageCount={insertDonorSet?.donors[0]?.pageCount ?? 1}
+        currentPage={viewState.currentPage}
+        totalDocumentPages={pageCount}
+        initialPlacement="before"
+        onClose={closeInsertDonor}
+        onConfirm={confirmInsertPdf}
+      />
       {pageGraph && (
         <HeaderFooterDialog
           isOpen={isHeaderFooterDialogOpen}
@@ -585,7 +636,7 @@ export const ToolbarOrganize: React.FC = () => {
           </Button>
         </Tooltip>
 
-        <Tooltip content="Insert pages from another PDF before current page">
+        <Tooltip content="Insert pages from another PDF">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleInsertFromPdf} disabled={!workingBytes}>
             <PlusSquare className="w-4 h-4" />
           </Button>

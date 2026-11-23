@@ -11,6 +11,16 @@ import {
 import {
   applyReconstructedExistingTextReplacementToDocument,
 } from '@/adapters/pdf-text/PdfLibExistingTextReconstruction';
+import {
+  applyExistingTextParagraphReplacementToDocument,
+} from '@/adapters/pdf-text/PdfLibExistingTextParagraphReconstruction';
+import {
+  applyExistingTextTableCellReplacementToDocument,
+} from '@/adapters/pdf-text/PdfLibExistingTextTableCellReconstruction';
+import {
+  eraseExistingTextSpanFromDocument,
+} from '@/adapters/pdf-text/PdfLibExistingTextErasure';
+import type { ExistingTextSimpleTextOperator } from '@/core/existing-text/provenanceTypes';
 import type {
   PdfMutationCommitResult,
   PdfMutationEngine,
@@ -208,16 +218,36 @@ class PdfLibMutationSession implements PdfMutationSession {
   async insertPdf(
     atIndex: number,
     donorBytes: Uint8Array,
+    donorPageIndices?: readonly number[],
   ): Promise<void> {
     this.assertOpen('insert donor PDF');
     const donor = await this.loadDonor(
       donorBytes,
       'insert donor PDF',
     );
+    const indicesToCopy = donorPageIndices && donorPageIndices.length > 0
+      ? donorPageIndices.slice()
+      : donor.getPageIndices();
+
+    for (const pageIndex of indicesToCopy) {
+      if (
+        !Number.isInteger(pageIndex)
+        || pageIndex < 0
+        || pageIndex >= donor.getPageCount()
+      ) {
+        throw new Error(
+          `Donor page index ${pageIndex} is outside 0..${Math.max(
+            0,
+            donor.getPageCount() - 1,
+          )}.`,
+        );
+      }
+    }
+
     const copied = await raceWithAbort(
       this.document.copyPages(
         donor,
-        donor.getPageIndices(),
+        indicesToCopy,
       ),
       this.signal,
       'insert donor PDF: copy pages',
@@ -488,6 +518,154 @@ class PdfLibMutationSession implements PdfMutationSession {
       this.lib,
       {
         ...input,
+        signal: this.signal,
+      },
+    );
+  }
+
+  async replaceExistingParagraph(
+    input: Parameters<
+      PdfMutationSession['replaceExistingParagraph']
+    >[0],
+  ): ReturnType<
+    PdfMutationSession['replaceExistingParagraph']
+  > {
+    this.assertOpen(
+      'replace existing PDF paragraph',
+    );
+    return applyExistingTextParagraphReplacementToDocument(
+      this.document,
+      this.lib,
+      {
+        ...input,
+        signal: this.signal,
+      },
+    );
+  }
+
+  async batchReplaceExistingText(
+    input: Parameters<
+      PdfMutationSession['batchReplaceExistingText']
+    >[0],
+  ): ReturnType<
+    PdfMutationSession['batchReplaceExistingText']
+  > {
+    this.assertOpen('batch replace existing PDF text');
+    const affected = new Set<number>();
+
+    for (const item of input.items) {
+      throwIfAborted(this.signal, 'batch replace existing PDF text');
+      this.assertPageIndex(item.pageIndex);
+      affected.add(item.pageIndex);
+
+      if (item.capability && item.capability.status === 'native') {
+        try {
+          await applySimpleExistingTextReplacementToDocument(
+            this.document,
+            this.lib,
+            {
+              currentRevisionId: input.currentRevisionId,
+              span: item.span,
+              intent: item.capability.intent,
+              provenance: item.capability.provenance,
+              signal: this.signal,
+            },
+          );
+          continue;
+        } catch {
+          // If native failed, fall through to visual reconstruction
+        }
+      }
+
+      // Reconstructed fallback
+      const intent: import('@/core/existing-text/types').ExistingTextEditIntent = {
+        schemaVersion: 1,
+        sourceRevisionId: input.currentRevisionId,
+        pageId: item.pageId,
+        spanId: item.span.id,
+        sourceIndex: item.span.sourceIndex,
+        expectedText: item.span.text,
+        replacementText: item.replacementText,
+        sourceEditability: 'reconstructed-candidate',
+      };
+
+      const provenance = item.capability?.provenance ?? {
+        pageNumber: item.pageIndex + 1,
+        streamIndex: 0,
+        operatorIndex: 0,
+        operator: 'Tj' as const,
+        fontResourceName: item.span.fontName ?? 'Helvetica',
+        fontSize: item.span.fontSizePt,
+        originalText: item.span.text,
+        targetBounds: {
+          x: item.span.originPt.x,
+          y: item.span.originPt.y,
+          width: item.span.advanceWidthPt,
+          height: item.span.sourceHeightPt,
+        },
+      };
+
+      await applyReconstructedExistingTextReplacementToDocument(
+        this.document,
+        this.lib,
+        {
+          currentRevisionId: input.currentRevisionId,
+          span: item.span,
+          intent,
+          provenance: provenance as unknown as ExistingTextSimpleTextOperator,
+          signal: this.signal,
+        },
+      );
+    }
+
+    return {
+      replacedCount: input.items.length,
+      affectedPageIndices: Array.from(affected).sort((a, b) => a - b),
+    };
+  }
+
+  async editTableCellText(
+    input: Parameters<
+      PdfMutationSession['editTableCellText']
+    >[0],
+  ): ReturnType<
+    PdfMutationSession['editTableCellText']
+  > {
+    this.assertOpen('edit table cell existing PDF text');
+    throwIfAborted(this.signal, 'edit table cell existing PDF text');
+    this.assertPageIndex(input.span.pageIndex);
+
+    return applyExistingTextTableCellReplacementToDocument(
+      this.document,
+      this.lib,
+      {
+        cell: input.cell,
+        span: input.span,
+        replacementText: input.replacementText,
+        alignment: input.alignment,
+        horizontalScalingPercent: input.horizontalScalingPercent,
+        styleOverride: input.styleOverride,
+        signal: this.signal,
+      },
+    );
+  }
+
+  async deleteExistingText(
+    input: Parameters<PdfMutationSession['deleteExistingText']>[0],
+  ): ReturnType<PdfMutationSession['deleteExistingText']> {
+    this.assertOpen('delete existing PDF text');
+    throwIfAborted(this.signal, 'delete existing PDF text');
+    this.assertPageIndex(input.span.pageIndex);
+
+    return eraseExistingTextSpanFromDocument(
+      this.document,
+      this.lib,
+      {
+        currentRevisionId: input.currentRevisionId,
+        span: input.span,
+        intent: input.intent,
+        provenance: input.provenance,
+        strategy: input.strategy,
         signal: this.signal,
       },
     );

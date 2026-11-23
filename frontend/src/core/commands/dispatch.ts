@@ -184,6 +184,14 @@ function commandLabel(command: PdfCommand): string {
       return 'Replace existing PDF text';
     case 'RECONSTRUCT_EXISTING_TEXT':
       return 'Reconstruct existing PDF text';
+    case 'REPLACE_EXISTING_PARAGRAPH':
+      return 'Replace existing PDF paragraph';
+    case 'BATCH_REPLACE_EXISTING_TEXT':
+      return `Batch replace existing text (${command.payload.items.length} items)`;
+    case 'EDIT_TABLE_CELL_TEXT':
+      return `Edit table cell [R${command.payload.cell.rowIndex + 1}:C${command.payload.cell.columnIndex + 1}]`;
+    case 'DELETE_EXISTING_TEXT':
+      return `Delete existing text "${command.payload.span.text.slice(0, 24)}"`;
     case 'DRAW_REDACTION_BOX':
       return 'Draw visual mask';
     case 'APPLY_WORKING_COPY':
@@ -192,6 +200,8 @@ function commandLabel(command: PdfCommand): string {
       return `Annotation change: ${command.payload.action}`;
     case 'WRITER_CHANGE':
       return `Writer change: ${command.payload.action}`;
+    default:
+      return (command as PdfCommand).type;
   }
 }
 
@@ -390,6 +400,7 @@ async function buildImportedDonorNodes(
   kind: 'insert' | 'merge',
   ordinalOffset: number,
   signal?: AbortSignal,
+  donorPageIndices?: number[],
 ): Promise<PageNode[]> {
   const donorGraph = await buildPageGraphFromPdfBytes(
     donor.bytes,
@@ -403,7 +414,22 @@ async function buildImportedDonorNodes(
     );
   }
 
-  return importedPageNodes(donorGraph.pages, {
+  const pagesToImport = donorPageIndices && donorPageIndices.length > 0
+    ? donorPageIndices.map((idx) => {
+        const page = donorGraph.pages[idx];
+        if (!page) {
+          throw new Error(
+            `Donor page index ${idx} is outside 0..${Math.max(
+              0,
+              donorGraph.pages.length - 1,
+            )}.`,
+          );
+        }
+        return page;
+      })
+    : donorGraph.pages;
+
+  return importedPageNodes(pagesToImport, {
     documentKey: context.documentKey,
     commandId: command.id,
     kind,
@@ -651,6 +677,10 @@ function usesPersistentMutationSession(
     || type === 'DRAW_TEXT_ON_PAGES'
     || type === 'REPLACE_EXISTING_TEXT'
     || type === 'RECONSTRUCT_EXISTING_TEXT'
+    || type === 'REPLACE_EXISTING_PARAGRAPH'
+    || type === 'BATCH_REPLACE_EXISTING_TEXT'
+    || type === 'EDIT_TABLE_CELL_TEXT'
+    || type === 'DELETE_EXISTING_TEXT'
     || type === 'DRAW_REDACTION_BOX'
     || type === 'APPLY_HEADER_FOOTER_TEMPLATE'
   );
@@ -1017,6 +1047,7 @@ export async function dispatchPdfCommand(
           'insert',
           0,
           input.signal,
+          command.payload.donorPageIndices,
         );
         const [resolved] = consumeAdmittedDonorPdfs(
           'INSERT_PAGES',
@@ -1051,6 +1082,7 @@ export async function dispatchPdfCommand(
         await mutationSession.insertPdf(
           command.payload.atIndex,
           resolved.bytes,
+          command.payload.donorPageIndices,
         );
         const committed =
           await commitStructuralMutationSession(
@@ -1745,6 +1777,247 @@ export async function dispatchPdfCommand(
           command,
           true,
           'Existing PDF text reconstructed visually',
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'REPLACE_EXISTING_PARAGRAPH': {
+        const { paragraph, intent } = command.payload;
+        const pageGraph = await resolveStructuralPageGraph(
+          context,
+          input,
+          pageCount,
+        );
+        const page = pageGraph.pages[paragraph.pageIndex];
+        if (!page || page.pageId !== paragraph.pageId) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            'Existing paragraph PageId no longer matches its physical page index.',
+          );
+        }
+
+        const mutationSession = requirePersistentMutationSession(
+          commandMutationSession,
+        );
+        await mutationSession.replaceExistingParagraph({
+          currentRevisionId: context.documentKey,
+          paragraph,
+          intent,
+        });
+
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Existing-paragraph mutation changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const result = await applyCommittedSessionMutation(
+          input,
+          context.workingBytes,
+          pageCount,
+          committed,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          pageGraph,
+          {
+            ocrPagePolicy: {
+              invalidatePageIds: [paragraph.pageId],
+            },
+          },
+        );
+
+        return commandSuccess(
+          command,
+          true,
+          'Existing PDF paragraph replaced',
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'BATCH_REPLACE_EXISTING_TEXT': {
+        const { items } = command.payload;
+        const pageGraph = await resolveStructuralPageGraph(
+          context,
+          input,
+          pageCount,
+        );
+
+        for (const item of items) {
+          const page = pageGraph.pages[item.pageIndex];
+          if (!page || page.pageId !== item.pageId) {
+            return commandError(
+              command,
+              'VALIDATION_FAILED',
+              `Batch replace target pageId '${item.pageId}' does not match PageGraph '${page?.pageId ?? 'missing'}'`,
+            );
+          }
+        }
+
+        const mutationSession = requirePersistentMutationSession(
+          commandMutationSession,
+        );
+        const batchResult = await mutationSession.batchReplaceExistingText({
+          currentRevisionId: context.documentKey,
+          items,
+        });
+
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Batch replacement changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const result = await applyCommittedSessionMutation(
+          input,
+          context.workingBytes,
+          pageCount,
+          committed,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          pageGraph,
+          {
+            ocrPagePolicy: {
+              invalidatePageIds: items.map((i) => i.pageId),
+            },
+          },
+        );
+
+        return commandSuccess(
+          command,
+          true,
+          `Batch replaced ${batchResult.replacedCount} occurrences across ${batchResult.affectedPageIndices.length} pages.`,
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'EDIT_TABLE_CELL_TEXT': {
+        const { cell, span, replacementText, alignment, horizontalScalingPercent, styleOverride, pageId } =
+          command.payload;
+        const pageGraph = await resolveStructuralPageGraph(
+          context,
+          input,
+          pageCount,
+        );
+
+        const page = pageGraph.pages[span.pageIndex];
+        if (!page || page.pageId !== pageId) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Table cell edit target pageId '${pageId}' does not match PageGraph '${page?.pageId ?? 'missing'}'`,
+          );
+        }
+
+        const mutationSession = requirePersistentMutationSession(
+          commandMutationSession,
+        );
+        const cellResult = await mutationSession.editTableCellText({
+          cell,
+          span,
+          replacementText,
+          alignment,
+          horizontalScalingPercent,
+          styleOverride,
+          currentRevisionId: context.documentKey,
+        });
+
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Table cell edit changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const result = await applyCommittedSessionMutation(
+          input,
+          context.workingBytes,
+          pageCount,
+          committed,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          pageGraph,
+          {
+            ocrPagePolicy: {
+              invalidatePageIds: [pageId],
+            },
+          },
+        );
+
+        return commandSuccess(
+          command,
+          true,
+          `Edited table cell [R${cell.rowIndex + 1}:C${cell.columnIndex + 1}] (${cellResult.alignment}, ${cellResult.horizontalScalingPercent}%)`,
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'DELETE_EXISTING_TEXT': {
+        const { span, intent, provenance, strategy } = command.payload;
+        const pageGraph = await resolveStructuralPageGraph(
+          context,
+          input,
+          pageCount,
+        );
+
+        const page = pageGraph.pages[span.pageIndex];
+        if (!page || page.pageId !== span.pageId) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Existing text target pageId '${span.pageId}' does not match PageGraph '${page?.pageId ?? 'missing'}'`,
+          );
+        }
+
+        const mutationSession = requirePersistentMutationSession(commandMutationSession);
+        const deletionResult = await mutationSession.deleteExistingText({
+          span,
+          intent,
+          provenance,
+          strategy,
+          currentRevisionId: context.documentKey,
+        });
+
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Delete existing text changed page count from ${pageCount} to ${committed.pageCount}.`,
+          );
+        }
+
+        const result = await applyCommittedSessionMutation(
+          input,
+          context.workingBytes,
+          pageCount,
+          committed,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          pageGraph,
+          {
+            ocrPagePolicy: {
+              invalidatePageIds: [span.pageId],
+            },
+          },
+        );
+
+        return commandSuccess(
+          command,
+          true,
+          `Deleted existing text "${deletionResult.originalText.slice(0, 24)}" (${deletionResult.strategyApplied})`,
           result.nextBytes,
           result.nextPageCount,
         );

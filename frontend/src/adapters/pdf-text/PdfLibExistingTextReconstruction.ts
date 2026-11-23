@@ -18,7 +18,15 @@ import {
 } from './PdfLibExistingTextVisualClearance';
 import {
   resolveExistingTextStandard14BaseFont,
+  resolveBestMatchingStandard14Font,
 } from './PdfLibExistingTextFont';
+import { extractPdfFontFromPage } from './PdfLibFontExtractor';
+import { computeLineAlignmentLayout } from '@/core/existing-text/alignmentEngine';
+import {
+  snapRotationDegrees,
+  computeRotatedWhiteoutRect,
+  computeRotatedDrawOrigin,
+} from '@/core/existing-text/rotatedTextGeometry';
 
 type PdfLibDocument =
   import('pdf-lib').PDFDocument;
@@ -67,13 +75,43 @@ export async function applyReconstructedExistingTextReplacementToDocument(
     document.getPage(
       input.span.pageIndex,
     );
-  const baseFont =
-    resolveExistingTextStandard14BaseFont(
+
+  let baseFont: string;
+  try {
+    baseFont = resolveExistingTextStandard14BaseFont(
       page,
-      input.provenance
-        .fontResourceName,
+      input.provenance.fontResourceName,
       lib,
     );
+  } catch {
+    const meta = extractPdfFontFromPage(page, input.provenance.fontResourceName, lib);
+    baseFont = resolveBestMatchingStandard14Font(meta, input.provenance.fontResourceName);
+  }
+
+  // Handle styleOverride font family/weight/style if specified
+  const style = input.intent.styleOverride;
+  if (style) {
+    if (style.fontFamily) {
+      if (style.fontFamily === 'Times-Roman') {
+        baseFont = style.bold && style.italic ? 'Times-BoldItalic' : style.bold ? 'Times-Bold' : style.italic ? 'Times-Italic' : 'Times-Roman';
+      } else if (style.fontFamily === 'Courier') {
+        baseFont = style.bold && style.italic ? 'Courier-BoldOblique' : style.bold ? 'Courier-Bold' : style.italic ? 'Courier-Oblique' : 'Courier';
+      } else {
+        baseFont = style.bold && style.italic ? 'Helvetica-BoldOblique' : style.bold ? 'Helvetica-Bold' : style.italic ? 'Helvetica-Oblique' : 'Helvetica';
+      }
+    } else if (style.bold !== undefined || style.italic !== undefined) {
+      const isBold = style.bold ?? baseFont.includes('Bold');
+      const isItalic = style.italic ?? (baseFont.includes('Italic') || baseFont.includes('Oblique'));
+      if (baseFont.startsWith('Times')) {
+        baseFont = isBold && isItalic ? 'Times-BoldItalic' : isBold ? 'Times-Bold' : isItalic ? 'Times-Italic' : 'Times-Roman';
+      } else if (baseFont.startsWith('Courier')) {
+        baseFont = isBold && isItalic ? 'Courier-BoldOblique' : isBold ? 'Courier-Bold' : isItalic ? 'Courier-Oblique' : 'Courier';
+      } else {
+        baseFont = isBold && isItalic ? 'Helvetica-BoldOblique' : isBold ? 'Helvetica-Bold' : isItalic ? 'Helvetica-Oblique' : 'Helvetica';
+      }
+    }
+  }
+
   const embeddedFont =
     await raceWithAbort(
       document.embedFont(
@@ -90,38 +128,101 @@ export async function applyReconstructedExistingTextReplacementToDocument(
     clearance.proof
       .clearanceRectPt;
 
-  // This is deliberately a visual reconstruction: the original text-show
-  // operator remains in the source content stream and is covered only inside
-  // the independently proved clearance envelope.
-  page.drawRectangle({
-    x: clearanceRect.x,
-    y: clearanceRect.y,
-    width: clearanceRect.width,
-    height: clearanceRect.height,
-    color: colorFromHex(
-      clearance.proof
-        .backgroundColorHex,
-      lib,
-    ),
-    opacity: 1,
-  });
+  const finalFontSizePt = style?.fontSizePt ?? input.provenance.fontSizePt;
+  const finalColorHex = style?.colorHex ?? clearance.proof.targetTextColorHex;
+
+  const lineWidthPt = embeddedFont.widthOfTextAtSize(
+    input.intent.replacementText,
+    finalFontSizePt,
+  );
+
+  const rotationDegrees = snapRotationDegrees(input.span.rotationDegrees ?? 0);
+  const isRotated = Math.abs(rotationDegrees) > 0.5 && Math.abs(rotationDegrees - 360) > 0.5;
+
+  // Visual clearance whiteout: rotated if span is rotated, axis-aligned otherwise
+  if (isRotated) {
+    const rotatedWhiteout = computeRotatedWhiteoutRect(
+      input.span.originPt,
+      Math.max(input.span.advanceWidthPt, lineWidthPt),
+      finalFontSizePt,
+      rotationDegrees,
+      2,
+    );
+    page.drawRectangle({
+      x: rotatedWhiteout.x,
+      y: rotatedWhiteout.y,
+      width: rotatedWhiteout.width,
+      height: rotatedWhiteout.height,
+      color: colorFromHex(
+        clearance.proof.backgroundColorHex,
+        lib,
+      ),
+      rotate: lib.degrees(rotationDegrees),
+      borderWidth: 0,
+      opacity: 1,
+    });
+  } else {
+    page.drawRectangle({
+      x: clearanceRect.x,
+      y: clearanceRect.y,
+      width: clearanceRect.width,
+      height: clearanceRect.height,
+      color: colorFromHex(
+        clearance.proof.backgroundColorHex,
+        lib,
+      ),
+      borderWidth: 0,
+      opacity: 1,
+    });
+  }
+
+  const layout = computeLineAlignmentLayout(
+    input.intent.replacementText,
+    lineWidthPt,
+    clearanceRect.width,
+    style?.align ?? 'left',
+    true,
+    {
+      horizontalScalePercent: style?.horizontalScalePercent,
+      letterSpacingPt: style?.letterSpacingPt,
+    },
+  );
+
+  const drawOrigin = computeRotatedDrawOrigin(
+    input.span.originPt,
+    layout.offsetX,
+    rotationDegrees,
+  );
+
+  if (layout.charSpacingPt !== 0) {
+    page.pushOperators(lib.setCharacterSpacing(layout.charSpacingPt));
+  }
+  if (layout.horizontalScalePercent !== 100) {
+    page.pushOperators(lib.setCharacterSqueeze(layout.horizontalScalePercent));
+  }
+
   page.drawText(
     input.intent.replacementText,
     {
-      x: input.span.originPt.x,
-      y: input.span.originPt.y,
-      size:
-        input.provenance
-          .fontSizePt,
+      x: drawOrigin.x,
+      y: drawOrigin.y,
+      size: finalFontSizePt,
       font: embeddedFont,
       color: colorFromHex(
-        clearance.proof
-          .targetTextColorHex,
+        finalColorHex,
         lib,
       ),
+      rotate: isRotated ? lib.degrees(rotationDegrees) : undefined,
       opacity: 1,
     },
   );
+
+  if (layout.charSpacingPt !== 0) {
+    page.pushOperators(lib.setCharacterSpacing(0));
+  }
+  if (layout.horizontalScalePercent !== 100) {
+    page.pushOperators(lib.setCharacterSqueeze(100));
+  }
 
   return {
     pageIndex:

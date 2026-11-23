@@ -145,7 +145,10 @@ describe('tesseractJsEngine', () => {
   it('uses PSM AUTO for quarter-turn PDF raster without rotating recognized pixel boxes', async () => {
     const order: string[] = [];
     const setParameters = vi.fn(async (params: Record<string, string>) => {
-      expect(params).toEqual({ tessedit_pageseg_mode: '3' });
+      expect(params).toEqual({
+        tessedit_pageseg_mode: '3',
+        preserve_interword_spaces: '1',
+      });
       order.push('psm3');
     });
     const recognizer = createDefaultTesseractRecognizer({
@@ -550,5 +553,227 @@ describe('tesseractJsEngine', () => {
     });
 
     expect(result.lines?.map((line) => line.text)).toEqual(values);
+  });
+
+  it('triggers multi-pass fallback on low confidence and selects best pass', async () => {
+    let callCount = 0;
+    const psmModes: string[] = [];
+
+    const recognizer = createDefaultTesseractRecognizer({
+      workerFactory: async () => ({
+        setParameters: async (params: Record<string, string>) => {
+          if (params.tessedit_pageseg_mode) {
+            psmModes.push(params.tessedit_pageseg_mode);
+          }
+        },
+        async recognize() {
+          callCount += 1;
+          if (callCount === 1) {
+            // Pass 1: Empty words / poor segmentation
+            return {
+              data: {
+                text: '',
+                confidence: 10,
+                words: [],
+              },
+            };
+          }
+          // Pass 2: High quality fallback
+          return {
+            data: {
+              text: 'ANCHOR TAG',
+              confidence: 94,
+              words: [
+                { text: 'ANCHOR', confidence: 95 },
+                { text: 'TAG', confidence: 93 },
+              ],
+            },
+          };
+        },
+        terminate: async () => undefined,
+      }),
+    });
+
+    const result = await recognizer.recognize({
+      image: new Uint8Array([1, 2, 3]),
+      language: 'eng',
+      page: { pageIndex: 0, imageBytes: new Uint8Array([1]), width: 500, height: 600 },
+      multiPass: true,
+    });
+
+    expect(callCount).toBe(2);
+    expect(psmModes).toContain('3');
+    expect(psmModes).toContain('11');
+    expect(result.text).toBe('ANCHOR TAG');
+  });
+
+  it('applies engineering dictionary post-correction to recognized units', async () => {
+    const recognizer = createDefaultTesseractRecognizer({
+      workerFactory: async () => ({
+        setParameters: async () => undefined,
+        async recognize() {
+          return {
+            data: {
+              text: 'ALPHA VALV 10 8AR',
+              confidence: 90,
+              words: [
+                { text: 'ALPHA', confidence: 95 },
+                { text: 'VALV', confidence: 85 },
+                { text: '10', confidence: 98 },
+                { text: '8AR', confidence: 80 },
+              ],
+            },
+          };
+        },
+        terminate: async () => undefined,
+      }),
+    });
+
+    const result = await recognizer.recognize({
+      image: new Uint8Array([1, 2, 3]),
+      language: 'eng',
+      page: { pageIndex: 0, imageBytes: new Uint8Array([1]), width: 500, height: 600 },
+      domainLexicon: 'engineering',
+    });
+
+    expect(result.text).toBe('ALPHA VALVE 10 BAR');
+    expect(result.words?.[1]?.text).toBe('VALVE');
+    expect(result.words?.[3]?.text).toBe('BAR');
+  });
+
+  it('reuses pooled worker across multiple pages in multi-page document', async () => {
+    let workerSpawnCount = 0;
+    let terminateCount = 0;
+
+    const engine = createTesseractJsEngine({
+      workerFactory: async () => {
+        workerSpawnCount += 1;
+        return {
+          setParameters: async () => undefined,
+          async recognize() {
+            return {
+              data: {
+                text: 'PAGE TEXT',
+                confidence: 90,
+                words: [{ text: 'PAGE', confidence: 90 }, { text: 'TEXT', confidence: 90 }],
+              },
+            };
+          },
+          terminate: async () => {
+            terminateCount += 1;
+          },
+        };
+      },
+    });
+
+    const docResult = await engine.recognize({
+      documentFingerprint: 'doc-pooled-worker',
+      profile: {
+        id: 'clean-scan',
+        label: 'Clean Scan',
+        description: '',
+        dpi: 300,
+        deskew: false,
+        denoise: false,
+        detectTables: false,
+        detectLayout: false,
+        preservePdfText: false,
+        languageHints: ['eng'],
+      },
+      pages: [
+        { pageIndex: 0, imageBytes: new Uint8Array([1]), width: 500, height: 600 },
+        { pageIndex: 1, imageBytes: new Uint8Array([2]), width: 500, height: 600 },
+        { pageIndex: 2, imageBytes: new Uint8Array([3]), width: 500, height: 600 },
+      ],
+    });
+
+    expect(docResult.pages).toHaveLength(3);
+    expect(workerSpawnCount).toBe(1);
+    expect(terminateCount).toBe(1);
+  });
+
+  it('keeps primary pass result if fallback pass throws an unexpected error', async () => {
+    let callCount = 0;
+    const recognizer = createDefaultTesseractRecognizer({
+      workerFactory: async () => ({
+        setParameters: async () => undefined,
+        async recognize() {
+          callCount += 1;
+          if (callCount === 1) {
+            // First pass: degraded confidence (< 60%) to trigger multi-pass
+            return {
+              data: {
+                text: 'INITIAL DEGRADED TEXT',
+                confidence: 45,
+                words: [{ text: 'INITIAL', confidence: 45 }],
+              },
+            };
+          }
+          // Second pass: throws an unexpected worker crash
+          throw new Error('Tesseract internal worker crash during fallback');
+        },
+        terminate: async () => undefined,
+      }),
+    });
+
+    const result = await recognizer.recognize({
+      image: new Uint8Array([1, 2, 3]),
+      language: 'eng',
+      page: { pageIndex: 0, imageBytes: new Uint8Array([1]), width: 500, height: 600 },
+      multiPass: true,
+    });
+
+    // Should gracefully preserve primary pass data rather than failing
+    expect(result.text).toBe('INITIAL DEGRADED TEXT');
+    expect(callCount).toBe(2);
+  });
+
+  it('declares supportsTables as true and detects structured tables in page results', async () => {
+    const engine = createTesseractJsEngine({
+      recognizer: {
+        async recognize() {
+          return {
+            text: 'COL1\tCOL2\nVAL1\tVAL2',
+            confidence: 90,
+            words: [
+              { text: 'COL1', confidence: 95, bbox: { x0: 50, y0: 100, x1: 80, y1: 115 } },
+              { text: 'COL2', confidence: 95, bbox: { x0: 150, y0: 100, x1: 180, y1: 115 } },
+              { text: 'VAL1', confidence: 90, bbox: { x0: 50, y0: 130, x1: 80, y1: 145 } },
+              { text: 'VAL2', confidence: 90, bbox: { x0: 150, y0: 130, x1: 180, y1: 145 } },
+            ],
+          };
+        },
+      },
+    });
+
+    expect(engine.supportsTables).toBe(true);
+
+    const docResult = await engine.recognize({
+      documentFingerprint: 'doc-table-test',
+      profile: {
+        id: 'table-heavy',
+        label: 'Table Heavy',
+        description: '',
+        dpi: 300,
+        deskew: false,
+        denoise: false,
+        detectTables: true,
+        detectLayout: true,
+        preservePdfText: false,
+        languageHints: ['eng'],
+      },
+      pages: [
+        { pageIndex: 0, imageBytes: new Uint8Array([1]), width: 500, height: 600 },
+      ],
+    });
+
+    const pageResult = docResult.pages[0];
+    const tableBlocks = pageResult.blocks.filter((b): b is import('../types').OcrTableBlock => b.type === 'table');
+    expect(tableBlocks).toHaveLength(1);
+    expect(tableBlocks[0]!.rows).toHaveLength(2);
+    expect(tableBlocks[0]!.rows[0]!.cells[0]!.text).toBe('COL1');
+    expect(tableBlocks[0]!.rows[0]!.cells[1]!.text).toBe('COL2');
+    expect(tableBlocks[0]!.rows[1]!.cells[0]!.text).toBe('VAL1');
+    expect(tableBlocks[0]!.rows[1]!.cells[1]!.text).toBe('VAL2');
   });
 });

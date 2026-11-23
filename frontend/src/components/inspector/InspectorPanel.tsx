@@ -11,7 +11,7 @@ import {
   isNativeRichTextReadOnly,
 } from '@/core/annotations/nativeInteropFidelity';
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
-import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, FileText, Minus, X } from 'lucide-react';
+import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, FileText, Minus, X, Calculator, ShieldAlert } from 'lucide-react';
 import { WriterInspectorPanel } from '@/components/writer/WriterInspectorPanel';
 import { useWriterStore } from '@/core/writer/store';
 import type { ReviewStatus } from '@/core/review/types';
@@ -19,6 +19,8 @@ import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ExistingTextInspectorTab } from './ExistingTextInspectorTab';
+import { TakeoffInspectorTab } from './TakeoffInspectorTab';
+import { RedactionInspectorTab } from './RedactionInspectorTab';
 
 
 export const InspectorPanel: React.FC = () => {
@@ -102,6 +104,8 @@ export const InspectorPanel: React.FC = () => {
     { id: 'style', icon: Palette, label: 'Style' },
     { id: 'history', icon: Info, label: 'Metadata' },
     { id: 'review', icon: MessageSquare, label: 'Review' },
+    { id: 'takeoff', icon: Calculator, label: 'Takeoff' },
+    { id: 'redaction', icon: ShieldAlert, label: 'Redaction' },
   ] as const;
 
   return (
@@ -126,11 +130,15 @@ export const InspectorPanel: React.FC = () => {
       <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-200 dark:border-slate-800">
         {inspectorTab === 'text'
           ? 'Current page PDF text'
-          : selection.length > 1
-            ? `${selection.length} annotations selected`
-            : activeAnnotation
-              ? '1 annotation selected'
-              : 'No selection'}
+          : inspectorTab === 'takeoff'
+            ? 'Bill of Materials & Quantity Takeoff'
+            : inspectorTab === 'redaction'
+              ? 'Secure Content Redaction'
+              : selection.length > 1
+                ? `${selection.length} annotations selected`
+                : activeAnnotation
+                  ? '1 annotation selected'
+                  : 'No selection'}
       </div>
 
       <div className="flex items-center p-2 border-b border-slate-200 dark:border-slate-800 shrink-0">
@@ -160,7 +168,7 @@ export const InspectorPanel: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-auto relative">
-        {!activeAnnotation && inspectorTab !== 'text' && (
+        {!activeAnnotation && inspectorTab !== 'text' && inspectorTab !== 'takeoff' && inspectorTab !== 'redaction' && (
           <div className="h-full flex items-center justify-center p-6">
             <div className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-6 text-center">
               <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center">
@@ -205,6 +213,14 @@ export const InspectorPanel: React.FC = () => {
             updateAnnotation={updateAnnotation}
             updateManyAnnotations={updateManyAnnotations}
           />
+        )}
+
+        {inspectorTab === 'takeoff' && (
+          <TakeoffInspectorTab />
+        )}
+
+        {inspectorTab === 'redaction' && (
+          <RedactionInspectorTab />
         )}
       </div>
     </div>
@@ -607,6 +623,59 @@ const StyleTab: React.FC<{
         </p>}
         <fieldset disabled={stampArtworkReadOnly || boxArtworkReadOnly} className="space-y-3 disabled:opacity-60">
         <div>
+          <div className="mb-2">
+            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+              Fill Mode
+            </span>
+            <div className="grid grid-cols-3 gap-1">
+              <button
+                type="button"
+                title="Solid Fill"
+                onClick={() =>
+                  applyToSelection({
+                    backgroundColor: isTransparentBg ? '#ffffff' : (annotation.data.backgroundColor ?? '#ffffff'),
+                    opacity: 1,
+                  })
+                }
+                className={`py-1 text-xs font-medium rounded border transition-colors ${
+                  !isTransparentBg && currentOpacity >= 0.8
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                Solid
+              </button>
+              <button
+                type="button"
+                title="Translucent Fill"
+                onClick={() =>
+                  applyToSelection({
+                    backgroundColor: isTransparentBg ? '#ffffff' : (annotation.data.backgroundColor ?? '#ffffff'),
+                    opacity: 0.5,
+                  })
+                }
+                className={`py-1 text-xs font-medium rounded border transition-colors ${
+                  !isTransparentBg && currentOpacity < 0.8
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                Translucent
+              </button>
+              <button
+                type="button"
+                title="No Background Fill"
+                onClick={() => applyToSelection({ backgroundColor: 'transparent' })}
+                className={`py-1 text-xs font-medium rounded border transition-colors ${
+                  isTransparentBg
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                No BG
+              </button>
+            </div>
+          </div>
           <TwoColumnRow>
             <div>
               <LabeledColorInput

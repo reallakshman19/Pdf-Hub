@@ -16,16 +16,12 @@ export function resolveLegacyPageTextTokens(
 
   if (values.enablePageNumberToken) {
     output = output.replaceAll(
-      '{page}',
-      String(values.page),
-    );
-    output = output.replaceAll(
       '{{page}}',
       String(values.page),
     );
     output = output.replaceAll(
-      '{pages}',
-      String(values.pages),
+      '{page}',
+      String(values.page),
     );
     output = output.replaceAll(
       '{{total_pages}}',
@@ -35,13 +31,13 @@ export function resolveLegacyPageTextTokens(
       '{{pages}}',
       String(values.pages),
     );
+    output = output.replaceAll(
+      '{pages}',
+      String(values.pages),
+    );
   }
 
   if (values.enableFileNameToken) {
-    output = output.replaceAll(
-      '{file}',
-      values.file,
-    );
     output = output.replaceAll(
       '{{file_name}}',
       values.file,
@@ -50,15 +46,19 @@ export function resolveLegacyPageTextTokens(
       '{{file}}',
       values.file,
     );
+    output = output.replaceAll(
+      '{file}',
+      values.file,
+    );
   }
 
   if (values.enableDateToken) {
     output = output.replaceAll(
-      '{date}',
+      '{{date}}',
       values.date,
     );
     output = output.replaceAll(
-      '{{date}}',
+      '{date}',
       values.date,
     );
   }

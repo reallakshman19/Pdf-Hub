@@ -97,7 +97,6 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
           style={{ overflow: 'visible' }}
         >
           {paths.map((p) => {
-            const branchArrow = p.arrowHead !== 'none';
             return (
               <React.Fragment key={p.id}>
                 {/* Wide transparent hit target for leader line click & drag */}
@@ -165,9 +164,12 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
           left: visualBox.x,
           top: visualBox.y,
           width: visualBox.width,
-          height: visualBox.height,
-          background: fillColor,
-          border: `${borderWidth}px solid ${borderColor}`,
+          height: isEditing ? 'auto' : visualBox.height,
+          minHeight: isEditing ? visualBox.height : undefined,
+          background: isEditing
+            ? (isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#ffffff'))
+            : fillColor,
+          border: isEditing ? 'none' : `${borderWidth}px solid ${borderColor}`,
           borderRadius: 4,
           padding: '1px 3px',
           color: annotation.data?.textColor ?? '#111827',
@@ -178,7 +180,7 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
           textAlign: annotation.data?.textAlign ?? 'left',
           cursor: isEditing ? 'text' : (isSelected ? 'move' : 'pointer'),
           pointerEvents: 'all',
-          outline: isSelected ? `2px solid ${borderColor}` : 'none',
+          outline: (isSelected && !isEditing) ? `2px solid ${borderColor}` : 'none',
           overflow: isEditing ? 'visible' : 'hidden',
           zIndex: isEditing ? 50 : undefined,
           boxSizing: 'border-box',

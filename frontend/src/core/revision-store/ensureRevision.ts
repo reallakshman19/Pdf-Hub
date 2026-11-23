@@ -54,8 +54,7 @@ export async function ensureStoredRevision(
 
   const rawPublication =
     ensureStoredRevisionUncoordinated(input);
-  let publication!: Promise<StoredRevision>;
-  publication = rawPublication.finally(() => {
+  const publication: Promise<StoredRevision> = rawPublication.finally(() => {
     if (pendingEnsures.get(key) === publication) {
       pendingEnsures.delete(key);
     }
