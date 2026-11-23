@@ -503,9 +503,15 @@ describe('annotation store', () => {
       backgroundColor: '#112233', borderColor: '#445566', borderWidth: 0,
       borderStyle: 'dashed', opacity: 0, autoSize: false, locked: true,
     });
+    // A locked annotation ignores style edits until it is unlocked.
     store.updateStyleForSelection({ fill: '#abcdef', stroke: '#fedcba', strokeWidth: 2 });
     expect(useAnnotationStore.getState().annotations[0].data).toMatchObject({
-      backgroundColor: '#abcdef', borderColor: '#fedcba', borderWidth: 2,
+      backgroundColor: '#112233', borderColor: '#445566', borderWidth: 0,
+    });
+    store.updateStyleForSelection({ locked: false });
+    store.updateStyleForSelection({ fill: '#abcdef', stroke: '#fedcba', strokeWidth: 2 });
+    expect(useAnnotationStore.getState().annotations[0].data).toMatchObject({
+      backgroundColor: '#abcdef', borderColor: '#fedcba', borderWidth: 2, locked: false,
     });
   });
 

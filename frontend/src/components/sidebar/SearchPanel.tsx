@@ -279,13 +279,30 @@ export const SearchPanel: React.FC = () => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       if (localQuery === query) {
-        // If query hasn't changed, Enter should go to next hit
-        nextHit();
+        if (e.shiftKey) {
+          prevHit();
+        } else {
+          nextHit();
+        }
       } else {
         setQuery(localQuery);
       }
     }
   };
+
+  const { matchIndex } = React.useMemo(() => {
+    if (hits.length === 0) return { matchIndex: 0 };
+    const idx = activeHitId ? hits.findIndex((h) => h.id === activeHitId) : -1;
+    return {
+      matchIndex: idx >= 0 ? idx + 1 : 0,
+    };
+  }, [hits, activeHitId]);
+
+  React.useEffect(() => {
+    if (!activeHitId) return;
+    const cardEl = document.getElementById(`search-panel-hit-${activeHitId}`);
+    cardEl?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+  }, [activeHitId]);
 
   const handleClear = () => {
     setLocalQuery('');
@@ -366,16 +383,32 @@ export const SearchPanel: React.FC = () => {
 
         {query && indexProgress.totalPages > 0 && (
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>
-              {hits.length} result{hits.length !== 1 ? 's' : ''}
+            <span data-testid="search-panel-counter">
+              {hits.length > 0 && matchIndex > 0
+                ? `Result ${matchIndex} of ${hits.length}`
+                : `${hits.length} result${hits.length !== 1 ? 's' : ''}`}
               {' · '}
               {indexProgress.indexedPages}/{indexProgress.totalPages} pages indexed
             </span>
             <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={prevHit}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={prevHit}
+                disabled={hits.length === 0}
+                title="Previous match (Shift+Enter, Shift+F3)"
+              >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={nextHit}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={nextHit}
+                disabled={hits.length === 0}
+                title="Next match (Enter, F3)"
+              >
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
@@ -415,10 +448,12 @@ export const SearchPanel: React.FC = () => {
                 return (
                   <button
                     key={hit.id}
+                    id={`search-panel-hit-${hit.id}`}
+                    data-testid={isActive ? 'search-panel-hit-active' : 'search-panel-hit'}
                     onClick={() => handleHitClick(hit.id, pageNum)}
                     className={`w-full text-left p-2 rounded-md text-sm transition-colors ${
                       isActive
-                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-900 dark:text-blue-100 border border-blue-200 dark:border-blue-800'
+                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-900 dark:text-blue-100 border border-blue-300 dark:border-blue-700 ring-1 ring-blue-500/40 font-medium'
                         : 'hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-transparent'
                     }`}
                   >

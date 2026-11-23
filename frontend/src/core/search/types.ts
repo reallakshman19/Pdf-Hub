@@ -44,6 +44,7 @@ export interface SearchState {
   activeHitId: string | null;
   error: string | null;
   indexProgress: SearchIndexProgress;
+  isOverlayVisible: boolean;
 }
 
 // --- New types for the SearchIndexer ---

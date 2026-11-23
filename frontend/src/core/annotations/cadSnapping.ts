@@ -239,7 +239,7 @@ export function resolveLineEndpoint(
 
 /**
  * Constrains a target point relative to an origin point to 45° angle increments
- * (0°, 45°, 90°, 135°, 180°, -45°, -90°, -135°), used for orthogonal/isometric CAD drafting.
+ * (0°, 45°, 90°, 135°, 180°, -45°, -90°, -135°), used for orthogonal CAD drafting.
  */
 export function constrainAngleTo45(origin: Point2D, target: Point2D): Point2D {
   const dx = target.x - origin.x;
@@ -255,5 +255,44 @@ export function constrainAngleTo45(origin: Point2D, target: Point2D): Point2D {
   return {
     x: Math.round((origin.x + length * Math.cos(snappedAngle)) * 1000) / 1000,
     y: Math.round((origin.y + length * Math.sin(snappedAngle)) * 1000) / 1000,
+  };
+}
+
+/**
+ * Constrains a target point relative to an origin point to standard 3D piping isometric axes
+ * (30°, 90°, 150°, 210°, 270°, 330°), used for drafting on Piping Isometric (ISO) sheets.
+ */
+export function constrainAngleToIsometric(origin: Point2D, target: Point2D): Point2D {
+  const dx = target.x - origin.x;
+  const dy = target.y - origin.y;
+  const length = Math.hypot(dx, dy);
+
+  if (length === 0) return { ...target };
+
+  const angle = Math.atan2(dy, dx);
+  // 6 standard isometric axes in radians: 30°, 90°, 150°, -150° (210°), -90° (270°), -30° (330°)
+  const isoAngles = [
+    Math.PI / 6,
+    Math.PI / 2,
+    (5 * Math.PI) / 6,
+    (-5 * Math.PI) / 6,
+    -Math.PI / 2,
+    -Math.PI / 6,
+  ];
+
+  let closestAngle = isoAngles[0];
+  let minDiff = Infinity;
+  for (const a of isoAngles) {
+    let diff = Math.abs(angle - a);
+    if (diff > Math.PI) diff = 2 * Math.PI - diff;
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestAngle = a;
+    }
+  }
+
+  return {
+    x: Math.round((origin.x + length * Math.cos(closestAngle)) * 1000) / 1000,
+    y: Math.round((origin.y + length * Math.sin(closestAngle)) * 1000) / 1000,
   };
 }

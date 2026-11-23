@@ -113,6 +113,7 @@ interface AnnotationActions {
   copySelection: () => void;
   pasteClipboard: (targetPage?: number) => void;
   duplicateSelection: () => void;
+  nudgeSelectedAnnotations: (dx: number, dy: number) => void;
   alignSelection: (mode: AlignMode) => void;
   distributeSelection: (mode: DistributeMode) => void;
   setReviewStatusForSelection: (status: ReviewStatus) => void;
@@ -668,7 +669,7 @@ export const useAnnotationStore =
   deleteAnnotation: (id) =>
     runMutation((state) => {
       const removed = state.annotations.filter((annotation) => annotation.id === id);
-      if (!removed.length) return state;
+      if (!removed.length || removed[0].data.locked === true) return state;
       const tombstones = explicitNativeDeletionCommands(state, removed);
       if (!tombstones) return state;
       const nextAnnotations = state.annotations.filter((annotation) => annotation.id !== id);
@@ -687,14 +688,20 @@ export const useAnnotationStore =
     runMutation((state) => {
       if (!targetIds.length) return state;
       const selectedSet = new Set(targetIds);
-      const removed = state.annotations.filter((annotation) => selectedSet.has(annotation.id));
+      const removed = state.annotations.filter(
+        (annotation) => selectedSet.has(annotation.id) && annotation.data.locked !== true,
+      );
+      if (!removed.length) return state;
       const tombstones = explicitNativeDeletionCommands(state, removed);
       if (!tombstones) return state;
+      const removedSet = new Set(removed.map((a) => a.id));
       const nextAnnotations = state.annotations.filter(
-        (annotation) => !selectedSet.has(annotation.id),
+        (annotation) => !removedSet.has(annotation.id),
       );
+      const remainingSelected = state.selectedAnnotationIds.filter((id) => !removedSet.has(id));
+      const nextActiveId = remainingSelected[0] ?? null;
       return {
-        ...annotationSnapshot(state, nextAnnotations, [], null),
+        ...annotationSnapshot(state, nextAnnotations, remainingSelected, nextActiveId),
         nativeDeletionTombstones: tombstones,
       };
     }, 'Delete annotations');
@@ -907,6 +914,50 @@ export const useAnnotationStore =
         duplicated[0]?.id ?? null,
       );
     });
+  },
+  nudgeSelectedAnnotations: (dx, dy) => {
+    if (dx === 0 && dy === 0) return;
+    const invocationState = get();
+    const targetIds =
+      invocationState.selectedAnnotationIds.length > 0
+        ? [...invocationState.selectedAnnotationIds]
+        : invocationState.activeAnnotationId
+        ? [invocationState.activeAnnotationId]
+        : [];
+
+    if (targetIds.length === 0) return;
+
+    runMutation((state) => {
+      const selectedSet = new Set(targetIds);
+      let anyMoved = false;
+
+      const nextAnnotations = state.annotations.map((annotation) => {
+        if (!selectedSet.has(annotation.id)) return annotation;
+        if (annotation.data.locked === true) return annotation;
+
+        anyMoved = true;
+        const rect = {
+          ...annotation.rect,
+          x: Math.round((annotation.rect.x + dx) * 100) / 100,
+          y: Math.round((annotation.rect.y + dy) * 100) / 100,
+        };
+
+        return withNativeEditProvenance(
+          annotation,
+          markNativeAppearanceDirty(annotation, {
+            ...annotation,
+            rect,
+            data: remapAnnotationGeometry(annotation, rect),
+            updatedAt: Date.now(),
+          }),
+          useSessionStore.getState().documentKey,
+          uuidv4(),
+        );
+      });
+
+      if (!anyMoved) return state;
+      return annotationSnapshot(state, nextAnnotations);
+    }, 'Nudge annotations');
   },
   alignSelection: (mode) => {
     const targetIds = [
@@ -1157,6 +1208,7 @@ export const useAnnotationStore =
       const selectedSet = new Set(targetIds);
       const nextAnnotations = state.annotations.map((annotation) => {
         if (!selectedSet.has(annotation.id)) return annotation;
+        if (annotation.data.locked === true && !('locked' in stylePatch)) return annotation;
 
         const guardedStylePatch = guardNativeInteropStylePatch(annotation, stylePatch);
         const patch: AnnotationData = {};

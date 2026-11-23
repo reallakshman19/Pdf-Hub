@@ -4,6 +4,7 @@ import { TopNav } from './TopNav';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useEditorStore } from '@/core/editor/store';
+import { useSearchStore } from '@/core/search/store';
 
 vi.mock('@/hooks/useIsMobile', () => ({
   useIsMobile: vi.fn(),
@@ -107,5 +108,34 @@ describe('TopNav — desktop variant', () => {
     // Check that search pill and actions are rendered
     expect(screen.getByPlaceholderText(/search or run command/i)).toBeInTheDocument();
     expect(screen.getByTestId('theme-toggle')).toBeInTheDocument();
+  });
+
+  it('renders search match count badge and cycles next/prev on Enter / Shift+Enter', () => {
+    useSearchStore.setState({
+      query: 'valve',
+      hits: [
+        { id: 'hit-1', pageNumber: 1, snippet: 'valve 1', rects: [] },
+        { id: 'hit-2', pageNumber: 2, snippet: 'valve 2', rects: [] },
+      ],
+      activeHitId: 'hit-1',
+      isOverlayVisible: true,
+    });
+
+    render(<TopNav />);
+
+    const badge = screen.getByTestId('topnav-search-match-badge');
+    expect(badge).toHaveTextContent('1/2');
+
+    const input = screen.getByPlaceholderText(/search or run command/i);
+
+    // Enter cycles to next hit
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(useSearchStore.getState().activeHitId).toBe('hit-2');
+    expect(screen.getByTestId('topnav-search-match-badge')).toHaveTextContent('2/2');
+
+    // Shift+Enter cycles to prev hit
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
+    expect(useSearchStore.getState().activeHitId).toBe('hit-1');
+    expect(screen.getByTestId('topnav-search-match-badge')).toHaveTextContent('1/2');
   });
 });
