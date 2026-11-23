@@ -24,7 +24,9 @@ import type {
   WriterDocumentMetaV2,
   WriterElementV2,
   WriterPageSetupV2,
+  WriterPageTemplateOptions,
 } from './types';
+import { normalizeTemplateOptions } from './templates/pageTemplates';
 import type { WriterAssetRecordV2 } from './persistence/indexedDbWriterStore';
 import {
   persistWriterAssetReferences,
@@ -109,7 +111,8 @@ export interface WriterV2StoreState extends WriterV2State {
   }) => WriterDocumentMetaV2;
   renameBlankWriterDocument: (title: string, now?: string) => void;
   updateBlankWriterPageSetup: (patch: Partial<WriterPageSetupV2>, now?: string) => void;
-  addBlankWriterPage: (afterPageIndex?: number, now?: string) => void;
+  updateBlankWriterPageTemplate: (template: WriterPageTemplateOptions, pageIndex?: number, now?: string) => void;
+  addBlankWriterPage: (afterPageIndex?: number, template?: WriterPageTemplateOptions, now?: string) => void;
   deleteBlankWriterPage: (pageIndex: number, now?: string) => void;
   duplicateBlankWriterPage: (pageIndex: number, now?: string) => void;
 
@@ -566,7 +569,37 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     });
   },
 
-  addBlankWriterPage: (afterPageIndex, now) => {
+  updateBlankWriterPageTemplate: (template, pageIndex, now) => {
+    const current = get().documentMeta;
+
+    if (!current || current.mode !== 'blankDocument') {
+      return;
+    }
+
+    const norm = normalizeTemplateOptions(template);
+    let nextSetup: WriterPageSetupV2;
+
+    if (typeof pageIndex === 'number' && pageIndex >= 0) {
+      const pageTemplates = { ...(current.pageSetup.pageTemplates ?? {}) };
+      pageTemplates[pageIndex] = norm;
+      nextSetup = {
+        ...current.pageSetup,
+        pageTemplates,
+      };
+    } else {
+      nextSetup = {
+        ...current.pageSetup,
+        pageTemplate: norm,
+      };
+    }
+
+    set({
+      documentMeta: updateWriterDocumentPageSetup(current, nextSetup, now),
+      dirty: true,
+    });
+  },
+
+  addBlankWriterPage: (afterPageIndex, template, now) => {
     const current = get().documentMeta;
 
     if (!current || current.mode !== 'blankDocument') {
@@ -575,6 +608,7 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
 
     const result = addWriterPage(current, get().elements, {
       afterPageIndex,
+      template,
       now,
     });
 

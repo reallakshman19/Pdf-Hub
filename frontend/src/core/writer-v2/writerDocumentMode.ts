@@ -2,9 +2,11 @@ import type {
   WriterDocumentMetaV2,
   WriterPagePreset,
   WriterPageSetupV2,
+  WriterPageTemplateOptions,
   WriterElementV2,
 } from './types';
 import { WRITER_PAGE_PRESETS } from './types';
+import { normalizeTemplateOptions } from './templates/pageTemplates';
 
 export interface CreateBlankWriterDocumentInput {
   title?: string;
@@ -56,6 +58,15 @@ export function normalizeWriterPageSetup(
   const marginLeft = clampFinite(setup.marginLeft, 0, width / 2 - 1);
   const marginRight = clampFinite(setup.marginRight, 0, width / 2 - 1);
 
+  const pageTemplate = setup.pageTemplate ? normalizeTemplateOptions(setup.pageTemplate) : undefined;
+  let pageTemplates: Record<number, WriterPageTemplateOptions> | undefined;
+  if (setup.pageTemplates) {
+    pageTemplates = {};
+    for (const [key, val] of Object.entries(setup.pageTemplates)) {
+      pageTemplates[Number(key)] = normalizeTemplateOptions(val);
+    }
+  }
+
   return {
     ...setup,
     width,
@@ -66,6 +77,8 @@ export function normalizeWriterPageSetup(
     marginBottom,
     marginLeft,
     backgroundColor: setup.backgroundColor ?? '#ffffff',
+    ...(pageTemplate ? { pageTemplate } : {}),
+    ...(pageTemplates ? { pageTemplates } : {}),
   };
 }
 
@@ -121,11 +134,77 @@ export function updateWriterDocumentPageSetup(
   };
 }
 
+function shiftPageTemplatesOnAdd(
+  pageTemplates: Record<number, WriterPageTemplateOptions> | undefined,
+  insertedPageIndex: number,
+  newTemplate?: WriterPageTemplateOptions,
+): Record<number, WriterPageTemplateOptions> | undefined {
+  if (!pageTemplates && !newTemplate) return undefined;
+  const result: Record<number, WriterPageTemplateOptions> = {};
+  if (pageTemplates) {
+    for (const [key, value] of Object.entries(pageTemplates)) {
+      const idx = Number(key);
+      if (idx < insertedPageIndex) {
+        result[idx] = value;
+      } else {
+        result[idx + 1] = value;
+      }
+    }
+  }
+  if (newTemplate) {
+    result[insertedPageIndex] = normalizeTemplateOptions(newTemplate);
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function shiftPageTemplatesOnDelete(
+  pageTemplates: Record<number, WriterPageTemplateOptions> | undefined,
+  deletedPageIndex: number,
+): Record<number, WriterPageTemplateOptions> | undefined {
+  if (!pageTemplates) return undefined;
+  const result: Record<number, WriterPageTemplateOptions> = {};
+  for (const [key, value] of Object.entries(pageTemplates)) {
+    const idx = Number(key);
+    if (idx < deletedPageIndex) {
+      result[idx] = value;
+    } else if (idx > deletedPageIndex) {
+      result[idx - 1] = value;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function shiftPageTemplatesOnDuplicate(
+  pageTemplates: Record<number, WriterPageTemplateOptions> | undefined,
+  duplicatedPageIndex: number,
+  sourcePageIndex: number,
+  defaultTemplate?: WriterPageTemplateOptions,
+): Record<number, WriterPageTemplateOptions> | undefined {
+  if (!pageTemplates && !defaultTemplate) return undefined;
+  const result: Record<number, WriterPageTemplateOptions> = {};
+  if (pageTemplates) {
+    for (const [key, value] of Object.entries(pageTemplates)) {
+      const idx = Number(key);
+      if (idx < duplicatedPageIndex) {
+        result[idx] = value;
+      } else {
+        result[idx + 1] = value;
+      }
+    }
+  }
+  const sourceTemplate = pageTemplates?.[sourcePageIndex] ?? defaultTemplate;
+  if (sourceTemplate) {
+    result[duplicatedPageIndex] = normalizeTemplateOptions(sourceTemplate);
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 export function addWriterPage(
   meta: WriterDocumentMetaV2,
   elements: WriterElementV2[],
   input: {
     afterPageIndex?: number;
+    template?: WriterPageTemplateOptions;
     now?: string;
   } = {},
 ): {
@@ -138,10 +217,20 @@ export function addWriterPage(
     ? currentPageCount
     : clampInteger(input.afterPageIndex + 1, 0, currentPageCount);
 
+  const nextPageTemplates = shiftPageTemplatesOnAdd(
+    meta.pageSetup.pageTemplates,
+    insertedPageIndex,
+    input.template,
+  );
+
   return {
     meta: {
       ...meta,
       pageCount: currentPageCount + 1,
+      pageSetup: {
+        ...meta.pageSetup,
+        ...(nextPageTemplates !== undefined ? { pageTemplates: nextPageTemplates } : {}),
+      },
       updatedAt: input.now ?? new Date().toISOString(),
     },
     insertedPageIndex,
@@ -204,10 +293,21 @@ export function deleteWriterPage(
     ? input.activeId
     : selectedIds.at(-1) ?? null;
 
+  const nextPageTemplates = shiftPageTemplatesOnDelete(
+    meta.pageSetup.pageTemplates,
+    pageIndex,
+  );
+
   return {
     meta: {
       ...meta,
       pageCount: currentPageCount - 1,
+      pageSetup: {
+        ...meta.pageSetup,
+        ...(nextPageTemplates !== undefined
+          ? { pageTemplates: nextPageTemplates }
+          : { pageTemplates: undefined }),
+      },
       updatedAt: input.now ?? new Date().toISOString(),
     },
     result: {
@@ -255,10 +355,21 @@ export function duplicateWriterPage(
       updatedAt: now,
     }));
 
+  const nextPageTemplates = shiftPageTemplatesOnDuplicate(
+    meta.pageSetup.pageTemplates,
+    duplicatedPageIndex,
+    pageIndex,
+    meta.pageSetup.pageTemplate,
+  );
+
   return {
     meta: {
       ...meta,
       pageCount: currentPageCount + 1,
+      pageSetup: {
+        ...meta.pageSetup,
+        ...(nextPageTemplates !== undefined ? { pageTemplates: nextPageTemplates } : {}),
+      },
       updatedAt: now,
     },
     result: {

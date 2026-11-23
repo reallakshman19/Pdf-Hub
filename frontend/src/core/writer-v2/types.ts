@@ -95,6 +95,24 @@ export type WriterDocumentMode = 'pdfOverlay' | 'blankDocument';
 
 export type WriterPagePreset = 'A4' | 'Letter' | 'Legal' | 'Custom';
 
+export type WriterPageTemplateKind =
+  | 'blank'
+  | 'ruled'
+  | 'grid'
+  | 'dot-grid'
+  | 'cornell'
+  | 'music-staff';
+
+export interface WriterPageTemplateOptions {
+  kind: WriterPageTemplateKind;
+  spacing?: number;
+  lineColor?: string;
+  lineWidth?: number;
+  marginLineColor?: string;
+  showMarginLine?: boolean;
+  dotSize?: number;
+}
+
 export interface WriterPageSetupV2 {
   preset: WriterPagePreset;
   width: number;
@@ -105,6 +123,8 @@ export interface WriterPageSetupV2 {
   marginBottom: number;
   marginLeft: number;
   backgroundColor?: string;
+  pageTemplate?: WriterPageTemplateOptions;
+  pageTemplates?: Record<number, WriterPageTemplateOptions>;
 }
 
 export interface WriterDocumentMetaV2 {

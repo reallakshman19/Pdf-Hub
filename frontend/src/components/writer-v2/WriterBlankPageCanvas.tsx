@@ -12,6 +12,7 @@ import { createWriterElementFromPlacement } from '@/core/writer-v2/writerPlaceme
 import { shouldWriterOverlayCapturePlacement } from '@/core/writer-v2/writerToolPolicy';
 import { useEditorStore } from '@/core/editor/store';
 import { WriterElementBox } from './WriterElementBox';
+import { WriterPageTemplateBackground } from './WriterPageTemplateBackground';
 
 export interface WriterBlankPageCanvasProps {
   pageIndex: number;
@@ -138,6 +139,12 @@ export const WriterBlankPageCanvas: React.FC<WriterBlankPageCanvasProps> = ({
         });
       }}
     >
+      <WriterPageTemplateBackground
+        pageSetup={documentMeta.pageSetup}
+        pageIndex={pageIndex}
+        scale={scale}
+      />
+
       {showMarginGuides ? (
         <div
           data-testid="writer-blank-page-margin-guide"

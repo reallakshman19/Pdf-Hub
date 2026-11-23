@@ -3,11 +3,17 @@ import { Button } from '@/components/ui/Button';
 import type {
   WriterPagePreset,
   WriterPageSetupV2,
+  WriterPageTemplateKind,
 } from '@/core/writer-v2/types';
 import { WRITER_PAGE_PRESETS } from '@/core/writer-v2/types';
 import {
   createWriterPageSetup,
 } from '@/core/writer-v2/writerDocumentMode';
+import {
+  ALL_PAGE_TEMPLATE_KINDS,
+  PAGE_TEMPLATE_PRESETS,
+  getDefaultPageTemplateOptions,
+} from '@/core/writer-v2/templates/pageTemplates';
 
 export interface BlankDocumentCreateDialogProps {
   open: boolean;
@@ -30,6 +36,8 @@ export const BlankDocumentCreateDialog: React.FC<BlankDocumentCreateDialogProps>
   const [title, setTitle] = React.useState('Untitled document');
   const [preset, setPreset] = React.useState<WriterPagePreset>('A4');
   const [orientation, setOrientation] = React.useState<Orientation>('portrait');
+  const [templateKind, setTemplateKind] = React.useState<WriterPageTemplateKind>('blank');
+  const [templateSpacing, setTemplateSpacing] = React.useState<number | undefined>(undefined);
   const [marginPreset, setMarginPreset] = React.useState<MarginPreset>('normal');
   const [pageCount, setPageCount] = React.useState(1);
   const [customWidth, setCustomWidth] = React.useState(WRITER_PAGE_PRESETS.A4.width);
@@ -40,6 +48,11 @@ export const BlankDocumentCreateDialog: React.FC<BlankDocumentCreateDialogProps>
     return null;
   }
 
+  const handleTemplateChange = (nextKind: WriterPageTemplateKind) => {
+    setTemplateKind(nextKind);
+    setTemplateSpacing(PAGE_TEMPLATE_PRESETS[nextKind].defaultSpacing || undefined);
+  };
+
   const resolvedSetup = resolveDialogPageSetup({
     preset,
     orientation,
@@ -47,6 +60,8 @@ export const BlankDocumentCreateDialog: React.FC<BlankDocumentCreateDialogProps>
     customWidth,
     customHeight,
     customMargin,
+    templateKind,
+    templateSpacing,
   });
 
   const submit = () => {
@@ -150,6 +165,39 @@ export const BlankDocumentCreateDialog: React.FC<BlankDocumentCreateDialogProps>
 
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+              Page template
+              <select
+                data-testid="blank-document-template-select"
+                className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900"
+                value={templateKind}
+                onChange={(event) => handleTemplateChange(event.currentTarget.value as WriterPageTemplateKind)}
+              >
+                {ALL_PAGE_TEMPLATE_KINDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {PAGE_TEMPLATE_PRESETS[kind].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {templateKind !== 'blank' && PAGE_TEMPLATE_PRESETS[templateKind].defaultSpacing > 0 ? (
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                Line spacing, pt
+                <input
+                  data-testid="blank-document-template-spacing-input"
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900"
+                  type="number"
+                  min={4}
+                  max={72}
+                  value={templateSpacing ?? PAGE_TEMPLATE_PRESETS[templateKind].defaultSpacing}
+                  onChange={(event) => setTemplateSpacing(Number(event.currentTarget.value))}
+                />
+              </label>
+            ) : null}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
               Margins
               <select
                 data-testid="blank-document-margin-select"
@@ -195,7 +243,7 @@ export const BlankDocumentCreateDialog: React.FC<BlankDocumentCreateDialogProps>
             data-testid="blank-document-page-summary"
             className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
           >
-            {Math.round(resolvedSetup.width)} × {Math.round(resolvedSetup.height)} pt · margins {Math.round(resolvedSetup.marginLeft)} pt
+            {PAGE_TEMPLATE_PRESETS[templateKind].label} · {Math.round(resolvedSetup.width)} × {Math.round(resolvedSetup.height)} pt · margins {Math.round(resolvedSetup.marginLeft)} pt
           </div>
         </div>
 
@@ -230,6 +278,8 @@ export function resolveDialogPageSetup(input: {
   customWidth: number;
   customHeight: number;
   customMargin: number;
+  templateKind?: WriterPageTemplateKind;
+  templateSpacing?: number;
 }): WriterPageSetupV2 {
   const base = input.preset === 'Custom'
     ? createWriterPageSetup('Custom', {
@@ -249,6 +299,15 @@ export function resolveDialogPageSetup(input: {
       ? input.customMargin
       : 72;
 
+  const pageTemplate = input.templateKind && input.templateKind !== 'blank'
+    ? {
+        ...getDefaultPageTemplateOptions(input.templateKind),
+        ...(typeof input.templateSpacing === 'number' && input.templateSpacing > 0
+          ? { spacing: input.templateSpacing }
+          : {}),
+      }
+    : { kind: 'blank' as const };
+
   return createWriterPageSetup(input.preset, {
     width,
     height,
@@ -257,5 +316,6 @@ export function resolveDialogPageSetup(input: {
     marginBottom: margin,
     marginLeft: margin,
     backgroundColor: '#ffffff',
+    pageTemplate,
   });
 }
