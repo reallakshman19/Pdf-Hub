@@ -142,7 +142,7 @@ describe('managed native annotation deletion', () => {
           tombstones: [],
         },
       }))
-      .rejects.toThrow(/without user provenance for: rect/);
+      .rejects.toThrow(/without issued user history for: rect/);
   });
 
   it('edits an unnamed native stamp without leaving a second original behind', async () => {

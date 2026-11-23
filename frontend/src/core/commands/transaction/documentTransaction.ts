@@ -341,16 +341,32 @@ export async function commitDocumentMutation(
   }
 
   const annotationState = useAnnotationStore.getState();
-  // A page rewrite changes the source revision of native PDF object refs.
-  // Old tombstones cannot authorize deletion in that new revision. Refuse
-  // the operation until pending native deletions have been explicitly Saved.
-  if (nextDocumentKey !== sessionSnapshot.documentKey
-    && annotationState.nativeDeletionTombstones.length > 0) {
-    throw new DocumentMutationTransactionError(
-      'prepare',
-      'Cannot safely change PDF pages with pending native annotation deletions. Save and reopen the resulting PDF first.',
-    );
-  }
+  const remappedTombstones = (
+    nextDocumentKey === sessionSnapshot.documentKey
+      ? annotationState.nativeDeletionTombstones
+      : annotationState.nativeDeletionTombstones
+          .map((tombstone) => {
+            if (!pageGraphForCommit) {
+              return {
+                ...tombstone,
+                sourceRevision: nextDocumentKey,
+              };
+            }
+            const newIndex = pageGraphForCommit.pages.findIndex(
+              (page) => page.pageId === tombstone.pageId,
+            );
+            if (newIndex === -1) {
+              return null;
+            }
+            return {
+              ...tombstone,
+              sourceRevision: nextDocumentKey,
+              pageNumber: newIndex + 1,
+              pageId: pageGraphForCommit.pages[newIndex]!.pageId,
+            };
+          })
+          .filter((t): t is typeof annotationState.nativeDeletionTombstones[number] => t !== null)
+  );
   const annotationsToPersist = normalizeAnnotationPageAnchors(
     input.nextAnnotations ?? annotationState.annotations,
     pageGraphForCommit,
@@ -433,8 +449,7 @@ export async function commitDocumentMutation(
         nextDocumentKey,
         annotationsToPersist,
         {
-          nativeDeletionTombstones: nextDocumentKey === sessionSnapshot.documentKey
-            ? annotationState.nativeDeletionTombstones : [],
+          nativeDeletionTombstones: remappedTombstones,
         },
       );
     } catch (error) {
@@ -528,26 +543,26 @@ export async function commitDocumentMutation(
 
   assertDocumentMutationOwner(owner);
   try {
-    useSessionStore.getState().replaceWorkingCopy(
-      effectiveAfterBytes,
-      afterPageCount,
-      publishedRevisionId,
-    );
-    useSessionStore.getState().setDocumentKey(nextDocumentKey);
-    useSessionStore.getState().setPageGraph(
-      pageGraphForCommit
+    useSessionStore.getState().commitMutation({
+      bytes: effectiveAfterBytes,
+      pageCount: afterPageCount,
+      documentKey: nextDocumentKey,
+      activeRevisionId: publishedRevisionId,
+      pageGraph: pageGraphForCommit
         ? rekeyPageGraph(pageGraphForCommit, nextDocumentKey)
         : null,
-    );
+      selectedPages: input.nextSelectedPages,
+      currentPage: typeof input.nextCurrentPage === 'number' ? input.nextCurrentPage : undefined,
+    });
 
     if (input.nextAnnotations) {
       useAnnotationStore.getState().setAnnotations(annotationsToPersist);
     }
     if (nextDocumentKey !== sessionSnapshot.documentKey) {
       useAnnotationStore.setState({
-        nativeDeletionTombstones: [],
-        hydratedDocumentKey: null,
-        nativeIntegrity: { status: 'LOADING', documentKey: nextDocumentKey },
+        nativeDeletionTombstones: remappedTombstones,
+        hydratedDocumentKey: nextDocumentKey,
+        nativeIntegrity: { status: 'COMPLETE', documentKey: nextDocumentKey },
       });
     }
 
@@ -574,14 +589,6 @@ export async function commitDocumentMutation(
     }
 
     commitOcrPageState(ocrForCommit);
-
-    if (input.nextSelectedPages) {
-      useSessionStore.getState().setSelectedPages(input.nextSelectedPages);
-    }
-
-    if (typeof input.nextCurrentPage === 'number') {
-      useSessionStore.getState().setPage(input.nextCurrentPage);
-    }
 
     const sessionAfter = useSessionStore.getState();
     const afterRevisionBacking = revisionHistoryBacking(

@@ -18,6 +18,10 @@ import {
   convertTextContentToOcrPageResult,
   type PdfNativeTextItem,
 } from './ocrPdfSourceBridge';
+import {
+  preprocessOcrImageData,
+  type OcrPreprocessingOptions,
+} from './preprocessing/ocrImagePreprocessor';
 
 export type PdfRasterImageMimeType =
   | 'image/png'
@@ -93,6 +97,7 @@ export interface PdfPageRasterizerOptions {
   mimeType?: PdfRasterImageMimeType;
   quality?: number;
   canvasFactory?: PdfRasterCanvasFactory;
+  preprocessing?: OcrPreprocessingOptions;
   signal?: AbortSignal;
 }
 
@@ -201,7 +206,9 @@ export async function rasterizePdfPageForOcr(
   });
 
   const viewport = page.getViewport({ scale });
-  const canvasFactory = input.canvasFactory ?? createBrowserPdfRasterCanvasFactory();
+  const canvasFactory = input.canvasFactory ?? createBrowserPdfRasterCanvasFactory({
+    preprocessing: input.preprocessing,
+  });
   const canvas = canvasFactory.createCanvas(
     Math.max(1, Math.floor(viewport.width)),
     Math.max(1, Math.floor(viewport.height)),
@@ -351,6 +358,7 @@ export async function rasterizePdfPagesForOcr(
         mimeType: input.mimeType,
         quality: input.quality,
         canvasFactory: input.canvasFactory,
+        preprocessing: input.preprocessing,
         signal: input.signal,
       }),
     );
@@ -446,20 +454,27 @@ export function pdfRectToRasterCropRect(input: {
   );
 }
 
-export function createBrowserPdfRasterCanvasFactory(): PdfRasterCanvasFactory {
+export function createBrowserPdfRasterCanvasFactory(
+  options: { preprocessing?: OcrPreprocessingOptions } = {},
+): PdfRasterCanvasFactory {
   return {
     createCanvas(width, height) {
-      if (typeof document === 'undefined') {
+      let canvas: HTMLCanvasElement | OffscreenCanvas;
+      let context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+
+      if (typeof document !== 'undefined') {
+        const domCanvas = document.createElement('canvas');
+        domCanvas.width = width;
+        domCanvas.height = height;
+        context = domCanvas.getContext('2d', { willReadFrequently: true });
+        canvas = domCanvas;
+      } else if (typeof OffscreenCanvas !== 'undefined') {
+        const offCanvas = new OffscreenCanvas(width, height);
+        context = offCanvas.getContext('2d', { willReadFrequently: true });
+        canvas = offCanvas;
+      } else {
         throw new Error('Browser canvas is unavailable in this runtime.');
       }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-
-      const context = canvas.getContext('2d', {
-        willReadFrequently: true,
-      });
 
       if (!context) {
         throw new Error('2D canvas context is unavailable for OCR rasterization.');
@@ -470,32 +485,55 @@ export function createBrowserPdfRasterCanvasFactory(): PdfRasterCanvasFactory {
         context,
         width,
         height,
-        toBytes: (mimeType, quality) =>
-          canvasToBytes(canvas, mimeType, quality),
+        toBytes: async (mimeType, quality) => {
+          if (options.preprocessing && options.preprocessing.mode !== 'none' && 'getImageData' in context) {
+            const imgData = context.getImageData(0, 0, width, height);
+            preprocessOcrImageData(imgData, options.preprocessing);
+            context.putImageData(imgData, 0, 0);
+          }
+          return canvasToBytes(canvas, mimeType, quality);
+        },
         cropToBytes: async (crop, mimeType, quality) => {
-          const cropped = document.createElement('canvas');
-          cropped.width = Math.max(1, Math.floor(crop.width));
-          cropped.height = Math.max(1, Math.floor(crop.height));
+          const cropW = Math.max(1, Math.floor(crop.width));
+          const cropH = Math.max(1, Math.floor(crop.height));
+          let cropped: HTMLCanvasElement | OffscreenCanvas;
+          let croppedContext: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
 
-          const croppedContext = cropped.getContext('2d', {
-            willReadFrequently: true,
-          });
+          if (typeof document !== 'undefined') {
+            const domCropped = document.createElement('canvas');
+            domCropped.width = cropW;
+            domCropped.height = cropH;
+            croppedContext = domCropped.getContext('2d', { willReadFrequently: true });
+            cropped = domCropped;
+          } else if (typeof OffscreenCanvas !== 'undefined') {
+            const offCropped = new OffscreenCanvas(cropW, cropH);
+            croppedContext = offCropped.getContext('2d', { willReadFrequently: true });
+            cropped = offCropped;
+          } else {
+            throw new Error('2D crop canvas context is unavailable for OCR rasterization.');
+          }
 
           if (!croppedContext) {
             throw new Error('2D crop canvas context is unavailable for OCR rasterization.');
           }
 
           croppedContext.drawImage(
-            canvas,
+            canvas as CanvasImageSource,
             crop.x,
             crop.y,
             crop.width,
             crop.height,
             0,
             0,
-            cropped.width,
-            cropped.height,
+            cropW,
+            cropH,
           );
+
+          if (options.preprocessing && options.preprocessing.mode !== 'none' && 'getImageData' in croppedContext) {
+            const imgData = croppedContext.getImageData(0, 0, cropW, cropH);
+            preprocessOcrImageData(imgData, options.preprocessing);
+            croppedContext.putImageData(imgData, 0, 0);
+          }
 
           return canvasToBytes(cropped, mimeType, quality);
         },
@@ -689,11 +727,16 @@ function clamp(
 }
 
 async function canvasToBytes(
-  canvas: HTMLCanvasElement,
+  canvas: HTMLCanvasElement | OffscreenCanvas,
   mimeType: PdfRasterImageMimeType,
   quality?: number,
 ): Promise<Uint8Array> {
-  if (canvas.toBlob) {
+  if ('convertToBlob' in canvas && typeof canvas.convertToBlob === 'function') {
+    const blob = await canvas.convertToBlob({ type: mimeType, quality });
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  if ('toBlob' in canvas && typeof canvas.toBlob === 'function') {
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (value) => {
@@ -708,8 +751,12 @@ async function canvasToBytes(
     return new Uint8Array(await blob.arrayBuffer());
   }
 
-  const dataUrl = canvas.toDataURL(mimeType, quality);
-  return dataUrlToBytes(dataUrl);
+  if ('toDataURL' in canvas && typeof canvas.toDataURL === 'function') {
+    const dataUrl = canvas.toDataURL(mimeType, quality);
+    return dataUrlToBytes(dataUrl);
+  }
+
+  throw new Error('Canvas cannot be converted to bytes in this runtime.');
 }
 
 function dataUrlToBytes(
@@ -724,4 +771,35 @@ function dataUrlToBytes(
   }
 
   return bytes;
+}
+
+/**
+ * Calculates the optimal adaptive scale targeting 300 DPI (~4.1667 user-space scale)
+ * or higher for small region crops, safely clamped by maxCanvasPixels.
+ */
+export function calculateAdaptiveOcrScale(input: {
+  width: number;
+  height: number;
+  targetDpi?: number;
+  requestedScale?: number;
+  maxCanvasPixels?: number;
+  isRegionCrop?: boolean;
+}): number {
+  const targetDpi = input.targetDpi ?? 300;
+  const standardScale = targetDpi / 72;
+  let baseScale = input.requestedScale ?? standardScale;
+
+  if (input.isRegionCrop) {
+    if (input.height > 0 && input.height < 60) {
+      const minTextScale = 180 / input.height;
+      baseScale = Math.max(baseScale, minTextScale);
+    }
+  }
+
+  return clampScaleForMaxPixels({
+    width: input.width,
+    height: input.height,
+    requestedScale: baseScale,
+    maxCanvasPixels: input.maxCanvasPixels ?? 16_000_000,
+  });
 }

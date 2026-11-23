@@ -9,6 +9,33 @@
  * 4. Add export support in the PDF writer/export path.
  * 5. Add a toolbar button if it is user-facing.
  */
+export const STANDARD_ANNOTATION_TYPES = [
+  'textbox',
+  'callout',
+  'sticky-note',
+  'highlight',
+  'underline',
+  'strikeout',
+  'squiggly',
+  'shape-rect',
+  'shape-ellipse',
+  'shape-polygon',
+  'shape-cloud',
+  'line',
+  'arrow',
+  'ink',
+  'stamp',
+  'comment',
+  'redaction',
+] as const;
+
+export const CAD_ANNOTATION_TYPES = [
+  'piping-support',
+  'piping-valve',
+  'perimeter-takeoff',
+  'area-takeoff',
+] as const;
+
 export const ANNOTATION_TYPES = [
   'textbox',
   'callout',
@@ -27,6 +54,10 @@ export const ANNOTATION_TYPES = [
   'stamp',
   'comment',
   'redaction',
+  'piping-support',
+  'piping-valve',
+  'perimeter-takeoff',
+  'area-takeoff',
 ] as const;
 
 export type AnnotationType = typeof ANNOTATION_TYPES[number];

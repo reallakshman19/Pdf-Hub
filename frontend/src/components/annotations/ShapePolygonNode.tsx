@@ -1,10 +1,13 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
+import { AreaTakeoffNode } from './AreaTakeoffNode';
 
-export const ShapePolygonNode: React.FC<AnnotationNodeProps<'shape-polygon'>> = ({
-  annotation, rect, scale, isSelected, onSelect, onTransformStart,
-}) => {
+export const ShapePolygonNode: React.FC<AnnotationNodeProps<'shape-polygon'>> = (props) => {
+  if (props.annotation.data?.isAreaTakeoff) {
+    return <AreaTakeoffNode {...props} />;
+  }
+  const { annotation, rect, scale, isSelected, onSelect, onTransformStart } = props;
   const bg = annotation.data?.backgroundColor ?? 'transparent';
   const border = annotation.data?.borderColor ?? '#3b82f6';
   const width = (annotation.data?.borderWidth ?? 2) * scale;

@@ -17,6 +17,9 @@ export interface OcrProfile {
   detectLayout: boolean;
   preservePdfText: boolean;
   languageHints: string[];
+  multiPass?: boolean;
+  domainLexicon?: 'general' | 'engineering' | 'none';
+  preserveInterwordSpaces?: boolean;
 }
 
 export const OCR_PROFILES: Record<OcrProfileId, OcrProfile> = {
@@ -31,6 +34,9 @@ export const OCR_PROFILES: Record<OcrProfileId, OcrProfile> = {
     detectLayout: true,
     preservePdfText: true,
     languageHints: ['eng'],
+    multiPass: false,
+    domainLexicon: 'general',
+    preserveInterwordSpaces: true,
   },
 
   'low-quality-scan': {
@@ -44,6 +50,9 @@ export const OCR_PROFILES: Record<OcrProfileId, OcrProfile> = {
     detectLayout: true,
     preservePdfText: true,
     languageHints: ['eng'],
+    multiPass: true,
+    domainLexicon: 'general',
+    preserveInterwordSpaces: true,
   },
 
   'table-heavy': {
@@ -57,6 +66,9 @@ export const OCR_PROFILES: Record<OcrProfileId, OcrProfile> = {
     detectLayout: true,
     preservePdfText: true,
     languageHints: ['eng'],
+    multiPass: true,
+    domainLexicon: 'general',
+    preserveInterwordSpaces: true,
   },
 
   'engineering-drawing': {
@@ -70,6 +82,9 @@ export const OCR_PROFILES: Record<OcrProfileId, OcrProfile> = {
     detectLayout: true,
     preservePdfText: true,
     languageHints: ['eng'],
+    multiPass: true,
+    domainLexicon: 'engineering',
+    preserveInterwordSpaces: true,
   },
 
   'region-only': {
@@ -83,6 +98,9 @@ export const OCR_PROFILES: Record<OcrProfileId, OcrProfile> = {
     detectLayout: false,
     preservePdfText: true,
     languageHints: ['eng'],
+    multiPass: true,
+    domainLexicon: 'engineering',
+    preserveInterwordSpaces: true,
   },
 
   'force-ocr': {
@@ -96,6 +114,9 @@ export const OCR_PROFILES: Record<OcrProfileId, OcrProfile> = {
     detectLayout: true,
     preservePdfText: false,
     languageHints: ['eng'],
+    multiPass: false,
+    domainLexicon: 'general',
+    preserveInterwordSpaces: true,
   },
 };
 

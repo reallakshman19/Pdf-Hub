@@ -21,6 +21,18 @@ import type {
   OcrEngineInput,
   OcrEnginePageInput,
 } from './ocrEngineContract';
+import {
+  determineFallbackPsm,
+  determinePrimaryPsm,
+  selectBestRecognitionPass,
+  shouldTriggerMultiPass,
+} from './tesseractPsmStrategy';
+import {
+  applyEngineeringDictionaryToTesseractData,
+} from './engineeringDictionary';
+import {
+  detectOcrTables,
+} from '../tables/ocrTableDetector';
 
 export interface TesseractJsEngineOptions {
   recognizer?: TesseractRecognizer;
@@ -38,13 +50,21 @@ export type TesseractImageSourceFactory = (
   dispose?: () => void;
 }>;
 
+export interface TesseractRecognizerInput {
+  image: TesseractImageSource;
+  language: string;
+  page: OcrEnginePageInput;
+  profileId?: string;
+  multiPass?: boolean;
+  domainLexicon?: 'general' | 'engineering' | 'none';
+  userPreferredPsm?: string;
+  preserveInterwordSpaces?: boolean;
+  signal?: AbortSignal;
+  worker?: TesseractWorkerLike;
+}
+
 export interface TesseractRecognizer {
-  recognize(input: {
-    image: TesseractImageSource;
-    language: string;
-    page: OcrEnginePageInput;
-    signal?: AbortSignal;
-  }): Promise<TesseractRecognizeData>;
+  recognize(input: TesseractRecognizerInput): Promise<TesseractRecognizeData>;
 }
 
 export type TesseractWorkerFactory = (language: string) => Promise<TesseractWorkerLike>;
@@ -102,7 +122,7 @@ export function createTesseractJsEngine(
   return {
     id: 'tesseract-js',
     label: 'Tesseract.js OCR',
-    supportsTables: false,
+    supportsTables: true,
     supportsLayout: true,
     supportsSearchablePdf: false,
 
@@ -110,37 +130,64 @@ export function createTesseractJsEngine(
       const language = resolveTesseractLanguage(input.profile.languageHints);
       const pages: OcrPageResult[] = [];
 
-      for (const page of input.pages) {
-        throwIfAborted(input.abortSignal, `OCR page ${page.pageIndex + 1}`);
-        const imageSource = await raceWithAbort(
-          imageSourceFactory(page),
-          input.abortSignal,
-          `prepare OCR image for page ${page.pageIndex + 1}`,
-        );
-
+      let pooledWorker: TesseractWorkerLike | null = null;
+      if (input.pages.length > 1 && !options.recognizer) {
         try {
-          const recognitionPromise = recognizer.recognize({
-            image: imageSource.source,
-            language,
-            page,
-            signal: input.abortSignal,
-          });
-          const data = await raceWithAbort(
-            recognitionPromise,
+          pooledWorker = await (options.workerFactory ?? createDefaultTesseractWorker)(language);
+        } catch {
+          pooledWorker = null;
+        }
+      }
+
+      try {
+        for (const page of input.pages) {
+          throwIfAborted(input.abortSignal, `OCR page ${page.pageIndex + 1}`);
+          const imageSource = await raceWithAbort(
+            imageSourceFactory(page),
             input.abortSignal,
-            `recognize OCR page ${page.pageIndex + 1}`,
+            `prepare OCR image for page ${page.pageIndex + 1}`,
           );
-          throwIfAborted(input.abortSignal, `store OCR page ${page.pageIndex + 1}`);
-          pages.push(tesseractDataToOcrPageResult({ data, page, language }));
-        } catch (error) {
-          if (isOperationCancelledError(error)) throw error;
-          pages.push(createFailedTesseractPageResult({
-            page,
-            language,
-            message: error instanceof Error ? error.message : 'Tesseract.js OCR failed.',
-          }));
-        } finally {
-          imageSource.dispose?.();
+
+          try {
+            const recognitionPromise = recognizer.recognize({
+              image: imageSource.source,
+              language,
+              page,
+              profileId: input.profile.id,
+              multiPass: input.profile.multiPass,
+              domainLexicon: input.profile.domainLexicon,
+              preserveInterwordSpaces: input.profile.preserveInterwordSpaces,
+              signal: input.abortSignal,
+              worker: pooledWorker ?? undefined,
+            });
+            const data = await raceWithAbort(
+              recognitionPromise,
+              input.abortSignal,
+              `recognize OCR page ${page.pageIndex + 1}`,
+            );
+            throwIfAborted(input.abortSignal, `store OCR page ${page.pageIndex + 1}`);
+            pages.push(
+              tesseractDataToOcrPageResult({
+                data,
+                page,
+                language,
+                detectTables: input.profile.detectTables,
+              }),
+            );
+          } catch (error) {
+            if (isOperationCancelledError(error)) throw error;
+            pages.push(createFailedTesseractPageResult({
+              page,
+              language,
+              message: error instanceof Error ? error.message : 'Tesseract.js OCR failed.',
+            }));
+          } finally {
+            imageSource.dispose?.();
+          }
+        }
+      } finally {
+        if (pooledWorker) {
+          await pooledWorker.terminate().catch(() => undefined);
         }
       }
 
@@ -168,6 +215,7 @@ export function tesseractDataToOcrPageResult(input: {
   data: TesseractRecognizeData;
   page: OcrEnginePageInput;
   language: string;
+  detectTables?: boolean;
 }): OcrPageResult {
   const wordNodes = collectTesseractWords(input.data);
   const lineNodes = collectTesseractLines(input.data);
@@ -197,7 +245,7 @@ export function tesseractDataToOcrPageResult(input: {
         words,
       });
 
-  const blocks = blockNodes.length > 0
+  const rawBlocks = blockNodes.length > 0
     ? blockNodes.map((node, index) =>
         tesseractNodeToOcrBlock({
           node,
@@ -214,6 +262,44 @@ export function tesseractDataToOcrPageResult(input: {
         fallbackText: input.data.text ?? '',
         fallbackConfidence: normalizeTesseractConfidence(input.data.confidence),
       });
+
+  const shouldDetectTables = input.detectTables ?? true;
+  const detectedTables = shouldDetectTables
+    ? detectOcrTables({
+        words,
+        lines,
+        pageWidth: input.page.width,
+        pageHeight: input.page.height,
+        pageIndex: input.page.pageIndex,
+      })
+    : [];
+
+  const filteredBlocks = detectedTables.length > 0
+    ? rawBlocks.filter((block) => {
+        if (!block.bbox) return true;
+        const b = block.bbox;
+        return !detectedTables.some((table) => {
+          if (!table.bbox) return false;
+          const t = table.bbox;
+          const overlapX = Math.max(
+            0,
+            Math.min(b.x + b.width, t.x + t.width) - Math.max(b.x, t.x),
+          );
+          const overlapY = Math.max(
+            0,
+            Math.min(b.y + b.height, t.y + t.height) - Math.max(b.y, t.y),
+          );
+          const overlapArea = overlapX * overlapY;
+          const blockArea = Math.max(1, b.width * b.height);
+          return overlapArea / blockArea >= 0.75;
+        });
+      })
+    : rawBlocks;
+
+  const blocks: OcrAnyBlock[] = [
+    ...filteredBlocks,
+    ...detectedTables,
+  ];
 
   return {
     pageIndex: input.page.pageIndex,
@@ -277,21 +363,38 @@ export function createDefaultTesseractRecognizer(input: {
   workerFactory?: TesseractWorkerFactory;
 } = {}): TesseractRecognizer {
   return {
-    async recognize({ image, language, signal }) {
+    async recognize({
+      image,
+      language,
+      page,
+      profileId,
+      multiPass,
+      domainLexicon,
+      userPreferredPsm,
+      preserveInterwordSpaces,
+      signal,
+      worker: providedWorker,
+    }: TesseractRecognizerInput): Promise<TesseractRecognizeData> {
       const workerFactory = input.workerFactory ?? createDefaultTesseractWorker;
       let activeWorker: TesseractWorkerLike | null = null;
       let terminationPromise: Promise<void> | null = null;
+      const isExternalWorker = Boolean(providedWorker);
+
       const terminateOnce = (workerOverride?: TesseractWorkerLike) => {
+        if (isExternalWorker) return Promise.resolve();
         const targetWorker = workerOverride ?? activeWorker;
         if (!targetWorker) return Promise.resolve();
         terminationPromise ??= targetWorker.terminate().catch(() => undefined);
         return terminationPromise;
       };
 
-      const workerPromise = workerFactory(language).then((createdWorker) => {
-        activeWorker = createdWorker;
-        return createdWorker;
-      });
+      const workerPromise = providedWorker
+        ? Promise.resolve(providedWorker)
+        : workerFactory(language).then((createdWorker) => {
+            activeWorker = createdWorker;
+            return createdWorker;
+          });
+
       const worker = await raceWithAbort(
         workerPromise,
         signal,
@@ -304,25 +407,101 @@ export function createDefaultTesseractRecognizer(input: {
       );
 
       try {
-        // Configure PSM 3 (Fully automatic page segmentation) so Tesseract detects
-        // multi-column cards and separate blocks instead of forcing uniform horizontal scanlines.
+        const isRegionCrop = Boolean(page.region);
+        const primaryPsm = determinePrimaryPsm({
+          isRegionCrop,
+          width: page.width,
+          height: page.height,
+          profileId,
+          userPreferredPsm,
+        });
+
+        const shouldPreserveSpaces = preserveInterwordSpaces ?? true;
+
         if (worker.setParameters) {
           await raceWithAbort(
-            worker.setParameters({ tessedit_pageseg_mode: '3' }),
+            worker.setParameters({
+              tessedit_pageseg_mode: primaryPsm,
+              preserve_interword_spaces: shouldPreserveSpaces ? '1' : '0',
+            }),
             signal,
-            'configure Tesseract page segmentation',
+            'configure Tesseract parameters',
             () => { void terminateOnce(); },
           );
         }
-        // Request the real Block > Paragraph > Line > Word geometry.
+
         const recognitionPromise = worker.recognize(image, {}, { blocks: true });
-        const result = await raceWithAbort(
+        const result = await raceWithAbort<{ data: TesseractRecognizeData }>(
           recognitionPromise,
           signal,
           'run Tesseract recognition',
           () => { void terminateOnce(); },
         );
-        return result.data;
+        let data = result.data;
+
+        // Check if multi-pass fallback should run
+        const words = collectTesseractWords(data);
+        const avgConf = averageConfidence(words.map((w) => w.confidence ?? 0));
+
+        const isMultiPassActive = multiPass ?? (
+          isRegionCrop
+          || profileId === 'engineering-drawing'
+          || profileId === 'low-quality-scan'
+        );
+
+        if (
+          isMultiPassActive
+          && shouldTriggerMultiPass({
+            wordsCount: words.length,
+            averageConfidence: avgConf,
+            primaryPsm,
+            multiPassEnabled: true,
+          })
+        ) {
+          try {
+            const fallbackPsm = determineFallbackPsm(primaryPsm, isRegionCrop);
+            if (worker.setParameters) {
+              await raceWithAbort(
+                worker.setParameters({
+                  tessedit_pageseg_mode: fallbackPsm,
+                  preserve_interword_spaces: shouldPreserveSpaces ? '1' : '0',
+                }),
+                signal,
+                'configure Tesseract fallback parameters',
+                () => { void terminateOnce(); },
+              );
+            }
+            const fallbackResult = await raceWithAbort<{ data: TesseractRecognizeData }>(
+              worker.recognize(image, {}, { blocks: true }),
+              signal,
+              'run Tesseract fallback recognition',
+              () => { void terminateOnce(); },
+            );
+
+            const fallbackData = fallbackResult.data;
+            const fallbackWords = collectTesseractWords(fallbackData);
+            const fallbackAvgConf = averageConfidence(fallbackWords.map((w) => w.confidence ?? 0));
+
+            const best = selectBestRecognitionPass(
+              { wordsCount: words.length, averageConfidence: avgConf, text: data.text },
+              { wordsCount: fallbackWords.length, averageConfidence: fallbackAvgConf, text: fallbackData.text },
+            );
+
+            if (best === 'B') {
+              data = fallbackData;
+            }
+          } catch (fallbackError) {
+            if (isOperationCancelledError(fallbackError)) throw fallbackError;
+            // Best-effort fallback: keep primary pass data if fallback pass encounters an unexpected worker issue
+          }
+        }
+
+        // Apply domain engineering lexicon if enabled (default true unless explicitly 'none')
+        if (domainLexicon !== 'none') {
+          data = applyEngineeringDictionaryToTesseractData(data);
+        }
+
+        return data;
       } finally {
         await terminateOnce();
       }

@@ -54,10 +54,10 @@ export type ExistingTextVisualClearanceAnalysisResult =
       evidence:
         ExistingTextReconstructedOverlayEvidence;
       nativeFit:
-        ExistingTextNativeFitDiagnostic
-        & { status: 'overflows' };
+        ExistingTextNativeFitDiagnostic;
       proof:
         ExistingTextVisualClearanceProof;
+      fontMetadata?: import('@/core/pdf-fonts').PdfFontMetadata | null;
     }
   | {
       status: 'unproved';
@@ -66,6 +66,7 @@ export type ExistingTextVisualClearanceAnalysisResult =
       diagnostics: string[];
       nativeFit?:
         ExistingTextNativeFitDiagnostic;
+      fontMetadata?: import('@/core/pdf-fonts').PdfFontMetadata | null;
     };
 
 export type ExistingTextPaintProgramScanResult =

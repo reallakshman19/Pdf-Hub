@@ -22,6 +22,9 @@ export type DonorCommandTarget = 'MERGE_PDF' | 'INSERT_PAGES' | 'REPLACE_PAGE';
 export type DonorInputSource =
   | 'TOOLBAR_ORGANIZE'
   | 'THUMBNAIL_CONTEXT_MENU'
+  | 'THUMBNAIL_ACTION_STRIP'
+  | 'THUMBNAIL_DRAG_DROP'
+  | 'DOCUMENT_VIEWPORT'
   | 'COMMAND_CALLER';
 
 export interface AdmittedDonorPdf {

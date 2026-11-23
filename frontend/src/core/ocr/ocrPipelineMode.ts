@@ -14,6 +14,7 @@ import {
 import {
   runOcrJob,
 } from './ocrJobRunner';
+import type { OcrPreprocessingOptions } from './preprocessing/ocrImagePreprocessor';
 
 export type OcrPipelineMode =
   | 'main'
@@ -98,6 +99,7 @@ export interface RunOcrPipelineInput {
 
   rasterScale: number;
   maxCanvasPixels: number;
+  preprocessing?: OcrPreprocessingOptions;
 
   signal?: AbortSignal;
   workerClient?: Pick<OcrWorkerClient, 'recognizePages' | 'dispose'>;
@@ -225,6 +227,7 @@ export async function resolveOcrPipelinePageInputs(
     pageIndexes: input.pageIndexes,
     scale: input.rasterScale,
     maxCanvasPixels: input.maxCanvasPixels,
+    preprocessing: input.preprocessing,
     useWorker: effectiveMode === 'worker-raster-worker-ocr',
     workerClient: input.rasterWorkerClient,
     disposeClientAfterRun: false,

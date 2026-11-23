@@ -1,9 +1,18 @@
 import {
+  isSimpleTextMatrix,
+  parsePdfContentStreams,
+  readNumericMatrix,
+  type PdfContentStreamAST,
+  type PdfContentTransform,
+} from '@/core/pdf-content-stream';
+import {
   scanExistingTextContentStream,
 } from './contentStreamScanner';
 import type {
+  ExistingTextContentStreamReadResult,
   ExistingTextProvenanceMatchInput,
   ExistingTextProvenanceMatchResult,
+  ExistingTextSimpleStringEncoding,
   ExistingTextSimpleTextOperator,
 } from './provenanceTypes';
 import type {
@@ -22,6 +31,7 @@ export function matchExistingTextSpanToContentStream(
   if (
     span.editability
     !== 'native-replacement-candidate'
+    && !span.reasons.includes('ROTATED_TEXT')
   ) {
     return unmapped(
       span,
@@ -59,6 +69,7 @@ export function matchExistingTextSpanToContentStream(
   const candidates:
     ExistingTextSimpleTextOperator[] = [];
   const diagnostics: string[] = [];
+  let singleStreamScanFailed = false;
 
   for (
     const stream
@@ -75,12 +86,8 @@ export function matchExistingTextSpanToContentStream(
       ),
     );
     if (!scan.complete) {
-      return unmapped(
-        span,
-        'UNSUPPORTED_CONTENT_STREAM_SYNTAX',
-        0,
-        diagnostics,
-      );
+      singleStreamScanFailed = true;
+      break;
     }
 
     candidates.push(
@@ -91,6 +98,54 @@ export function matchExistingTextSpanToContentStream(
             span,
           ),
       ),
+    );
+  }
+
+  // If isolated single-stream scanning failed (e.g. cross-stream q/Q or §8.4.1 page teardown),
+  // re-parse with the multi-stream ISO 32000-1 AST engine before failing closed.
+  if (singleStreamScanFailed) {
+    const astResult = parsePdfContentStreams(
+      content.streams.map((s) => ({
+        streamIndex: s.streamIndex,
+        streamRef: s.streamRef,
+        decodedBytes: s.decodedBytes,
+      })),
+    );
+
+    if (astResult.complete) {
+      const astCandidates = buildCandidatesFromAst(astResult, content);
+      const matchedAstCandidates = astCandidates.filter((c) =>
+        candidateMatchesSpan(c, span),
+      );
+
+      if (matchedAstCandidates.length === 1) {
+        return {
+          status: 'matched',
+          spanId: span.id,
+          provenance: matchedAstCandidates[0],
+        };
+      }
+      if (matchedAstCandidates.length > 1) {
+        return unmapped(
+          span,
+          'AMBIGUOUS_SIMPLE_TEXT_OPERATOR_MATCH',
+          matchedAstCandidates.length,
+          diagnostics,
+        );
+      }
+      return unmapped(
+        span,
+        'NO_SIMPLE_TEXT_OPERATOR_MATCH',
+        0,
+        diagnostics,
+      );
+    }
+
+    return unmapped(
+      span,
+      'UNSUPPORTED_CONTENT_STREAM_SYNTAX',
+      0,
+      diagnostics,
     );
   }
 
@@ -159,48 +214,51 @@ function isSpanInsideSimpleSubset(
     span.direction
       ?.toLowerCase();
 
-  return (
+  const isAcceptableReason =
     span.reasons.length === 0
-    && Boolean(
-      span.fontName?.trim(),
-    )
-    && (
-      direction === undefined
-      || direction === 'ltr'
-    )
-    && nearlyEqual(
-      span.originPt.x,
-      span.transform[4],
-    )
-    && nearlyEqual(
-      span.originPt.y,
-      span.transform[5],
-    )
-    && nearlyEqual(
-      span.horizontalScalePt,
-      Math.hypot(a, b),
-    )
-    && nearlyEqual(
-      span.fontSizePt,
-      Math.hypot(c, d),
-    )
-    && nearlyEqual(
-      b,
-      0,
-    )
-    && nearlyEqual(
-      c,
-      0,
-    )
-    && nearlyEqual(
-      a,
-      span.fontSizePt,
-    )
-    && nearlyEqual(
-      d,
-      span.fontSizePt,
-    )
-  );
+    || (span.reasons.length === 1 && span.reasons[0] === 'ROTATED_TEXT');
+
+  if (
+    !isAcceptableReason
+    || !span.fontName?.trim()
+    || (direction !== undefined && direction !== 'ltr')
+  ) {
+    return false;
+  }
+
+  if (
+    !nearlyEqual(span.originPt.x, span.transform[4])
+    || !nearlyEqual(span.originPt.y, span.transform[5])
+  ) {
+    return false;
+  }
+
+  const scaleX = Math.hypot(a, b);
+  const scaleY = Math.hypot(c, d);
+
+  if (
+    !nearlyEqual(span.horizontalScalePt, scaleX)
+    || !nearlyEqual(span.fontSizePt, scaleY)
+  ) {
+    return false;
+  }
+
+  // Orthogonality: a*c + b*d === 0
+  if (!nearlyEqual(a * c + b * d, 0)) {
+    return false;
+  }
+
+  // Positive determinant
+  if (a * d - b * c <= 0) {
+    return false;
+  }
+
+  // Uniform scale
+  if (!nearlyEqual(scaleX, scaleY)) {
+    return false;
+  }
+
+  return true;
 }
 
 function unmapped(
@@ -233,4 +291,231 @@ function nearlyEqual(
       left - right,
     ) <= VALUE_TOLERANCE_PT
   );
+}
+
+function buildCandidatesFromAst(
+  astResult: PdfContentStreamAST,
+  content: ExistingTextContentStreamReadResult,
+): ExistingTextSimpleTextOperator[] {
+  const candidates: ExistingTextSimpleTextOperator[] = [];
+
+  // Track 1-based operator index per stream to match contentStreamScanner exactly
+  const streamOpIndices = new Map<number, number>();
+
+  let inTextObject = false;
+  let fontResourceName: string | null = null;
+  let fontSizePt: number | null = null;
+  let textMatrix: PdfContentTransform = [1, 0, 0, 1, 0, 0];
+  let textLineMatrix: PdfContentTransform = [1, 0, 0, 1, 0, 0];
+  let textLeadingPt: number | null = null;
+  let placementSafe = true;
+  let styleSafe = true;
+
+  for (const op of astResult.operations) {
+    const streamOpIndex = (streamOpIndices.get(op.streamIndex) ?? 0) + 1;
+    streamOpIndices.set(op.streamIndex, streamOpIndex);
+
+    const streamRef =
+      content.streams.find((s) => s.streamIndex === op.streamIndex)?.streamRef ?? null;
+
+    switch (op.operator) {
+      case 'BT':
+        inTextObject = true;
+        fontResourceName = null;
+        fontSizePt = null;
+        textMatrix = [1, 0, 0, 1, 0, 0];
+        textLineMatrix = [1, 0, 0, 1, 0, 0];
+        textLeadingPt = null;
+        placementSafe = true;
+        styleSafe = true;
+        break;
+
+      case 'ET':
+        inTextObject = false;
+        break;
+
+      case 'Tf': {
+        if (inTextObject && op.operands.length >= 2) {
+          const fontOp = op.operands[op.operands.length - 2];
+          const sizeOp = op.operands[op.operands.length - 1];
+          if (
+            fontOp.kind === 'name' &&
+            sizeOp.kind === 'number' &&
+            sizeOp.value > 0
+          ) {
+            fontResourceName = fontOp.name;
+            fontSizePt = sizeOp.value;
+          } else {
+            styleSafe = false;
+          }
+        }
+        break;
+      }
+
+      case 'Tm': {
+        if (!inTextObject) break;
+        const matrix = readNumericMatrix(op.operands);
+        if (matrix && isSimpleTextMatrix(matrix)) {
+          textMatrix = matrix;
+          textLineMatrix = matrix;
+          placementSafe = true;
+        } else {
+          placementSafe = false;
+        }
+        break;
+      }
+
+      case 'Td':
+      case 'TD': {
+        if (inTextObject && op.operands.length >= 2) {
+          const txOp = op.operands[op.operands.length - 2];
+          const tyOp = op.operands[op.operands.length - 1];
+          if (txOp.kind === 'number' && tyOp.kind === 'number') {
+            const [a, b, c, d, e, f] = textLineMatrix;
+            const newLineMatrix: PdfContentTransform = [
+              a,
+              b,
+              c,
+              d,
+              e + txOp.value,
+              f + tyOp.value,
+            ];
+            textLineMatrix = newLineMatrix;
+            textMatrix = newLineMatrix;
+            placementSafe = isSimpleTextMatrix(newLineMatrix);
+            if (op.operator === 'TD') {
+              textLeadingPt = -tyOp.value;
+            }
+          } else {
+            placementSafe = false;
+          }
+        }
+        break;
+      }
+
+      case 'T*': {
+        if (inTextObject && textLeadingPt !== null) {
+          const [a, b, c, d, e, f] = textLineMatrix;
+          const newLineMatrix: PdfContentTransform = [
+            a,
+            b,
+            c,
+            d,
+            e,
+            f - textLeadingPt,
+          ];
+          textLineMatrix = newLineMatrix;
+          textMatrix = newLineMatrix;
+          placementSafe = isSimpleTextMatrix(newLineMatrix);
+        } else if (inTextObject) {
+          placementSafe = false;
+        }
+        break;
+      }
+
+      case 'Tj': {
+        if (
+          inTextObject &&
+          placementSafe &&
+          styleSafe &&
+          fontResourceName &&
+          fontSizePt &&
+          op.operands.length === 1
+        ) {
+          const operand = op.operands[0];
+          let text = '';
+          let encoding: ExistingTextSimpleStringEncoding = 'ascii-literal';
+
+          if (operand.kind === 'literal-string') {
+            text = operand.decodedText ?? operand.raw.slice(1, -1);
+            encoding = 'ascii-literal';
+          } else if (operand.kind === 'hex-string') {
+            text = operand.decodedText ?? '';
+            encoding = 'ascii-hex';
+          }
+
+          if (text.length > 0) {
+            candidates.push({
+              operator: 'Tj',
+              streamIndex: op.streamIndex,
+              streamRef,
+              operatorIndex: streamOpIndex,
+              operatorRange: {
+                start: (op.rawEnd ?? 0) - op.operator.length,
+                end: op.rawEnd ?? 0,
+              },
+              operandRange: {
+                start: operand.rawStart ?? 0,
+                end: operand.rawEnd ?? 0,
+              },
+              decodedText: text,
+              encoding,
+              fontResourceName,
+              fontSizePt,
+              textMatrix: [...textMatrix],
+            });
+          }
+          // A text-show operator advances the current text matrix without explicit Tm
+          placementSafe = false;
+        }
+        break;
+      }
+
+      case 'TJ': {
+        if (
+          inTextObject &&
+          placementSafe &&
+          styleSafe &&
+          fontResourceName &&
+          fontSizePt &&
+          op.operands.length === 1
+        ) {
+          const operand = op.operands[0];
+          if (operand.kind === 'array' && operand.items.length === 1) {
+            const single = operand.items[0];
+            let text = '';
+            let encoding: ExistingTextSimpleStringEncoding = 'ascii-literal';
+
+            if (single.kind === 'literal-string') {
+              text = single.decodedText ?? single.raw.slice(1, -1);
+              encoding = 'ascii-literal';
+            } else if (single.kind === 'hex-string') {
+              text = single.decodedText ?? '';
+              encoding = 'ascii-hex';
+            }
+
+            if (text.length > 0) {
+              candidates.push({
+                operator: 'TJ',
+                streamIndex: op.streamIndex,
+                streamRef,
+                operatorIndex: streamOpIndex,
+                operatorRange: {
+                  start: (op.rawEnd ?? 0) - op.operator.length,
+                  end: op.rawEnd ?? 0,
+                },
+                operandRange: {
+                  start: single.rawStart ?? 0,
+                  end: single.rawEnd ?? 0,
+                },
+                arrayRange: {
+                  start: operand.rawStart ?? 0,
+                  end: operand.rawEnd ?? 0,
+                },
+                decodedText: text,
+                encoding,
+                fontResourceName,
+                fontSizePt,
+                textMatrix: [...textMatrix],
+              });
+            }
+            placementSafe = false;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  return candidates;
 }

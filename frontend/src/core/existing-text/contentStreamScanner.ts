@@ -544,13 +544,14 @@ function applyLineTranslation(
     return false;
   }
 
+  const [a, b, c, d, e, f] = text.textLineMatrix;
   const newLineMatrix: ExistingTextTransform = [
-    1,
-    0,
-    0,
-    1,
-    text.textLineMatrix[4] + tx,
-    text.textLineMatrix[5] + ty,
+    a,
+    b,
+    c,
+    d,
+    e + (tx * a + ty * c),
+    f + (tx * b + ty * d),
   ];
 
   if (!isSimpleTextMatrix(newLineMatrix)) {
@@ -711,17 +712,17 @@ function isSimpleTextMatrix(
   matrix:
     ExistingTextTransform,
 ): boolean {
+  const [a, b, c, d, tx, ty] = matrix;
+  if (!Number.isFinite(tx) || !Number.isFinite(ty)) {
+    return false;
+  }
+  const det = a * d - b * c;
+  if (!nearlyEqual(det, 1)) {
+    return false;
+  }
   return (
-    nearlyEqual(matrix[0], 1)
-    && nearlyEqual(matrix[1], 0)
-    && nearlyEqual(matrix[2], 0)
-    && nearlyEqual(matrix[3], 1)
-    && Number.isFinite(
-      matrix[4],
-    )
-    && Number.isFinite(
-      matrix[5],
-    )
+    nearlyEqual(a, d)
+    && nearlyEqual(b, -c)
   );
 }
 
@@ -1227,17 +1228,40 @@ function asciiTextOrNull(
   bytes: readonly number[],
 ): string | null {
   if (
-    bytes.some(
+    !bytes.some(
       (byte) =>
-        byte < 0x20
+        (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d)
         || byte > 0x7e,
     )
   ) {
-    return null;
+    return String.fromCharCode(
+      ...bytes,
+    );
   }
-  return String.fromCharCode(
-    ...bytes,
-  );
+
+  // 2-byte big-endian ASCII / UTF-16BE (e.g. Identity-H CID text in PDF content streams)
+  if (bytes.length >= 2 && bytes.length % 2 === 0) {
+    const chars: number[] = [];
+    let isTwoByteAscii = true;
+    for (let i = 0; i < bytes.length; i += 2) {
+      const high = bytes[i];
+      const low = bytes[i + 1];
+      if (
+        high !== 0
+        || (low < 0x20 && low !== 0x09 && low !== 0x0a && low !== 0x0d)
+        || low > 0x7e
+      ) {
+        isTwoByteAscii = false;
+        break;
+      }
+      chars.push(low);
+    }
+    if (isTwoByteAscii) {
+      return String.fromCharCode(...chars);
+    }
+  }
+
+  return null;
 }
 
 function decodePdfName(

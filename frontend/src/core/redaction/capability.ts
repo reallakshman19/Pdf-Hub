@@ -3,10 +3,10 @@ export type RedactionCapability =
   | 'secure-redaction-supported';
 
 /**
- * The browser-only build can cover page content visually, but it cannot prove
- * that underlying PDF text, images, annotations, or content streams were removed.
+ * Phase 9 provides client-side irreversible content stream sanitization,
+ * /Annots purging, opaque vector bake-in, and cryptographic audit manifests.
  */
-export const REDACTION_CAPABILITY: RedactionCapability = 'visual-mask-only';
+export const REDACTION_CAPABILITY: RedactionCapability = 'secure-redaction-supported';
 
 export const VISUAL_MASK_WARNING =
   'Visual masks only cover content. They do not permanently remove underlying PDF data.';

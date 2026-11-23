@@ -1,10 +1,37 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
+import { PipingSupportNode } from './PipingSupportNode';
+import { PipingValveNode } from './PipingValveNode';
 
 export const StampNode: React.FC<AnnotationNodeProps<'stamp'>> = ({
   annotation, rect, scale, isSelected, onSelect, onTransformStart, pageRotation = 0, nativeAppearanceUrl,
 }) => {
+  if (annotation.data?.restraintType) {
+    return (
+      <PipingSupportNode
+        annotation={annotation}
+        rect={rect}
+        scale={scale}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        onTransformStart={onTransformStart}
+      />
+    );
+  }
+  if (annotation.data?.componentType) {
+    return (
+      <PipingValveNode
+        annotation={annotation}
+        rect={rect}
+        scale={scale}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        onTransformStart={onTransformStart}
+      />
+    );
+  }
+
   const isCustom = annotation.data.nativeStampAppearanceKind !== 'generated'
     && (annotation.data?.stampStyle === 'custom' || Boolean(annotation.data?.hasCustomAppearance));
   // Generated stamps remain editable after reopening, so their live preview
@@ -15,9 +42,12 @@ export const StampNode: React.FC<AnnotationNodeProps<'stamp'>> = ({
     ? (stampName ? `[Stamp: ${String(stampName).replace(/^#/, '')}]` : 'Native Stamp')
     : (annotation.data?.text ?? 'APPROVED');
 
-  const bg = isCustom
-    ? (annotation.data?.backgroundColor ?? 'rgba(238, 242, 255, 0.85)')
-    : (annotation.data?.backgroundColor ?? '#fef2f2');
+  const isTransparentBg = annotation.data?.backgroundColor === 'transparent';
+  const bg = isTransparentBg
+    ? 'transparent'
+    : isCustom
+      ? (annotation.data?.backgroundColor ?? 'rgba(238, 242, 255, 0.85)')
+      : (annotation.data?.backgroundColor ?? '#fef2f2');
   const border = isCustom
     ? (annotation.data?.borderColor ?? '#6366f1')
     : (annotation.data?.borderColor ?? '#ef4444');
@@ -50,6 +80,7 @@ export const StampNode: React.FC<AnnotationNodeProps<'stamp'>> = ({
         left: rect.x + (rect.width - baseWidth) / 2,
         top: rect.y + (rect.height - baseHeight) / 2,
         width: baseWidth, height: baseHeight,
+        opacity: annotation.data?.opacity ?? 1,
         background: displayedAppearance ? 'transparent' : bg,
         border: displayedAppearance ? 'none' : `2px ${isCustom ? 'dashed' : 'solid'} ${border}`,
         borderRadius: 4,

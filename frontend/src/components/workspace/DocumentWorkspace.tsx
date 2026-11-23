@@ -30,16 +30,38 @@ import { useNativeAnnotationAppearances } from '@/core/renderer/useNativeStampAp
 import { NativeAppearanceNode } from '@/components/annotations/NativeAppearanceNode';
 
 import { useSearchStore } from '@/core/search/store';
-import { FileAdapter } from '@/adapters/file/FileAdapter';
+import { FileAdapter, type PickedPdfFileSource } from '@/adapters/file/FileAdapter';
 import { admitAndOpenPdfFile, firstAdmissionErrorMessage } from '@/core/admission/openPdf';
+import {
+  admitDonorPdfFiles,
+  firstDonorAdmissionErrorMessage,
+  type AdmittedDonorPdf,
+} from '@/core/admission/donorPdf';
+import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
+import { InlineExistingTextEditor } from './InlineExistingTextEditor';
+import { commandBus } from '@/core/commands/bus';
+import { materializePdfCommand } from '@/core/commands/types';
+import { useToastStore } from '@/core/toast/store';
+import { InsertPdfDialog } from '@/components/dialogs/InsertPdfDialog';
 import { WriterOverlay } from '@/components/writer/WriterOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
 import { ocrStore } from '@/core/ocr/store';
 import { useOcrStore as useOcrReviewStore } from '@/core/ocr/ocrStore';
 import { pdfRectToViewportSelection } from '@/core/ocr/ocrViewportGeometry';
+import { OcrCanvasTextLayer } from '@/components/ocr/canvas/OcrCanvasTextLayer';
+import { InlineOcrCorrectionPopover } from '@/components/ocr/canvas/InlineOcrCorrectionPopover';
+import type { OcrWord } from '@/core/ocr/types';
 import EquationOverlay from '@/components/viewer/EquationOverlay';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { error as logError } from '@/core/logger/service';
+import { SnapIndicatorOverlay } from '../annotations/SnapIndicatorOverlay';
+import {
+  collectPageSnapPoints,
+  resolveLineEndpoint,
+  type SnapResult,
+} from '@/core/annotations/cadSnapping';
+import { DrawingScaleBar } from '../annotations/DrawingScaleBar';
+import { ScaleCalibrationDialog } from '../dialogs/ScaleCalibrationDialog';
 
 type TransformState =
   | {
@@ -93,6 +115,9 @@ export const DocumentWorkspace: React.FC = () => {
     setSelection,
     toggleSelection,
     clearSelection,
+    getPageCalibration,
+    setPageCalibration,
+    setAllPagesCalibration,
   } = useAnnotationStore(useShallow((state) => ({
     annotations: state.annotations,
     setAnnotations: state.setAnnotations,
@@ -104,6 +129,9 @@ export const DocumentWorkspace: React.FC = () => {
     setSelection: state.setSelection,
     toggleSelection: state.toggleSelection,
     clearSelection: state.clearSelection,
+    getPageCalibration: state.getPageCalibration,
+    setPageCalibration: state.setPageCalibration,
+    setAllPagesCalibration: state.setAllPagesCalibration,
   })));
   const isMobile = useIsMobile();
 
@@ -152,6 +180,33 @@ export const DocumentWorkspace: React.FC = () => {
   const { hideResolved } = useReviewStore(useShallow((state) => ({
     hideResolved: state.hideResolved,
   })));
+
+  const sortedVisibleAnnotations = React.useMemo(
+    () =>
+      annotations
+        .filter((annotation) => !hideResolved || annotation.data?.review?.status !== 'resolved')
+        .slice()
+        .sort((a, b) => {
+          if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
+          return readZIndex(a) - readZIndex(b);
+        }),
+    [annotations, hideResolved],
+  );
+
+  const pageAnnotationsMap = React.useMemo(() => {
+    const byPage = new Map<number, PdfAnnotation[]>();
+    for (const annotation of sortedVisibleAnnotations) {
+      const existing = byPage.get(annotation.pageNumber);
+      if (existing) {
+        existing.push(annotation);
+      } else {
+        byPage.set(annotation.pageNumber, [annotation]);
+      }
+    }
+    return byPage;
+  }, [sortedVisibleAnnotations]);
+
+  const emptyPageAnnotations = React.useMemo<PdfAnnotation[]>(() => [], []);
   const ocrReviewFocus = useOcrReviewStore((state) => state.reviewFocus);
   const setSharedPdfDoc = usePdfStore((state) => state.setPdfDoc);
 
@@ -168,14 +223,17 @@ export const DocumentWorkspace: React.FC = () => {
 
   // Compute page pixel width whenever doc or zoom changes, then patch VList's internal scroller
   React.useEffect(() => {
-    if (!pdfDoc) { setPagePixelWidth(0); return; }
+    if (!pdfDoc) return;
     let cancelled = false;
     pdfDoc.getPage(1).then(page => {
       if (cancelled) return;
       const vp = page.getViewport({ scale: viewState.zoom / 100 });
       setPagePixelWidth(vp.width);
     }).catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      setPagePixelWidth(0);
+    };
   }, [pdfDoc, viewState.zoom]);
 
   // Patch VList's internal scroll container to allow horizontal scroll.
@@ -200,6 +258,258 @@ export const DocumentWorkspace: React.FC = () => {
     x: number;
     y: number;
   } | null>(null);
+  const [activeSnapResult, setActiveSnapResult] = React.useState<SnapResult | null>(null);
+  const [isAngleConstrained, setIsAngleConstrained] = React.useState(false);
+  const [showScaleDialog, setShowScaleDialog] = React.useState(false);
+
+  const addToast = useToastStore((state) => state.addToast);
+  const [stagedInsert, setStagedInsert] = React.useState<{
+    donor: AdmittedDonorPdf;
+    controller: AbortController;
+    documentKey: string;
+  } | null>(null);
+  const [isDraggingExternal, setIsDraggingExternal] = React.useState(false);
+  const dragCounterRef = React.useRef(0);
+  const donorOperationRef = React.useRef<AbortController | null>(null);
+
+  React.useEffect(() => () => {
+    donorOperationRef.current?.abort('document workspace unmounted');
+  }, []);
+
+  const executeInsertPdf = async (
+    staged: {
+      donor: AdmittedDonorPdf;
+      controller: AbortController;
+      documentKey: string;
+    },
+    config: {
+      donorPageIndices?: number[];
+      placement: 'before' | 'after';
+      targetPage: number;
+    },
+  ) => {
+    const atIndex = config.placement === 'before'
+      ? config.targetPage - 1
+      : config.targetPage;
+    const count = config.donorPageIndices?.length ?? staged.donor.pageCount;
+
+    try {
+      const result = await commandBus.execute({
+        command: materializePdfCommand(
+          {
+            type: 'INSERT_PAGES',
+            payload: {
+              atIndex,
+              donorResourceId: 'donor:0',
+              donorPageIndices: config.donorPageIndices,
+            },
+          },
+          'document-workspace',
+          useSessionStore.getState().documentKey ?? staged.documentKey,
+        ),
+        signal: staged.controller.signal,
+        resources: {
+          donors: {
+            'donor:0': staged.donor,
+          },
+        },
+      });
+
+      if (!result.success) {
+        throw new Error(result.error?.message ?? 'Failed to insert pages.');
+      }
+
+      addToast({
+        type: 'success',
+        title: 'PDF Inserted',
+        message: `Inserted ${count} page(s) from ${staged.donor.fileName}.`,
+      });
+    } catch (error) {
+      if (!isOperationCancelledError(error) && !staged.controller.signal.aborted) {
+        addToast({
+          type: 'error',
+          title: 'Insert Failed',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } finally {
+      if (donorOperationRef.current === staged.controller) {
+        donorOperationRef.current = null;
+      }
+      setStagedInsert(null);
+    }
+  };
+
+  const handleExternalFileDrop = async (files: FileList | File[]) => {
+    if (!workingBytes) return;
+
+    const fileList = Array.from(files);
+    const pdfFiles = fileList.filter(
+      (file) => file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf',
+    );
+
+    if (pdfFiles.length === 0) {
+      addToast({
+        type: 'error',
+        title: 'Unsupported File',
+        message: 'Please drop a valid PDF file (.pdf).',
+      });
+      return;
+    }
+
+    const expectedDocumentKey = documentKey ?? 'default';
+    const controller = new AbortController();
+    donorOperationRef.current?.abort('superseded by newer drag-drop donor operation');
+    donorOperationRef.current = controller;
+
+    const sources: PickedPdfFileSource[] = pdfFiles.map((file) => ({ file }));
+
+    try {
+      const result = await admitDonorPdfFiles(
+        sources,
+        'DOCUMENT_VIEWPORT',
+        'INSERT_PAGES',
+        {
+          signal: controller.signal,
+          ownerDocumentKey: expectedDocumentKey,
+        },
+      );
+
+      if (controller.signal.aborted) return;
+
+      if (result.outcome !== 'ACCEPTED') {
+        addToast({
+          type: 'error',
+          title: 'Insert PDF Failed',
+          message: firstDonorAdmissionErrorMessage(result) ?? 'The dropped PDF could not be admitted.',
+        });
+        return;
+      }
+
+      if (result.value.donors.length === 0) return;
+
+      if (result.value.donors.length === 1) {
+        const donor = result.value.donors[0]!;
+        setStagedInsert({
+          donor,
+          controller,
+          documentKey: expectedDocumentKey,
+        });
+      } else {
+        const targetPage = viewState.currentPage;
+        let currentInsertionIndex = targetPage;
+        let totalPagesInserted = 0;
+        for (let i = 0; i < result.value.donors.length; i++) {
+          const donor = result.value.donors[i];
+          const insertResult = await commandBus.execute({
+            command: materializePdfCommand(
+              {
+                type: 'INSERT_PAGES',
+                payload: {
+                  atIndex: currentInsertionIndex,
+                  donorResourceId: `donor:${i}`,
+                },
+              },
+              'document-workspace',
+              useSessionStore.getState().documentKey ?? expectedDocumentKey,
+            ),
+            signal: controller.signal,
+            resources: {
+              donors: {
+                [`donor:${i}`]: donor,
+              },
+            },
+          });
+          if (!insertResult.success) {
+            throw new Error(insertResult.error?.message ?? `Failed to insert pages from ${donor.fileName}`);
+          }
+          currentInsertionIndex += donor.pageCount;
+          totalPagesInserted += donor.pageCount;
+        }
+        addToast({
+          type: 'success',
+          title: 'Batch PDFs Inserted',
+          message: `Inserted ${totalPagesInserted} pages from ${result.value.donors.length} PDF files.`,
+        });
+        if (donorOperationRef.current === controller) {
+          donorOperationRef.current = null;
+        }
+      }
+    } catch (err) {
+      if (isOperationCancelledError(err)) return;
+      addToast({
+        type: 'error',
+        title: 'Admission Error',
+        message: err instanceof Error ? err.message : 'Failed to admit dropped PDF.',
+      });
+    }
+  };
+
+  const handleInsertPdfShortcut = React.useCallback(async () => {
+    if (!workingBytes) return;
+    const expectedDocumentKey = documentKey ?? 'default';
+    const controller = new AbortController();
+    donorOperationRef.current?.abort('superseded by newer donor operation');
+    donorOperationRef.current = controller;
+
+    try {
+      const sources = await FileAdapter.pickPdfFileSources(false);
+      if (sources.length === 0) return;
+      const result = await admitDonorPdfFiles(
+        sources,
+        'DOCUMENT_VIEWPORT',
+        'INSERT_PAGES',
+        {
+          signal: controller.signal,
+          ownerDocumentKey: expectedDocumentKey,
+        },
+      );
+      if (controller.signal.aborted) return;
+      if (result.outcome !== 'ACCEPTED') {
+        if (result.outcome !== 'CANCELLED') {
+          addToast({
+            type: 'error',
+            title: 'Donor PDF Rejected',
+            message: firstDonorAdmissionErrorMessage(result) ?? 'The donor PDF could not be admitted.',
+          });
+        }
+        return;
+      }
+      if (result.value.donors.length === 0) return;
+      const donor = result.value.donors[0]!;
+      setStagedInsert({
+        donor,
+        controller,
+        documentKey: expectedDocumentKey,
+      });
+    } catch (err) {
+      if (isOperationCancelledError(err)) return;
+      addToast({
+        type: 'error',
+        title: 'Admission Error',
+        message: err instanceof Error ? err.message : 'Failed to admit donor PDF.',
+      });
+    }
+  }, [workingBytes, documentKey, addToast]);
+
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable;
+      if (isTyping) return;
+
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'i') {
+        event.preventDefault();
+        void handleInsertPdfShortcut();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleInsertPdfShortcut]);
 
   const handleBrowse = async () => {
     setLoadError(null);
@@ -335,6 +645,8 @@ export const DocumentWorkspace: React.FC = () => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDrawingLineStart(null);
     setDrawingLineCurrent(null);
+    setActiveSnapResult(null);
+    setIsAngleConstrained(false);
   }, [activeTool]);
 
   // Manage window drawing-line preview mousemove/Escape key event listeners cleanly via React lifecycles
@@ -349,13 +661,22 @@ export const DocumentWorkspace: React.FC = () => {
       const rect = pageEl.getBoundingClientRect();
       const currentX = (e.clientX - rect.left) / scale;
       const currentY = (e.clientY - rect.top) / scale;
-      setDrawingLineCurrent({ x: currentX, y: currentY });
+
+      const snapPoints = collectPageSnapPoints(annotations, drawingLineStart.pageNumber);
+      const resolved = resolveLineEndpoint(drawingLineStart, { x: currentX, y: currentY }, snapPoints, e.shiftKey);
+      const finalPoint = resolved.point;
+      setActiveSnapResult(resolved.snapResult);
+      setIsAngleConstrained(resolved.angleConstrained);
+
+      setDrawingLineCurrent(finalPoint);
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setDrawingLineStart(null);
         setDrawingLineCurrent(null);
+        setActiveSnapResult(null);
+        setIsAngleConstrained(false);
       }
     };
 
@@ -366,7 +687,7 @@ export const DocumentWorkspace: React.FC = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [drawingLineStart, viewState.zoom]);
+  }, [drawingLineStart, viewState.zoom, annotations]);
 
   useAnnotationPersistence({
     documentKey,
@@ -427,9 +748,19 @@ export const DocumentWorkspace: React.FC = () => {
   const isProgrammaticScrollRef = React.useRef(false);
   const scrollTimeoutRef = React.useRef<number | null>(null);
   const visibleRatiosRef = React.useRef(new Map<number, number>());
+  const lastScrolledDocRef = React.useRef<PDFDocumentProxy | null>(null);
+  const lastScrolledPageRef = React.useRef<number | null>(null);
+
   React.useEffect(() => {
     const root = containerRef.current;
     if (!root || !pdfDoc) return;
+
+    // Suppress scroll-spy updates during initial mount / document transitions
+    isProgrammaticScrollRef.current = true;
+    if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = window.setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+    }, 400);
 
     // Resolve the actual scrollable container parent. In continuous mode, this is the Virtua VList scrolling element.
     const scrollContainer = viewState.viewMode === 'continuous'
@@ -475,19 +806,28 @@ export const DocumentWorkspace: React.FC = () => {
     };
   }, [pdfDoc, viewState.viewMode, setPage]);
 
-  // Smooth scroll into view when viewState.currentPage changes programmatically (e.g., from the sidebar).
-  // Uses visibleRatiosRef to prevent visual feedback loops during manual scroll.
-  const lastScrolledPageRef = React.useRef<number | null>(null);
+  // Smooth scroll into view when viewState.currentPage changes programmatically (e.g., from the sidebar)
+  // or when a new document lease is acquired.
   React.useEffect(() => {
     if (!pdfDoc || !containerRef.current) return;
-    if (lastScrolledPageRef.current === viewState.currentPage) return;
+
+    const docChanged = lastScrolledDocRef.current !== pdfDoc;
+    if (docChanged) {
+      lastScrolledDocRef.current = pdfDoc;
+      lastScrolledPageRef.current = null;
+      visibleRatiosRef.current.clear();
+    } else if (lastScrolledPageRef.current === viewState.currentPage) {
+      return;
+    }
 
     // Determine if the target page is already highly visible in the viewport.
-    // If it's already the primary visible page (> 70% visible), we do not scroll.
-    const best = [...visibleRatiosRef.current.entries()]
-      .sort((a, b) => b[1] - a[1])[0];
-    if (best && best[0] === viewState.currentPage && best[1] > 0.7) {
-      return;
+    // If it's already the primary visible page (> 70% visible) and doc did not change, we do not scroll.
+    if (!docChanged) {
+      const best = [...visibleRatiosRef.current.entries()]
+        .sort((a, b) => b[1] - a[1])[0];
+      if (best && best[0] === viewState.currentPage && best[1] > 0.7) {
+        return;
+      }
     }
 
     isProgrammaticScrollRef.current = true;
@@ -496,14 +836,14 @@ export const DocumentWorkspace: React.FC = () => {
       isProgrammaticScrollRef.current = false;
     }, 800);
 
+    lastScrolledPageRef.current = viewState.currentPage;
+
     if (viewState.viewMode === 'continuous' && vlistRef.current) {
-      lastScrolledPageRef.current = viewState.currentPage;
       vlistRef.current.scrollToIndex(viewState.currentPage - 1, { align: 'start' });
     } else {
       const pageEl = containerRef.current.querySelector(`[data-page="${viewState.currentPage}"]`);
       if (pageEl && typeof pageEl.scrollIntoView === 'function') {
-        lastScrolledPageRef.current = viewState.currentPage;
-        pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        pageEl.scrollIntoView({ behavior: docChanged ? 'auto' : 'smooth', block: 'start' });
       }
     }
   }, [viewState.currentPage, pdfDoc, viewState.viewMode]);
@@ -518,33 +858,6 @@ export const DocumentWorkspace: React.FC = () => {
     ocrReviewFocus,
     setPage,
   ]);
-
-  const sortedVisibleAnnotations = React.useMemo(
-    () =>
-      annotations
-        .filter((annotation) => !hideResolved || annotation.data.review?.status !== 'resolved')
-        .slice()
-        .sort((a, b) => {
-          if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
-          return readZIndex(a) - readZIndex(b);
-        }),
-    [annotations, hideResolved],
-  );
-
-  const pageAnnotationsMap = React.useMemo(() => {
-    const byPage = new Map<number, PdfAnnotation[]>();
-    for (const annotation of sortedVisibleAnnotations) {
-      const existing = byPage.get(annotation.pageNumber);
-      if (existing) {
-        existing.push(annotation);
-      } else {
-        byPage.set(annotation.pageNumber, [annotation]);
-      }
-    }
-    return byPage;
-  }, [sortedVisibleAnnotations]);
-
-  const emptyPageAnnotations = React.useMemo<PdfAnnotation[]>(() => [], []);
 
   const selectExistingText =
     React.useCallback(
@@ -590,7 +903,34 @@ export const DocumentWorkspace: React.FC = () => {
 
   if (!workingBytes && !activeRevisionId) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-slate-100 dark:bg-slate-950/50 p-4">
+      <div
+        className="flex flex-col items-center justify-center h-full bg-slate-100 dark:bg-slate-950/50 p-4"
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes('Files')) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+          }
+        }}
+        onDrop={(event) => {
+          if (event.dataTransfer.types.includes('Files')) {
+            event.preventDefault();
+            const file = event.dataTransfer.files?.[0];
+            if (file) {
+              setLoadError(null);
+              void (async () => {
+                try {
+                  const result = await admitAndOpenPdfFile(file, 'WORKSPACE_PICKER');
+                  if (result.outcome !== 'ACCEPTED') {
+                    setLoadError(firstAdmissionErrorMessage(result) ?? 'PDF opening was cancelled.');
+                  }
+                } catch (err) {
+                  setLoadError(String(err));
+                }
+              })();
+            }
+          }
+        }}
+      >
         <div className={[
           "flex flex-col items-center justify-center text-center bg-white dark:bg-slate-900 w-full",
           isMobile
@@ -665,6 +1005,7 @@ export const DocumentWorkspace: React.FC = () => {
       <div key={pageNumber} style={{ width: 'fit-content', margin: '16px auto', padding: '16px 32px' }}>
         <PageSurfaceMemo
           doc={pdfDoc}
+          documentKey={documentKey}
           pageNumber={pageNumber}
           scale={viewState.zoom / 100}
           activeTool={activeTool}
@@ -674,6 +1015,8 @@ export const DocumentWorkspace: React.FC = () => {
           drawingLineCurrent={drawingLineCurrent}
           setDrawingLineStart={setDrawingLineStart}
           setDrawingLineCurrent={setDrawingLineCurrent}
+          activeSnapResult={drawingLineStart?.pageNumber === pageNumber ? activeSnapResult : null}
+          isAngleConstrained={drawingLineStart?.pageNumber === pageNumber ? isAngleConstrained : false}
           onActivate={() => setPage(pageNumber)}
           existingTextPageId={
             pageNode?.pageId
@@ -796,14 +1139,65 @@ export const DocumentWorkspace: React.FC = () => {
     <div
       ref={containerRef}
       id="workspace-scroll-container"
-      className={`flex flex-col h-full bg-slate-200 dark:bg-slate-950 overflow-hidden ${
+      className={`relative flex flex-col h-full bg-slate-200 dark:bg-slate-950 overflow-hidden ${
         activeTool === 'hand' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : ''
       }`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      onDragEnter={(event) => {
+        if (event.dataTransfer.types.includes('Files')) {
+          event.preventDefault();
+          dragCounterRef.current += 1;
+          setIsDraggingExternal(true);
+        }
+      }}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes('Files')) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+        }
+      }}
+      onDragLeave={(event) => {
+        if (event.dataTransfer.types.includes('Files')) {
+          event.preventDefault();
+          dragCounterRef.current -= 1;
+          if (dragCounterRef.current <= 0) {
+            dragCounterRef.current = 0;
+            setIsDraggingExternal(false);
+          }
+        }
+      }}
+      onDrop={(event) => {
+        if (event.dataTransfer.types.includes('Files')) {
+          event.preventDefault();
+          dragCounterRef.current = 0;
+          setIsDraggingExternal(false);
+          if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+            void handleExternalFileDrop(event.dataTransfer.files);
+          }
+        }
+      }}
     >
+      {isDraggingExternal && (
+        <div
+          data-testid="viewport-drop-overlay"
+          className="absolute inset-0 z-50 pointer-events-none bg-blue-500/10 backdrop-blur-[1px] border-4 border-dashed border-blue-500 flex flex-col items-center justify-center transition-all"
+        >
+          <div className="bg-white dark:bg-slate-900 shadow-2xl rounded-2xl p-6 flex flex-col items-center gap-3 border border-blue-200 dark:border-blue-800 pointer-events-none">
+            <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <UploadCloud className="w-6 h-6" />
+            </div>
+            <p className="text-base font-semibold text-slate-800 dark:text-slate-100">
+              Drop PDF to insert into document
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Target: Page {viewState.currentPage} of {pdfDoc.numPages}
+            </p>
+          </div>
+        </div>
+      )}
       {restoredCount > 0 && (
         <div className="sticky top-0 z-50 flex items-center gap-3 bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-800 shadow-sm">
           <span>📋 {restoredCount} annotation{restoredCount !== 1 ? 's' : ''} restored from previous session.</span>
@@ -850,12 +1244,61 @@ export const DocumentWorkspace: React.FC = () => {
           renderTwoPage()
         )}
       </div>
+
+      {pdfDoc && (
+        <div className="absolute bottom-4 left-4 z-40">
+          <DrawingScaleBar
+            calibration={getPageCalibration(viewState.currentPage)}
+            scale={viewState.zoom / 100}
+            onOpenCalibration={() => setShowScaleDialog(true)}
+          />
+        </div>
+      )}
+
+      {showScaleDialog && pdfDoc && (
+        <ScaleCalibrationDialog
+          isOpen={showScaleDialog}
+          currentPage={viewState.currentPage}
+          totalDocumentPages={pdfDoc.numPages}
+          currentCalibration={getPageCalibration(viewState.currentPage)}
+          onClose={() => setShowScaleDialog(false)}
+          onApply={(cal, scope) => {
+            if (scope === 'all') {
+              setAllPagesCalibration(cal);
+            } else {
+              setPageCalibration(viewState.currentPage, cal);
+            }
+            setShowScaleDialog(false);
+          }}
+        />
+      )}
+
+      {stagedInsert && (
+        <InsertPdfDialog
+          isOpen={true}
+          donorFileName={stagedInsert.donor.fileName}
+          donorPageCount={stagedInsert.donor.pageCount}
+          currentPage={viewState.currentPage}
+          totalDocumentPages={pdfDoc.numPages}
+          initialPlacement="after"
+          onClose={() => {
+            stagedInsert.controller.abort('dialog closed');
+            setStagedInsert(null);
+          }}
+          onConfirm={(config) => {
+            const staged = stagedInsert;
+            setStagedInsert(null);
+            void executeInsertPdf(staged, config);
+          }}
+        />
+      )}
     </div>
   );
 };
 
 interface PageSurfaceProps {
   doc: PDFDocumentProxy;
+  documentKey?: string | null;
   pageNumber: number;
   scale: number;
   activeTool: string;
@@ -881,10 +1324,13 @@ interface PageSurfaceProps {
   drawingLineCurrent: { x: number; y: number } | null;
   setDrawingLineStart: (val: { pageNumber: number; x: number; y: number } | null) => void;
   setDrawingLineCurrent: (val: { x: number; y: number } | null) => void;
+  activeSnapResult?: SnapResult | null;
+  isAngleConstrained?: boolean;
 }
 
 export const PageSurface: React.FC<PageSurfaceProps> = ({
   doc,
+  documentKey,
   pageNumber,
   scale,
   activeTool,
@@ -906,7 +1352,25 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   drawingLineCurrent,
   setDrawingLineStart,
   setDrawingLineCurrent,
+  activeSnapResult,
+  isAngleConstrained,
 }) => {
+  const sessionDocumentKey = useSessionStore((state) => state.documentKey) ?? '';
+  const resolvedDocumentKey = documentKey ?? sessionDocumentKey;
+  const workingBytes = useSessionStore((state) => state.workingBytes) ?? null;
+  const [inlineEditingTarget, setInlineEditingTarget] = React.useState<{
+    pageNumber: number;
+    pageId: string;
+    sourceIndex: number;
+    initialText: string;
+    bounds: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+      fontSize: number;
+    };
+  } | null>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const pageRef = React.useRef<HTMLDivElement | null>(null);
   const ocrFocusRef = React.useRef<HTMLDivElement | null>(null);
@@ -915,6 +1379,15 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     activeHitId: state.activeHitId,
   })));
   const ocrReviewFocus = useOcrReviewStore((state) => state.reviewFocus);
+  const ocrDocumentResult = useOcrReviewStore((state) => state.correctedResult);
+  const pageOcrResult = ocrDocumentResult?.pages?.find(
+    (p) => (p.pageIndex ?? p.pageNumber - 1) === pageNumber - 1,
+  );
+  const [activeOcrWordTarget, setActiveOcrWordTarget] = React.useState<{
+    word: OcrWord;
+    currentText: string;
+    anchorRect: DOMRect;
+  } | null>(null);
   const pageOcrFocus =
     ocrReviewFocus?.pageIndex === pageNumber - 1
       ? ocrReviewFocus
@@ -1052,7 +1525,9 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     window.addEventListener('blur', cancel);
   };
 
-  const { size: renderSize, ocrViewport } = usePageRenderer({    doc,
+  const { size: renderSize, ocrViewport } = usePageRenderer({
+    doc,
+    documentKey: resolvedDocumentKey,
     pageNumber,
     scale,
     canvasRef,
@@ -1092,7 +1567,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [doc, pageNumber, scale, pageIdentity]);
+  }, [doc, resolvedDocumentKey, pageNumber, scale, pageIdentity]);
 
   // Mouseup can follow mousemove before React commits an effect. Keep the
   // authoritative gesture state synchronous so fast drags cannot lose edits.
@@ -1173,7 +1648,12 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     }
   }, []);
 
-  const commitTextEdit = (annotation: PdfAnnotation, value: string, edit: typeof activeEdit) => {
+  const commitTextEdit = (
+    annotation: PdfAnnotation,
+    value: string,
+    edit: typeof activeEdit,
+    stylePatch?: Record<string, unknown>,
+  ) => {
     if (!isCurrentPage() || !edit || editingRef.current !== edit || edit.id !== annotation.id) return;
     editingRef.current = null;
     setEditingState(null);
@@ -1182,17 +1662,19 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     // HTML auto-sizing on a later refresh/edit confirmation.
     const hasNativeRichTextRoot = annotation.data.nativeInterop?.richText === true;
     const currentRect = draftRectsRef.current[annotation.id];
+    const effectiveFontSize = typeof stylePatch?.fontSize === 'number' ? stylePatch.fontSize : readFontSize(annotation);
     const nextRect =
       !hasNativeRichTextRoot && annotation.data.autoSize !== false && isTextLike(annotation.type)
         ? autoSizeRectForText(
             value,
-            readFontSize(annotation),
+            effectiveFontSize,
             currentRect ?? annotation.rect,
           )
         : currentRect ?? annotation.rect;
 
     const nextData: Record<string, unknown> = {
       ...annotation.data,
+      ...stylePatch,
       text: value,
     };
 
@@ -1280,8 +1762,15 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       if (!moved && Math.hypot(moveEvent.clientX - current.startClientX, moveEvent.clientY - current.startClientY) < 1) return;
       moved = true;
 
-      const dx = (moveEvent.clientX - current.startClientX) / scale;
-      const dy = (moveEvent.clientY - current.startClientY) / scale;
+      let dx = (moveEvent.clientX - current.startClientX) / scale;
+      let dy = (moveEvent.clientY - current.startClientY) / scale;
+      if (moveEvent.shiftKey) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          dy = 0;
+        } else {
+          dx = 0;
+        }
+      }
 
       if (current.mode === 'move' || current.mode === 'move-all') {
         const nextRects: Record<string, Rect> = {};
@@ -1498,8 +1987,17 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       const screenDx = (moveEvent.clientX - current.startClientX) / scale;
       const screenDy = (moveEvent.clientY - current.startClientY) / scale;
       const radians = (annotation.data.rotation ?? 0) * Math.PI / 180;
-      const dx = screenDx * Math.cos(radians) + screenDy * Math.sin(radians);
-      const dy = -screenDx * Math.sin(radians) + screenDy * Math.cos(radians);
+      let dx = screenDx * Math.cos(radians) + screenDy * Math.sin(radians);
+      let dy = -screenDx * Math.sin(radians) + screenDy * Math.cos(radians);
+      if (moveEvent.shiftKey) {
+        const dist = Math.hypot(dx, dy);
+        if (dist > 2) {
+          const rawAngle = Math.atan2(dy, dx);
+          const snappedAngle = Math.round(rawAngle / (Math.PI / 4)) * (Math.PI / 4);
+          dx = dist * Math.cos(snappedAngle);
+          dy = dist * Math.sin(snappedAngle);
+        }
+      }
       const nextAnchor = annotation.data.rotation
         ? { x: current.startAnchor.x + dx, y: current.startAnchor.y + dy }
         : { x: clamp(current.startAnchor.x + dx, 0, current.pageWidth), y: clamp(current.startAnchor.y + dy, 0, current.pageHeight) };
@@ -1861,8 +2359,16 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       } else {
         const x1 = drawingLineStart.x;
         const y1 = drawingLineStart.y;
-        const x2 = startX;
-        const y2 = startY;
+        // Resolve the endpoint from the committing click itself; the hover
+        // preview state can lag (or never update) when clicks arrive quickly.
+        const endpoint = resolveLineEndpoint(
+          { x: x1, y: y1 },
+          { x: startX, y: startY },
+          collectPageSnapPoints(pageAnnotations, pageNumber),
+          event.shiftKey,
+        ).point;
+        const x2 = endpoint.x;
+        const y2 = endpoint.y;
 
         const rectX = Math.min(x1, x2);
         const rectY = Math.min(y1, y2);
@@ -1969,6 +2475,42 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       onClick={onActivate}
     >
       <canvas ref={canvasRef} className="block" />
+
+      {pageOcrResult && textItems.length === 0 && (
+        <OcrCanvasTextLayer
+          pageIndex={pageNumber - 1}
+          pageResult={pageOcrResult}
+          scale={scale}
+          onWordClick={(word, currentText, anchorRect) => {
+            setActiveOcrWordTarget({ word, currentText, anchorRect });
+          }}
+        />
+      )}
+
+      {activeOcrWordTarget && (
+        <InlineOcrCorrectionPopover
+          word={activeOcrWordTarget.word}
+          initialText={activeOcrWordTarget.currentText}
+          anchorRect={activeOcrWordTarget.anchorRect}
+          onCommit={(newText) => {
+            const now = new Date().toISOString();
+            useOcrReviewStore.getState().upsertOcrCorrection({
+              id: `corr-${activeOcrWordTarget.word.id}-${Date.now()}`,
+              documentFingerprint: ocrDocumentResult?.documentFingerprint || 'ocr-doc',
+              targetId: activeOcrWordTarget.word.id,
+              targetType: 'word',
+              pageIndex: activeOcrWordTarget.word.pageIndex,
+              originalText: activeOcrWordTarget.word.text,
+              correctedText: newText,
+              bbox: activeOcrWordTarget.word.bbox,
+              createdAt: now,
+              updatedAt: now,
+            });
+            setActiveOcrWordTarget(null);
+          }}
+          onClose={() => setActiveOcrWordTarget(null)}
+        />
+      )}
 
       {!viewportReady && (isTextMarkTool || ['squiggly', 'redaction', 'stamp'].includes(activeTool)) && (
         <div role="status" className="absolute top-2 left-2 z-50 rounded bg-slate-900 px-2 py-1 text-xs text-white pointer-events-none">
@@ -2085,6 +2627,19 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
                 existingTextPageId,
                 sourceIndex,
               );
+              setInlineEditingTarget({
+                pageNumber,
+                pageId: existingTextPageId,
+                sourceIndex,
+                initialText: item.text,
+                bounds: {
+                  left: item.x,
+                  top: item.y,
+                  width: item.width,
+                  height: item.height,
+                  fontSize: item.fontSize,
+                },
+              });
             }}
             onPointerUp={(event) => {
               if (
@@ -2136,6 +2691,12 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
               fontFamily: 'sans-serif',
               whiteSpace: 'pre',
               color: 'transparent',
+              visibility:
+                inlineEditingTarget
+                && inlineEditingTarget.pageNumber === pageNumber
+                && inlineEditingTarget.sourceIndex === item.sourceIndex
+                  ? 'hidden'
+                  : 'visible',
               backgroundColor:
                 selectedExistingTextSourceIndex
                   === item.sourceIndex
@@ -2153,6 +2714,20 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             {item.text}
           </span>
         ))}
+
+        {inlineEditingTarget && inlineEditingTarget.pageNumber === pageNumber && (
+          <InlineExistingTextEditor
+            pageNumber={inlineEditingTarget.pageNumber}
+            pageId={inlineEditingTarget.pageId}
+            sourceIndex={inlineEditingTarget.sourceIndex}
+            initialText={inlineEditingTarget.initialText}
+            bounds={inlineEditingTarget.bounds}
+            workingBytes={workingBytes}
+            documentKey={resolvedDocumentKey}
+            onCommitSuccess={() => setInlineEditingTarget(null)}
+            onCancel={() => setInlineEditingTarget(null)}
+          />
+        )}
       </div>
 
       {textSelectionDraft && (
@@ -2274,6 +2849,15 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             />
           </svg>
         )}
+        {/* CAD Magnetic Snap Indicator Overlay */}
+        {drawingLineStart && drawingLineStart.pageNumber === pageNumber && (
+          <SnapIndicatorOverlay
+            snapResult={activeSnapResult ?? null}
+            originPoint={drawingLineStart ? { x: drawingLineStart.x, y: drawingLineStart.y } : undefined}
+            isAngleConstrained={isAngleConstrained}
+            scale={scale}
+          />
+        )}
         {pageAnnotations
         .slice()
         .sort((a, b) => (a.data?.zIndex ?? 0) - (b.data?.zIndex ?? 0))
@@ -2372,7 +2956,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
                 editingRef.current = edit;
                 setEditingState(edit);
               }}
-              onCommitEdit={(v: string) => commitTextEdit(annotation, v, activeEdit)}
+              onCommitEdit={(v: string, stylePatch?: Record<string, unknown>) => commitTextEdit(annotation, v, activeEdit, stylePatch)}
               {...(annotation.type === 'callout' ? {
                 anchorPoint: anchor,
                 kneePoint: knee,
@@ -2451,6 +3035,7 @@ const PageSurfaceMemo = React.memo(
   PageSurface,
   (prev, next) =>
     prev.doc === next.doc &&
+    prev.documentKey === next.documentKey &&
     prev.pageNumber === next.pageNumber &&
     prev.scale === next.scale &&
     prev.activeTool === next.activeTool &&
@@ -2460,7 +3045,9 @@ const PageSurfaceMemo = React.memo(
     prev.selectedExistingTextSourceIndex === next.selectedExistingTextSourceIndex &&
     prev.onSelectExistingText === next.onSelectExistingText &&
     prev.drawingLineStart === next.drawingLineStart &&
-    prev.drawingLineCurrent === next.drawingLineCurrent,
+    prev.drawingLineCurrent === next.drawingLineCurrent &&
+    prev.activeSnapResult === next.activeSnapResult &&
+    prev.isAngleConstrained === next.isAngleConstrained,
 );
 
 
@@ -2867,8 +3454,8 @@ function readZIndex(annotation: PdfAnnotation): number {
 function autoSizeRectForText(text: string, fontSize: number, rect: Rect): Rect {
   const lines = text.split('\n');
   const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
-  const width = Math.max(120, Math.min(380, longest * (fontSize * 0.62) + 20));
-  const height = Math.max(36, lines.length * (fontSize * 1.5) + 14);
+  const width = Math.max(rect.width, Math.min(600, Math.round(longest * (fontSize * 0.60) + 12)));
+  const height = Math.max(rect.height, Math.round(lines.length * (fontSize * 1.25) + 8));
   return { ...rect, width, height };
 }
 

@@ -2,9 +2,6 @@ import {
   createExistingTextEditIntent,
 } from '@/core/existing-text/model';
 import {
-  assertPrintableAsciiReplacement,
-} from '@/core/existing-text/replacementOperand';
-import {
   matchExistingTextSpanToContentStream,
 } from '@/core/existing-text/provenanceMatcher';
 import type {
@@ -17,13 +14,18 @@ import type {
 import type {
   ExistingTextEditIntent,
   ExistingTextSpan,
+  ExistingTextStyleOverride,
 } from '@/core/existing-text/types';
+import type { PdfFontMetadata } from '@/core/pdf-fonts';
 import {
   readExistingTextPageContentStreams,
 } from './PdfLibExistingTextContentStreams';
 import {
   analyzeExistingTextVisualClearance,
 } from './PdfLibExistingTextVisualClearance';
+import {
+  resolveBestMatchingStandard14Font,
+} from './PdfLibExistingTextFont';
 
 export type ExistingTextUiCapability =
   | {
@@ -34,6 +36,7 @@ export type ExistingTextUiCapability =
       nativeFit:
         ExistingTextNativeFitDiagnostic
         & { status: 'fits' };
+      fontMetadata?: PdfFontMetadata | null;
     }
   | {
       status:
@@ -41,11 +44,17 @@ export type ExistingTextUiCapability =
       intent: ExistingTextEditIntent;
       provenance:
         ExistingTextSimpleTextOperator;
-      nativeFit:
-        ExistingTextNativeFitDiagnostic
-        & { status: 'overflows' };
+      nativeFit?:
+        ExistingTextNativeFitDiagnostic;
       evidence:
         ExistingTextReconstructedOverlayEvidence;
+      fontMetadata?: PdfFontMetadata | null;
+      fallbackReason?:
+        | 'VISUAL_OVERFLOW'
+        | 'SUBSET_GLYPH_SUBSTITUTION'
+        | 'STYLE_OVERRIDE'
+        | 'ROTATED_TEXT';
+      substituteFontName?: string;
     }
   | {
       status: 'unavailable';
@@ -55,6 +64,7 @@ export type ExistingTextUiCapability =
         ExistingTextSimpleTextOperator;
       nativeFit?:
         ExistingTextNativeFitDiagnostic;
+      fontMetadata?: PdfFontMetadata | null;
     };
 
 export async function evaluateExistingTextUiCapability(
@@ -63,6 +73,7 @@ export async function evaluateExistingTextUiCapability(
     currentRevisionId: string;
     span: ExistingTextSpan;
     replacementText: string;
+    styleOverride?: ExistingTextStyleOverride;
     signal?: AbortSignal;
   },
 ): Promise<ExistingTextUiCapability> {
@@ -81,13 +92,11 @@ export async function evaluateExistingTextUiCapability(
   let intent:
     ExistingTextEditIntent;
   try {
-    assertPrintableAsciiReplacement(
-      input.replacementText,
-    );
     intent =
       createExistingTextEditIntent(
         input.span,
         input.replacementText,
+        input.styleOverride,
       );
   } catch (error) {
     return {
@@ -134,24 +143,43 @@ export async function evaluateExistingTextUiCapability(
       signal: input.signal,
     });
 
+  const isRotated = Math.abs(input.span.rotationDegrees ?? 0) > 0.5;
+
   if (
     clearance.status
       === 'proved'
   ) {
+    const isSubsetSubstitution =
+      clearance.nativeFit?.status === 'unmeasurable' &&
+      clearance.nativeFit.reason === 'MISSING_SUBSET_GLYPHS';
+    const isStyleOverridden = Boolean(input.styleOverride);
+
+    const substituteFontName = resolveBestMatchingStandard14Font(
+      clearance.fontMetadata,
+      match.provenance.fontResourceName,
+    );
+
     return {
-      status:
-        'fallback-proved',
+      status: 'fallback-proved',
       intent,
-      provenance:
-        match.provenance,
-      nativeFit:
-        clearance.nativeFit,
-      evidence:
-        clearance.evidence,
+      provenance: match.provenance,
+      nativeFit: clearance.nativeFit,
+      evidence: clearance.evidence,
+      fontMetadata: clearance.fontMetadata,
+      fallbackReason: isSubsetSubstitution
+        ? 'SUBSET_GLYPH_SUBSTITUTION'
+        : isStyleOverridden
+        ? 'STYLE_OVERRIDE'
+        : isRotated
+        ? 'ROTATED_TEXT'
+        : 'VISUAL_OVERFLOW',
+      substituteFontName,
     };
   }
 
   if (
+    !input.styleOverride &&
+    !isRotated &&
     clearance.nativeFit
     && clearance.nativeFit.status
       === 'fits'
@@ -163,7 +191,21 @@ export async function evaluateExistingTextUiCapability(
         match.provenance,
       nativeFit:
         clearance.nativeFit,
+      fontMetadata: clearance.fontMetadata,
     };
+  }
+
+  const reasons = [...clearance.reasons, ...clearance.diagnostics];
+  if (
+    clearance.nativeFit?.status === 'unmeasurable' &&
+    clearance.nativeFit.reason === 'MISSING_SUBSET_GLYPHS'
+  ) {
+    const missing = clearance.nativeFit.missingCharacters ?? [];
+    reasons.unshift(
+      missing.length > 0
+        ? `The font subset does not contain characters: ${missing.join(', ')}.`
+        : 'The font subset does not contain the required glyphs.',
+    );
   }
 
   return {
@@ -177,9 +219,7 @@ export async function evaluateExistingTextUiCapability(
             clearance.nativeFit,
         }
       : {}),
-    reasons: [
-      ...clearance.reasons,
-      ...clearance.diagnostics,
-    ],
+    fontMetadata: clearance.fontMetadata,
+    reasons,
   };
 }

@@ -11,7 +11,7 @@ import {
   isNativeRichTextReadOnly,
 } from '@/core/annotations/nativeInteropFidelity';
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
-import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, FileText, Minus, X } from 'lucide-react';
+import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, FileText, Minus, X, Calculator, ShieldAlert } from 'lucide-react';
 import { WriterInspectorPanel } from '@/components/writer/WriterInspectorPanel';
 import { useWriterStore } from '@/core/writer/store';
 import type { ReviewStatus } from '@/core/review/types';
@@ -19,6 +19,8 @@ import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ExistingTextInspectorTab } from './ExistingTextInspectorTab';
+import { TakeoffInspectorTab } from './TakeoffInspectorTab';
+import { RedactionInspectorTab } from './RedactionInspectorTab';
 
 
 export const InspectorPanel: React.FC = () => {
@@ -102,6 +104,8 @@ export const InspectorPanel: React.FC = () => {
     { id: 'style', icon: Palette, label: 'Style' },
     { id: 'history', icon: Info, label: 'Metadata' },
     { id: 'review', icon: MessageSquare, label: 'Review' },
+    { id: 'takeoff', icon: Calculator, label: 'Takeoff' },
+    { id: 'redaction', icon: ShieldAlert, label: 'Redaction' },
   ] as const;
 
   return (
@@ -126,11 +130,15 @@ export const InspectorPanel: React.FC = () => {
       <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-200 dark:border-slate-800">
         {inspectorTab === 'text'
           ? 'Current page PDF text'
-          : selection.length > 1
-            ? `${selection.length} annotations selected`
-            : activeAnnotation
-              ? '1 annotation selected'
-              : 'No selection'}
+          : inspectorTab === 'takeoff'
+            ? 'Bill of Materials & Quantity Takeoff'
+            : inspectorTab === 'redaction'
+              ? 'Secure Content Redaction'
+              : selection.length > 1
+                ? `${selection.length} annotations selected`
+                : activeAnnotation
+                  ? '1 annotation selected'
+                  : 'No selection'}
       </div>
 
       <div className="flex items-center p-2 border-b border-slate-200 dark:border-slate-800 shrink-0">
@@ -160,7 +168,7 @@ export const InspectorPanel: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-auto relative">
-        {!activeAnnotation && inspectorTab !== 'text' && (
+        {!activeAnnotation && inspectorTab !== 'text' && inspectorTab !== 'takeoff' && inspectorTab !== 'redaction' && (
           <div className="h-full flex items-center justify-center p-6">
             <div className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-6 text-center">
               <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center">
@@ -205,6 +213,14 @@ export const InspectorPanel: React.FC = () => {
             updateAnnotation={updateAnnotation}
             updateManyAnnotations={updateManyAnnotations}
           />
+        )}
+
+        {inspectorTab === 'takeoff' && (
+          <TakeoffInspectorTab />
+        )}
+
+        {inspectorTab === 'redaction' && (
+          <RedactionInspectorTab />
         )}
       </div>
     </div>
@@ -577,6 +593,8 @@ const StyleTab: React.FC<{
   const richTextReadOnly = isNativeRichTextReadOnly(annotation);
   const stampArtworkReadOnly = isImportedStampArtworkReadOnly(annotation);
   const boxArtworkReadOnly = isImportedBoxArtworkReadOnly(annotation);
+  const isTransparentBg = annotation.data.backgroundColor === 'transparent';
+  const currentOpacity = typeof annotation.data.opacity === 'number' ? annotation.data.opacity : 1;
   const { updateStyleForSelection } = useAnnotationStore(useShallow((state) => ({
     updateStyleForSelection: state.updateStyleForSelection,
   })));
@@ -604,18 +622,91 @@ const StyleTab: React.FC<{
           This shape's original artwork is preserved. Its appearance cannot be edited safely here.
         </p>}
         <fieldset disabled={stampArtworkReadOnly || boxArtworkReadOnly} className="space-y-3 disabled:opacity-60">
-        <TwoColumnRow>
-          <LabeledColorInput
-            label="Background"
-            value={readColor(annotation.data.backgroundColor, '#ffffff')}
-            onChange={(value) => applyToSelection({ backgroundColor: value })}
-          />
-          <LabeledColorInput
-            label="Border"
-            value={readColor(annotation.data.borderColor, '#60a5fa')}
-            onChange={(value) => applyToSelection({ borderColor: value })}
-          />
-        </TwoColumnRow>
+        <div>
+          <div className="mb-2">
+            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+              Fill Mode
+            </span>
+            <div className="grid grid-cols-3 gap-1">
+              <button
+                type="button"
+                title="Solid Fill"
+                onClick={() =>
+                  applyToSelection({
+                    backgroundColor: isTransparentBg ? '#ffffff' : (annotation.data.backgroundColor ?? '#ffffff'),
+                    opacity: 1,
+                  })
+                }
+                className={`py-1 text-xs font-medium rounded border transition-colors ${
+                  !isTransparentBg && currentOpacity >= 0.8
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                Solid
+              </button>
+              <button
+                type="button"
+                title="Translucent Fill"
+                onClick={() =>
+                  applyToSelection({
+                    backgroundColor: isTransparentBg ? '#ffffff' : (annotation.data.backgroundColor ?? '#ffffff'),
+                    opacity: 0.5,
+                  })
+                }
+                className={`py-1 text-xs font-medium rounded border transition-colors ${
+                  !isTransparentBg && currentOpacity < 0.8
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                Translucent
+              </button>
+              <button
+                type="button"
+                title="No Background Fill"
+                onClick={() => applyToSelection({ backgroundColor: 'transparent' })}
+                className={`py-1 text-xs font-medium rounded border transition-colors ${
+                  isTransparentBg
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                No BG
+              </button>
+            </div>
+          </div>
+          <TwoColumnRow>
+            <div>
+              <LabeledColorInput
+                label="Background"
+                value={isTransparentBg ? '#ffffff' : readColor(annotation.data.backgroundColor, '#ffffff')}
+                disabled={isTransparentBg}
+                onChange={(value) => applyToSelection({ backgroundColor: value })}
+              />
+              <label className="inline-flex items-center gap-1.5 mt-1.5 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
+                  checked={isTransparentBg}
+                  onChange={(e) => {
+                    applyToSelection({
+                      backgroundColor: e.target.checked ? 'transparent' : '#ffffff',
+                    });
+                  }}
+                />
+                <span>No background</span>
+              </label>
+            </div>
+            <div>
+              <LabeledColorInput
+                label="Border"
+                value={readColor(annotation.data.borderColor, '#60a5fa')}
+                onChange={(value) => applyToSelection({ borderColor: value })}
+              />
+            </div>
+          </TwoColumnRow>
+        </div>
 
         <div className="my-2">
           <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Border Style</span>
@@ -625,24 +716,58 @@ const StyleTab: React.FC<{
           />
         </div>
 
-        <TwoColumnRow>
-          <LabeledNumberInput
-            label="Border Width"
-            value={typeof annotation.data.borderWidth === 'number' ? annotation.data.borderWidth : 1}
-            onChange={(value) => {
-              const next = Number(value);
-              if (!Number.isNaN(next)) applyToSelection({ borderWidth: next });
+        <LabeledNumberInput
+          label="Border Width"
+          value={typeof annotation.data.borderWidth === 'number' ? annotation.data.borderWidth : 1}
+          onChange={(value) => {
+            const next = Number(value);
+            if (!Number.isNaN(next)) applyToSelection({ borderWidth: next });
+          }}
+        />
+
+        {/* Opacity & Translucency */}
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center justify-between">
+            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              Opacity / Translucency
+            </span>
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              {Math.round(currentOpacity * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0.05"
+            max="1.0"
+            step="0.05"
+            value={currentOpacity}
+            onChange={(e) => {
+              const next = parseFloat(e.target.value);
+              if (!Number.isNaN(next)) applyToSelection({ opacity: Math.round(next * 100) / 100 });
             }}
+            className="w-full accent-blue-600 cursor-pointer"
           />
-          <LabeledNumberInput
-            label="Opacity"
-            value={typeof annotation.data.opacity === 'number' ? annotation.data.opacity : 1}
-            onChange={(value) => {
-              const next = Number(value);
-              if (!Number.isNaN(next)) applyToSelection({ opacity: next });
-            }}
-          />
-        </TwoColumnRow>
+          <div className="flex items-center gap-1.5 pt-0.5">
+            {[
+              { label: 'Opaque (100%)', val: 1.0 },
+              { label: 'Translucent (50%)', val: 0.5 },
+              { label: 'Light (25%)', val: 0.25 },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => applyToSelection({ opacity: preset.val })}
+                className={`px-2 py-0.5 text-[10px] font-medium rounded border transition-colors ${
+                  Math.abs(currentOpacity - preset.val) < 0.04
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
         </fieldset>
       </Section>
 
@@ -705,7 +830,15 @@ const StyleTab: React.FC<{
               label="Arrowhead"
               value={typeof annotation.data.arrowHead === 'string' ? annotation.data.arrowHead : 'open'}
               onChange={(val) => applyToSelection({ arrowHead: val })}
-              options={[{ label: 'Open', value: 'open' }, { label: 'Filled', value: 'filled' }, { label: 'None', value: 'none' }]}
+              options={[
+                { label: 'Open Arrow', value: 'open' },
+                { label: 'Filled Arrow', value: 'filled' },
+                { label: 'Circle (Dot)', value: 'circle' },
+                { label: 'Square', value: 'square' },
+                { label: 'Slash (Tick)', value: 'slash' },
+                { label: 'Diamond', value: 'diamond' },
+                { label: 'None', value: 'none' },
+              ]}
             />
           </div>
         </Section>
@@ -738,6 +871,15 @@ const StyleTab: React.FC<{
       </label>
 
       {!stampArtworkReadOnly && !boxArtworkReadOnly && <Section title="Quick Presets" defaultOpen={false}>
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            type="button"
+            className="w-full py-1 text-xs font-medium rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            onClick={() => applyToSelection({ backgroundColor: 'transparent' })}
+          >
+            Clear background (transparent)
+          </button>
+        </div>
         <div className="grid grid-cols-4 gap-2">
           {['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#d946ef'].map((color) => (
             <button
@@ -906,11 +1048,21 @@ const LabeledColorInput: React.FC<{
   label: string;
   value: string;
   onChange: (value: string) => void;
-}> = ({ label, value, onChange }) => (
-  <LabeledInputShell label={label}>
-    <input type="color" className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2" value={value} onChange={(e) => onChange(e.target.value)} />
-  </LabeledInputShell>
-);
+  disabled?: boolean;
+}> = ({ label, value, onChange, disabled }) => {
+  const safeColor = /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#ffffff';
+  return (
+    <LabeledInputShell label={label}>
+      <input
+        type="color"
+        disabled={disabled}
+        className="h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        value={safeColor}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </LabeledInputShell>
+  );
+};
 
 const KeyValue: React.FC<{ label: string; value: string; mono?: boolean }> = ({ label, value, mono = false }) => (
   <div className="space-y-1">

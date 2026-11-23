@@ -29,6 +29,8 @@ import { InkNode }           from '../../components/annotations/InkNode';
 import { StampNode }         from '../../components/annotations/StampNode';
 import { CommentNode }       from '../../components/annotations/CommentNode';
 import { RedactionNode }     from '../../components/annotations/RedactionNode';
+import { PipingSupportNode } from '../../components/annotations/PipingSupportNode';
+import { PipingValveNode }   from '../../components/annotations/PipingValveNode';
 
 annotationRegistry.register('textbox',        TextboxNode);
 annotationRegistry.register('callout',        CalloutNode);
@@ -47,3 +49,5 @@ annotationRegistry.register('ink',            InkNode);
 annotationRegistry.register('stamp',          StampNode);
 annotationRegistry.register('comment',        CommentNode);
 annotationRegistry.register('redaction',      RedactionNode);
+annotationRegistry.register('piping-support', PipingSupportNode);
+annotationRegistry.register('piping-valve',   PipingValveNode);

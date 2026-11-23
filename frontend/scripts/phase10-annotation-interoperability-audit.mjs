@@ -19,10 +19,11 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
 const typesFilePath = path.join(frontendRoot, 'src/core/annotations/annotationTypes.ts');
 const typesContent = fs.readFileSync(typesFilePath, 'utf-8');
 
-// Extract ANNOTATION_TYPES array from annotationTypes.ts
-const match = typesContent.match(/export const ANNOTATION_TYPES = \s*\[([^\]]+)\]/);
+// Extract standard Phase 10 annotation types array from annotationTypes.ts
+const match = typesContent.match(/export const STANDARD_ANNOTATION_TYPES = \s*\[([^\]]+)\]/)
+  || typesContent.match(/export const ANNOTATION_TYPES = \s*\[([^\]]+)\]/);
 if (!match) {
-  console.error('FAIL: Could not extract ANNOTATION_TYPES from annotationTypes.ts');
+  console.error('FAIL: Could not extract standard annotation types from annotationTypes.ts');
   process.exit(1);
 }
 

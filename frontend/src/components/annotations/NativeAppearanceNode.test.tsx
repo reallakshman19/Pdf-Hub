@@ -112,4 +112,41 @@ describe('native appearance visual with interactive overlay', () => {
     fireEvent.blur(input);
     expect(handlers.onCommitEdit).toHaveBeenCalledWith('changed text');
   });
+
+  it('renders polished inline editor without scrollbars and commits on Enter / cancels on Escape', () => {
+    const handlers = callbacks();
+    const translucentCallout: PdfAnnotation = {
+      ...callout,
+      data: {
+        ...callout.data,
+        opacity: 0.5,
+        backgroundColor: 'transparent',
+        fontSize: 14,
+        textColor: '#dc2626',
+      },
+    };
+    const { container } = render(
+      <NativeAppearanceNode annotation={translucentCallout} rect={translucentCallout.rect} scale={1}
+        nativeAppearanceUrl="data:image/png;base64,ZmFrZQ==" isSelected
+        isEditing editingValue="Rest" {...handlers} />,
+    );
+    const root = container.querySelector('[data-native-annotation-id="foreign-callout"]') as HTMLDivElement;
+    expect(root.style.opacity).toBe('0.5');
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+    expect(textarea.style.overflow).toBe('hidden');
+    expect(textarea.style.resize).toBe('none');
+    expect(textarea.style.scrollbarWidth).toBe('none');
+    expect(textarea.style.fontSize).toBe('14px');
+    expect(textarea.style.color).toBe('rgb(220, 38, 38)');
+
+    // Enter commits immediately
+    fireEvent.change(textarea, { target: { value: 'Rest Updated' } });
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
+    expect(handlers.onCommitEdit).toHaveBeenCalledWith('Rest Updated');
+
+    // Escape cancels and restores original
+    fireEvent.keyDown(textarea, { key: 'Escape' });
+    expect(handlers.onCommitEdit).toHaveBeenCalledWith('Rest');
+  });
 });

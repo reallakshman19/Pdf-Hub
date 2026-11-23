@@ -15,6 +15,51 @@ export function validateReconstructExistingTextCommandPayload(
   );
 }
 
+export function validateReplaceExistingParagraphCommandPayload(value: unknown): string[] {
+  const errors: string[] = [];
+
+  if (!isRecord(value)) {
+    return ['payload must be an object.'];
+  }
+
+  if (value.schemaVersion !== 1) {
+    errors.push('payload.schemaVersion must be 1.');
+  }
+
+  const paragraph = value.paragraph;
+  const intent = value.intent;
+
+  if (!isRecord(paragraph)) {
+    errors.push('payload.paragraph must be an object.');
+  } else {
+    if (typeof paragraph.paragraphId !== 'string' || !paragraph.paragraphId.trim()) {
+      errors.push('payload.paragraph.paragraphId must be a non-empty string.');
+    }
+    if (!Number.isInteger(paragraph.pageIndex) || (paragraph.pageIndex as number) < 0) {
+      errors.push('payload.paragraph.pageIndex must be a non-negative integer.');
+    }
+    if (!Array.isArray(paragraph.lines) || paragraph.lines.length === 0) {
+      errors.push('payload.paragraph.lines must be a non-empty array.');
+    }
+    if (typeof paragraph.fullText !== 'string') {
+      errors.push('payload.paragraph.fullText must be a string.');
+    }
+    if (!isRecord(paragraph.boundsPt)) {
+      errors.push('payload.paragraph.boundsPt must be an object.');
+    }
+  }
+
+  if (!isRecord(intent)) {
+    errors.push('payload.intent must be an object.');
+  } else {
+    if (typeof intent.replacementText !== 'string') {
+      errors.push('payload.intent.replacementText must be a string.');
+    }
+  }
+
+  return errors;
+}
+
 export function validateReplaceExistingTextCommandPayload(
   value: unknown,
   documentKey: string,
@@ -762,4 +807,105 @@ function validateRange(
       `${field} must contain integer start/end with 0 <= start < end.`,
     );
   }
+}
+
+export function validateBatchReplaceExistingTextCommandPayload(value: unknown): string[] {
+  const errors: string[] = [];
+  if (!isRecord(value)) {
+    return ['payload must be an object.'];
+  }
+  if (value.schemaVersion !== 1) {
+    errors.push('payload.schemaVersion must be 1.');
+  }
+  if (!Array.isArray(value.items) || value.items.length === 0) {
+    errors.push('payload.items must be a non-empty array.');
+    return errors;
+  }
+  for (let i = 0; i < value.items.length; i++) {
+    const item = value.items[i];
+    if (!isRecord(item)) {
+      errors.push(`payload.items[${i}] must be an object.`);
+      continue;
+    }
+    if (typeof item.pageIndex !== 'number' || item.pageIndex < 0 || !Number.isInteger(item.pageIndex)) {
+      errors.push(`payload.items[${i}].pageIndex must be a non-negative integer.`);
+    }
+    if (typeof item.pageId !== 'string' || item.pageId.trim().length === 0) {
+      errors.push(`payload.items[${i}].pageId must be a non-empty string.`);
+    }
+    if (!isRecord(item.span)) {
+      errors.push(`payload.items[${i}].span must be an object.`);
+    }
+    if (typeof item.replacementText !== 'string') {
+      errors.push(`payload.items[${i}].replacementText must be a string.`);
+    }
+  }
+  return errors;
+}
+
+export function validateEditTableCellTextCommandPayload(value: unknown): string[] {
+  const errors: string[] = [];
+  if (!isRecord(value)) {
+    return ['payload must be an object.'];
+  }
+  if (value.schemaVersion !== 1) {
+    errors.push('payload.schemaVersion must be 1.');
+  }
+  if (typeof value.pageId !== 'string' || value.pageId.trim().length === 0) {
+    errors.push('payload.pageId must be a non-empty string.');
+  }
+  if (typeof value.replacementText !== 'string') {
+    errors.push('payload.replacementText must be a string.');
+  }
+  if (!isRecord(value.cell)) {
+    errors.push('payload.cell must be an object.');
+  } else {
+    if (typeof value.cell.tableId !== 'string' || value.cell.tableId.trim().length === 0) {
+      errors.push('payload.cell.tableId must be a non-empty string.');
+    }
+    if (typeof value.cell.rowIndex !== 'number' || value.cell.rowIndex < 0) {
+      errors.push('payload.cell.rowIndex must be a non-negative number.');
+    }
+    if (typeof value.cell.columnIndex !== 'number' || value.cell.columnIndex < 0) {
+      errors.push('payload.cell.columnIndex must be a non-negative number.');
+    }
+    if (!isRecord(value.cell.bounds)) {
+      errors.push('payload.cell.bounds must be an object.');
+    } else {
+      if (typeof value.cell.bounds.width !== 'number' || value.cell.bounds.width <= 0) {
+        errors.push('payload.cell.bounds.width must be a positive number.');
+      }
+      if (typeof value.cell.bounds.height !== 'number' || value.cell.bounds.height <= 0) {
+        errors.push('payload.cell.bounds.height must be a positive number.');
+      }
+    }
+  }
+  if (!isRecord(value.span)) {
+    errors.push('payload.span must be an object.');
+  }
+  return errors;
+}
+
+export function validateDeleteExistingTextCommandPayload(value: unknown): string[] {
+  const errors: string[] = [];
+  if (!isRecord(value)) {
+    return ['payload must be an object.'];
+  }
+  if (value.schemaVersion !== 1) {
+    errors.push('payload.schemaVersion must be 1.');
+  }
+  if (!isRecord(value.span)) {
+    errors.push('payload.span must be an object.');
+  }
+  if (!isRecord(value.intent)) {
+    errors.push('payload.intent must be an object.');
+  } else {
+    if (value.intent.schemaVersion !== 1) {
+      errors.push('payload.intent.schemaVersion must be 1.');
+    }
+    if (typeof value.intent.spanId !== 'string' || value.intent.spanId.trim().length === 0) {
+      errors.push('payload.intent.spanId must be a non-empty string.');
+    }
+  }
+  return errors;
 }

@@ -53,6 +53,13 @@ export interface RunFinalOcrIntegrationJobInput {
 
   onProgress?: (snapshot: OcrJobRunnerSnapshot) => void;
   onBatchSnapshot?: (snapshot: OcrBatchSchedulerSnapshot<OcrEnginePageInput[]>) => void;
+  onBatchCheckpoint?: (
+    task: import('./ocrBatchScheduler').OcrBatchTask<OcrEnginePageInput[]>,
+    output: OcrDocumentResult,
+    batchIndex: number,
+  ) => Promise<void> | void;
+  recycleAfterBatch?: boolean;
+  onRecycleWorker?: (batchIndex: number) => Promise<void> | void;
   onDiagnostic?: (diagnostic: OcrFinalIntegrationDiagnostic) => void;
 }
 
@@ -129,6 +136,7 @@ export async function runFinalOcrIntegrationJob(
     ),
     rasterScale: input.policy.rasterScale,
     maxCanvasPixels: input.policy.maxCanvasPixels,
+    preprocessing: input.policy.preprocessing,
     rasterWorkerClient: input.rasterWorkerClient,
     signal: input.signal,
     onRasterProgress: (progress) => {
@@ -166,6 +174,9 @@ export async function runFinalOcrIntegrationJob(
     tasks: batchPlan.batchTasks,
     concurrency: input.batchConcurrency ?? 1,
     signal: input.signal,
+    recycleAfterBatch: input.recycleAfterBatch ?? (input.policy.preset === 'ten-page-batch' || batchPlan.batchTasks.length > 1),
+    onBatchCheckpoint: input.onBatchCheckpoint,
+    onRecycleWorker: input.onRecycleWorker ?? (input.workerClient?.dispose ? async () => { input.workerClient?.dispose?.(); } : undefined),
     runTask: async (task, signal) => {
       const pipelineResult = await runOcrPipeline({
         id: task.id,
@@ -178,6 +189,7 @@ export async function runFinalOcrIntegrationJob(
         pageIndexes: task.pageIndexes,
         rasterScale: input.policy.rasterScale,
         maxCanvasPixels: input.policy.maxCanvasPixels,
+        preprocessing: input.policy.preprocessing,
         workerClient: input.workerClient,
         rasterWorkerClient: input.rasterWorkerClient,
         signal,

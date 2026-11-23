@@ -35,6 +35,8 @@ export interface OcrBatchSchedulerSnapshot<TInput = OcrEnginePageInput[]> {
   totalCount: number;
   progress: number;
   diagnostics: OcrBatchSchedulerDiagnostic[];
+  averageBatchDurationMs?: number;
+  estimatedRemainingMs?: number;
 }
 
 export interface OcrBatchSchedulerDiagnostic {
@@ -46,7 +48,11 @@ export interface OcrBatchSchedulerDiagnostic {
     | 'OCR_BATCH_FAILED'
     | 'OCR_BATCH_CANCELLED'
     | 'OCR_BATCH_RETRY_CREATED'
-    | 'OCR_BATCH_EMPTY';
+    | 'OCR_BATCH_EMPTY'
+    | 'OCR_BATCH_CHECKPOINT_SAVED'
+    | 'OCR_BATCH_CHECKPOINT_FAILED'
+    | 'OCR_BATCH_WORKER_RECYCLED'
+    | 'OCR_BATCH_WORKER_RECYCLE_FAILED';
   message: string;
   taskId?: string;
 }
@@ -67,6 +73,13 @@ export interface RunOcrBatchSchedulerInput<TInput, TOutput> {
     signal: AbortSignal,
   ) => Promise<TOutput>;
   onSnapshot?: (snapshot: OcrBatchSchedulerSnapshot<TInput>) => void;
+  onBatchCheckpoint?: (
+    task: OcrBatchTask<TInput>,
+    output: TOutput,
+    batchIndex: number,
+  ) => Promise<void> | void;
+  recycleAfterBatch?: boolean;
+  onRecycleWorker?: (batchIndex: number) => Promise<void> | void;
 }
 
 export interface RunOcrBatchSchedulerResult<TInput, TOutput> {
@@ -108,6 +121,10 @@ export function createOcrBatchTasksFromPages(
 export function createOcrBatchSchedulerSnapshot<TInput>(
   tasks: OcrBatchTask<TInput>[],
   diagnostics: OcrBatchSchedulerDiagnostic[] = [],
+  metrics?: {
+    averageBatchDurationMs?: number;
+    estimatedRemainingMs?: number;
+  },
 ): OcrBatchSchedulerSnapshot<TInput> {
   const completedCount = tasks.filter((task) => task.status === 'completed').length;
   const failedCount = tasks.filter((task) => task.status === 'failed').length;
@@ -145,6 +162,8 @@ export function createOcrBatchSchedulerSnapshot<TInput>(
       ? 0
       : terminalCount / totalCount,
     diagnostics: diagnostics.map((diagnostic) => ({ ...diagnostic })),
+    averageBatchDurationMs: metrics?.averageBatchDurationMs,
+    estimatedRemainingMs: metrics?.estimatedRemainingMs,
   };
 }
 
@@ -189,6 +208,21 @@ export async function runOcrBatchScheduler<TInput, TOutput>(
     message: `${tasks.length} OCR batch task(s) ready.`,
   });
 
+  const completedDurations: number[] = [];
+
+  function computeMetrics() {
+    const averageBatchDurationMs = completedDurations.length > 0
+      ? Math.round(completedDurations.reduce((a, b) => a + b, 0) / completedDurations.length)
+      : undefined;
+    const completedOrFailed = tasks.filter((t) => t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled').length;
+    const remaining = tasks.length - completedOrFailed;
+    const estimatedRemainingMs = averageBatchDurationMs !== undefined && remaining > 0
+      ? Math.round(remaining * averageBatchDurationMs)
+      : (remaining === 0 ? 0 : undefined);
+
+    return { averageBatchDurationMs, estimatedRemainingMs };
+  }
+
   emitSnapshot();
 
   let cursor = 0;
@@ -224,6 +258,12 @@ export async function runOcrBatchScheduler<TInput, TOutput>(
         task.status = 'completed';
         task.finishedAt = now();
 
+        const startTime = task.startedAt ? new Date(task.startedAt).getTime() : 0;
+        const endTime = task.finishedAt ? new Date(task.finishedAt).getTime() : 0;
+        if (endTime > startTime) {
+          completedDurations.push(endTime - startTime);
+        }
+
         results.push({
           taskId: task.id,
           pageIndexes: [...task.pageIndexes],
@@ -236,6 +276,44 @@ export async function runOcrBatchScheduler<TInput, TOutput>(
           taskId: task.id,
           message: `OCR batch ${task.id} completed.`,
         });
+
+        if (input.onBatchCheckpoint) {
+          try {
+            await input.onBatchCheckpoint(task, output, task.index);
+            diagnostics.push({
+              level: 'info',
+              code: 'OCR_BATCH_CHECKPOINT_SAVED',
+              taskId: task.id,
+              message: `Checkpoint saved for OCR batch ${task.id}.`,
+            });
+          } catch (error) {
+            diagnostics.push({
+              level: 'warning',
+              code: 'OCR_BATCH_CHECKPOINT_FAILED',
+              taskId: task.id,
+              message: `Failed to save checkpoint for OCR batch ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
+            });
+          }
+        }
+
+        if (input.recycleAfterBatch && input.onRecycleWorker) {
+          try {
+            await input.onRecycleWorker(task.index);
+            diagnostics.push({
+              level: 'info',
+              code: 'OCR_BATCH_WORKER_RECYCLED',
+              taskId: task.id,
+              message: `Worker recycled after OCR batch ${task.id}.`,
+            });
+          } catch (error) {
+            diagnostics.push({
+              level: 'warning',
+              code: 'OCR_BATCH_WORKER_RECYCLE_FAILED',
+              taskId: task.id,
+              message: `Failed to recycle worker after OCR batch ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
+            });
+          }
+        }
       } catch (error) {
         if (isAbortLikeError(error) || controller.signal.aborted) {
           task.status = 'cancelled';
@@ -296,13 +374,13 @@ export async function runOcrBatchScheduler<TInput, TOutput>(
   }
 
   return {
-    snapshot: createOcrBatchSchedulerSnapshot(tasks, diagnostics),
+    snapshot: createOcrBatchSchedulerSnapshot(tasks, diagnostics, computeMetrics()),
     results,
   };
 
   function emitSnapshot(): void {
     input.onSnapshot?.(
-      createOcrBatchSchedulerSnapshot(tasks, diagnostics),
+      createOcrBatchSchedulerSnapshot(tasks, diagnostics, computeMetrics()),
     );
   }
 }

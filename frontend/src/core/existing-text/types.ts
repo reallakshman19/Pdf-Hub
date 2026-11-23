@@ -79,6 +79,17 @@ export interface ExistingTextPageInspection {
   };
 }
 
+export interface ExistingTextStyleOverride {
+  fontSizePt?: number;
+  colorHex?: string;
+  bold?: boolean;
+  italic?: boolean;
+  fontFamily?: 'Helvetica' | 'Times-Roman' | 'Courier';
+  align?: import('./alignmentTypes').ExistingTextAlign;
+  horizontalScalePercent?: number;
+  letterSpacingPt?: number;
+}
+
 export interface ExistingTextEditIntent {
   schemaVersion: 1;
   sourceRevisionId: string;
@@ -90,6 +101,7 @@ export interface ExistingTextEditIntent {
   sourceEditability:
     | 'native-replacement-candidate'
     | 'reconstructed-candidate';
+  styleOverride?: ExistingTextStyleOverride;
 }
 
 export interface ExistingTextIntentValidation {

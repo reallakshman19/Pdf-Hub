@@ -260,8 +260,14 @@ describe('PdfLibExistingTextVisualClearance', () => {
       );
     }
 
+    const nativeFit = result.nativeFit;
+    expect(nativeFit.status).toBe('overflows');
+    if (nativeFit.status !== 'overflows') {
+      throw new Error('Expected overflows fit');
+    }
+
     expect(
-      result.nativeFit
+      nativeFit
         .observedToMetricScale,
     ).toBeLessThan(1);
     expect(
@@ -269,7 +275,7 @@ describe('PdfLibExistingTextVisualClearance', () => {
         .replacementBoundsPt
         .width,
     ).toBeGreaterThanOrEqual(
-      result.nativeFit
+      nativeFit
         .measuredReplacementWidthPt,
     );
   });

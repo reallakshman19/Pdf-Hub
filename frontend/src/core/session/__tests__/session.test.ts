@@ -712,4 +712,64 @@ describe('Session Store', () => {
     ).toThrow(/not registered/);
   });
 
+  it('atomically commits a document mutation preserving page identity and documentKey', () => {
+    const store = new MemoryRevisionStore({ id: 'rev-store:mutation' });
+    registerWorkingRevisionStore(store);
+
+    const initialGraph = graph(['p1', 'p2', 'p3'], 'doc-init');
+
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-init',
+      revisionStoreId: store.id,
+      originalRevisionId: 'doc-init',
+      activeRevisionId: 'doc-init',
+      fileName: 'test.pdf',
+      bytes: Uint8Array.from([1, 2, 3]),
+      pageCount: 3,
+      pageGraph: initialGraph,
+    });
+
+    useSessionStore.getState().setPage(2);
+    expect(useSessionStore.getState().viewState.currentPage).toBe(2);
+    expect(useSessionStore.getState().viewState.currentPageId).toBe('p2');
+
+    const nextGraph = graph(['p1', 'p2', 'p3'], 'doc-next');
+
+    useSessionStore.getState().commitMutation({
+      bytes: Uint8Array.from([4, 5, 6]),
+      pageCount: 3,
+      documentKey: 'doc-next',
+      activeRevisionId: 'doc-next',
+      pageGraph: nextGraph,
+    });
+
+    const state = useSessionStore.getState();
+    expect(state.documentKey).toBe('doc-next');
+    expect(state.activeRevisionId).toBe('doc-next');
+    expect(state.workingBytes).toEqual(Uint8Array.from([4, 5, 6]));
+    expect(state.isDirty).toBe(true);
+    expect(state.isDocumentDirty).toBe(true);
+    expect(state.viewState.currentPage).toBe(2);
+    expect(state.viewState.currentPageId).toBe('p2');
+    expect(state.pageGraph).toBe(nextGraph);
+  });
+
+  it('rejects commitMutation when activeRevisionId does not match documentKey', () => {
+    useSessionStore.getState().openDocument({
+      documentKey: 'doc-1',
+      fileName: 'doc1.pdf',
+      bytes: Uint8Array.from([1]),
+      pageCount: 1,
+    });
+
+    expect(() =>
+      useSessionStore.getState().commitMutation({
+        bytes: Uint8Array.from([2]),
+        pageCount: 1,
+        documentKey: 'doc-next',
+        activeRevisionId: 'mismatched-key',
+      }),
+    ).toThrow(/must match documentKey/);
+  });
+
 });

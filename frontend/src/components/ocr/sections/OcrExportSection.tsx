@@ -5,6 +5,7 @@ import {
 import { OcrSectionShell } from './OcrSectionShell';
 
 export interface OcrExportSectionProps {
+  structuredExport?: React.ReactNode;
   searchablePdfExport?: React.ReactNode;
   projectExport?: React.ReactNode;
   diagnostics?: React.ReactNode;
@@ -12,12 +13,13 @@ export interface OcrExportSectionProps {
 }
 
 export const OcrExportSection: React.FC<OcrExportSectionProps> = ({
+  structuredExport,
   searchablePdfExport,
   projectExport,
   diagnostics,
   emptyState,
 }) => {
-  const hasContent = Boolean(searchablePdfExport || projectExport || diagnostics);
+  const hasContent = Boolean(structuredExport || searchablePdfExport || projectExport || diagnostics);
 
   return (
     <OcrSectionShell
@@ -35,6 +37,12 @@ export const OcrExportSection: React.FC<OcrExportSectionProps> = ({
             OCR export tools will appear after PDF bytes and OCR results are available.
           </div>
         )
+      ) : null}
+
+      {structuredExport ? (
+        <div data-testid="ocr-export-structured">
+          {structuredExport}
+        </div>
       ) : null}
 
       {searchablePdfExport ? (

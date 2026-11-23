@@ -2,9 +2,17 @@ export {
   buildExistingTextPageInspection,
   buildExistingTextSpan,
   createExistingTextEditIntent,
+  createExistingTextDeleteIntent,
   createExistingTextSpanId,
   validateExistingTextEditIntentAgainstSpan,
+  validateExistingTextDeleteIntentAgainstSpan,
 } from './model';
+
+export type {
+  ExistingTextDeleteIntent,
+  ExistingTextDeleteStrategy,
+  ExistingTextDeletionResult,
+} from './erasureTypes';
 
 export type {
   ExistingTextEditIntent,

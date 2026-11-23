@@ -1,0 +1,173 @@
+{
+  "schema_version": "phase10-viewer-corpus-v2",
+  "production_writer": {
+    "module": "src/core/pdf-annotations/nativeAnnotationWriter.ts",
+    "export": "writeNativePdfAnnotations"
+  },
+  "entries": [
+    {
+      "type": "textbox",
+      "family": "free-text",
+      "pdfSubtype": "FreeText",
+      "annotationId": "phase10-fixture-textbox-1",
+      "file": "phase10-textbox.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "callout",
+      "family": "free-text",
+      "pdfSubtype": "FreeText",
+      "annotationId": "phase10-fixture-callout-1",
+      "file": "phase10-callout.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "sticky-note",
+      "family": "notes-review",
+      "pdfSubtype": "Text",
+      "annotationId": "phase10-fixture-sticky-note-1",
+      "file": "phase10-sticky-note.pdf",
+      "apPresent": false
+    },
+    {
+      "type": "highlight",
+      "family": "text-markup",
+      "pdfSubtype": "Highlight",
+      "annotationId": "phase10-fixture-highlight-1",
+      "file": "phase10-highlight.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "underline",
+      "family": "text-markup",
+      "pdfSubtype": "Underline",
+      "annotationId": "phase10-fixture-underline-1",
+      "file": "phase10-underline.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "strikeout",
+      "family": "text-markup",
+      "pdfSubtype": "StrikeOut",
+      "annotationId": "phase10-fixture-strikeout-1",
+      "file": "phase10-strikeout.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "squiggly",
+      "family": "text-markup",
+      "pdfSubtype": "Squiggly",
+      "annotationId": "phase10-fixture-squiggly-1",
+      "file": "phase10-squiggly.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "shape-rect",
+      "family": "shapes",
+      "pdfSubtype": "Square",
+      "annotationId": "phase10-fixture-shape-rect-1",
+      "file": "phase10-shape-rect.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "shape-ellipse",
+      "family": "shapes",
+      "pdfSubtype": "Circle",
+      "annotationId": "phase10-fixture-shape-ellipse-1",
+      "file": "phase10-shape-ellipse.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "shape-polygon",
+      "family": "shapes",
+      "pdfSubtype": "Polygon",
+      "annotationId": "phase10-fixture-shape-polygon-1",
+      "file": "phase10-shape-polygon.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "shape-cloud",
+      "family": "shapes",
+      "pdfSubtype": "Square",
+      "annotationId": "phase10-fixture-shape-cloud-1",
+      "file": "phase10-shape-cloud.pdf",
+      "apPresent": false
+    },
+    {
+      "type": "line",
+      "family": "linework",
+      "pdfSubtype": "Line",
+      "annotationId": "phase10-fixture-line-1",
+      "file": "phase10-line.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "arrow",
+      "family": "linework",
+      "pdfSubtype": "Line",
+      "annotationId": "phase10-fixture-arrow-1",
+      "file": "phase10-arrow.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "ink",
+      "family": "ink",
+      "pdfSubtype": "Ink",
+      "annotationId": "phase10-fixture-ink-1",
+      "file": "phase10-ink.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "stamp",
+      "family": "stamp-mask",
+      "pdfSubtype": "Stamp",
+      "annotationId": "phase10-fixture-stamp-1",
+      "file": "phase10-stamp.pdf",
+      "apPresent": true
+    },
+    {
+      "type": "comment",
+      "family": "notes-review",
+      "pdfSubtype": "Text",
+      "annotationId": "phase10-fixture-comment-1",
+      "file": "phase10-comment.pdf",
+      "apPresent": false
+    },
+    {
+      "type": "redaction",
+      "family": "stamp-mask",
+      "pdfSubtype": "Square",
+      "annotationId": "phase10-fixture-redaction-1",
+      "file": "phase10-redaction.pdf",
+      "apPresent": true
+    }
+  ],
+  "journeys": [
+    {
+      "journeyId": "review-round-trip",
+      "file": "phase10-review-round-trip.pdf",
+      "rootIds": [
+        "phase10-review-journey-highlight-1",
+        "phase10-review-root-1"
+      ],
+      "graph": "highlight + comment root + reply IRT/RT=R + review-state IRT/StateModel=Review",
+      "apPresentOnRoots": false,
+      "appearanceByRoot": {
+        "phase10-review-journey-highlight-1": true,
+        "phase10-review-root-1": false
+      }
+    },
+    {
+      "journeyId": "rich-text-preservation",
+      "file": "phase10-rich-text-preservation.pdf",
+      "rootIds": [
+        "phase10-rich-text-preservation-1"
+      ],
+      "graph": "FreeText root + Contents + RC rich text + DS default style; imported as NATIVE_PRESERVED_READ_ONLY",
+      "apPresentOnRoots": true,
+      "appearanceByRoot": {
+        "phase10-rich-text-preservation-1": true
+      }
+    }
+  ]
+}

@@ -32,7 +32,7 @@ describe('BatchRunDialog', () => {
       />,
     );
 
-    expect(screen.getByText('Footer Page Numbers')).toBeInTheDocument();
+    expect(screen.getByText('Diagonal DRAFT Watermark')).toBeInTheDocument();
     expect(screen.getByText('Review Stamp — Current Page')).toBeInTheDocument();
 
     expect(screen.queryByText('Rotate Selected Pages 90°')).toBeNull();
@@ -56,7 +56,7 @@ describe('BatchRunDialog', () => {
     );
 
     fireEvent.change(screen.getByLabelText('Batch workflow'), {
-      target: { value: 'footer-page-numbers' },
+      target: { value: 'diagonal-watermark-draft' },
     });
     fireEvent.click(
       screen.getByRole('button', { name: 'Choose PDFs & Run' }),
@@ -64,8 +64,8 @@ describe('BatchRunDialog', () => {
 
     expect(onConfirm).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'footer-page-numbers',
-        name: 'Footer Page Numbers',
+        id: 'diagonal-watermark-draft',
+        name: 'Diagonal DRAFT Watermark',
       }),
     );
     expect(onClose).toHaveBeenCalledTimes(1);

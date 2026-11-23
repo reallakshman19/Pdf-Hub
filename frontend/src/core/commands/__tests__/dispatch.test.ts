@@ -85,6 +85,9 @@ const mutationEngineMocks = vi.hoisted(() => ({
   applyHeaderFooter: vi.fn(),
   replaceExistingText: vi.fn(),
   reconstructExistingText: vi.fn(),
+  replaceExistingParagraph: vi.fn(),
+  batchReplaceExistingText: vi.fn(),
+  editTableCellText: vi.fn(),
   commit: vi.fn(),
   dispose: vi.fn(),
 }));
@@ -474,9 +477,9 @@ describe('canonical command dispatch', () => {
           await mutationEngineMocks.duplicatePages(indices);
           pageCount += indices.length;
         },
-        insertPdf: async (atIndex: number, donorBytes: Uint8Array) => {
-          await mutationEngineMocks.insertPdf(atIndex, donorBytes);
-          pageCount += 3; // original admitted donor fixture has three pages
+        insertPdf: async (atIndex: number, donorBytes: Uint8Array, donorPageIndices?: number[]) => {
+          await mutationEngineMocks.insertPdf(atIndex, donorBytes, donorPageIndices);
+          pageCount += donorPageIndices ? donorPageIndices.length : 3; // original admitted donor fixture has three pages
         },
         replacePage: mutationEngineMocks.replacePage,
         appendPdfs: async (donors: Uint8Array[]) => {
@@ -489,6 +492,9 @@ describe('canonical command dispatch', () => {
         applyHeaderFooter: mutationEngineMocks.applyHeaderFooter,
         replaceExistingText: mutationEngineMocks.replaceExistingText,
         reconstructExistingText: mutationEngineMocks.reconstructExistingText,
+        replaceExistingParagraph: mutationEngineMocks.replaceExistingParagraph,
+        batchReplaceExistingText: mutationEngineMocks.batchReplaceExistingText,
+        editTableCellText: mutationEngineMocks.editTableCellText,
         commit: mutationEngineMocks.commit,
         dispose: mutationEngineMocks.dispose,
       };
@@ -931,6 +937,194 @@ describe('canonical command dispatch', () => {
         2,
       ]),
     );
+  });
+
+  it('dispatches REPLACE_EXISTING_PARAGRAPH through the mutation session and supports undo', async () => {
+    mutationEngineMocks.replaceExistingParagraph.mockResolvedValue({
+      paragraphId: 'p-0-0-0',
+      pageIndex: 0,
+      originalLineCount: 2,
+      reflowedLineCount: 2,
+      originalText: 'Line 1 Line 2',
+      replacementText: 'New Line 1 New Line 2',
+      boundsPt: { x: 72, y: 680, width: 200, height: 30 },
+      mutationStrategy: 'reconstructed-block',
+    });
+
+    const result = await execute({
+      type: 'REPLACE_EXISTING_PARAGRAPH',
+      payload: {
+        schemaVersion: 1,
+        paragraph: {
+          paragraphId: 'p-0-0-0',
+          pageIndex: 0,
+          pageId: 'test-doc::stable::1',
+          revisionId: 'test-doc',
+          lines: [
+            {
+              span: buildExistingTextSpan(
+                { revisionId: 'test-doc', pageId: 'test-doc::stable::1', pageIndex: 0 },
+                {
+                  sourceIndex: 0,
+                  text: 'Line 1',
+                  transform: [12, 0, 0, 12, 72, 700],
+                  width: 50,
+                  height: 12,
+                  fontName: 'Helvetica',
+                  direction: 'ltr',
+                  hasEol: false,
+                },
+              ),
+              lineIndex: 0,
+              text: 'Line 1',
+              baselinePt: { x: 72, y: 700 },
+              boundsPt: { x: 72, y: 697, width: 50, height: 15 },
+              advanceWidthPt: 50,
+            },
+          ],
+          boundsPt: { x: 72, y: 680, width: 200, height: 30 },
+          fontSizePt: 12,
+          leadingPt: 14,
+          columnWidthPt: 200,
+          fullText: 'Line 1 Line 2',
+          fontName: 'Helvetica',
+        },
+        intent: {
+          schemaVersion: 1,
+          paragraphId: 'p-0-0-0',
+          pageIndex: 0,
+          originalText: 'Line 1 Line 2',
+          replacementText: 'New Line 1 New Line 2',
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.commandType).toBe('REPLACE_EXISTING_PARAGRAPH');
+    expect(mutationEngineMocks.replaceExistingParagraph).toHaveBeenCalledTimes(1);
+    expect(useHistoryStore.getState().undoStack.at(-1)?.command.type).toBe('REPLACE_EXISTING_PARAGRAPH');
+
+    await expect(applyUndo()).resolves.toBe(true);
+    expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1, 1, 1]));
+  });
+
+  it('executes EDIT_TABLE_CELL_TEXT via mutation session and supports undo restoration', async () => {
+    mutationEngineMocks.editTableCellText.mockResolvedValue({
+      pageIndex: 0,
+      tableId: 'table_0_1',
+      rowIndex: 1,
+      columnIndex: 2,
+      originalText: '$100.00',
+      replacementText: '$250.00',
+      horizontalScalingPercent: 95,
+      effectiveFontSizePt: 10,
+      alignment: 'right',
+    });
+
+    const span = buildExistingTextSpan(
+      { revisionId: 'test-doc', pageId: 'test-doc::stable::1', pageIndex: 0 },
+      {
+        sourceIndex: 0,
+        text: '$100.00',
+        transform: [12, 0, 0, 12, 150, 200],
+        width: 45,
+        height: 12,
+        fontName: 'Helvetica',
+        direction: 'ltr',
+        hasEol: false,
+      },
+    );
+
+    const cell = {
+      tableId: 'table_0_1',
+      rowIndex: 1,
+      columnIndex: 2,
+      bounds: { x: 140, y: 190, width: 80, height: 20 },
+      spanIds: [span.id],
+      text: '$100.00',
+      isHeader: false,
+      suggestedAlignment: 'right' as const,
+    };
+
+    const result = await execute({
+      type: 'EDIT_TABLE_CELL_TEXT',
+      payload: {
+        schemaVersion: 1,
+        pageId: 'test-doc::stable::1',
+        cell,
+        span,
+        replacementText: '$250.00',
+        alignment: 'right',
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.commandType).toBe('EDIT_TABLE_CELL_TEXT');
+    expect(mutationEngineMocks.editTableCellText).toHaveBeenCalledTimes(1);
+    expect(useHistoryStore.getState().undoStack.at(-1)?.command.type).toBe('EDIT_TABLE_CELL_TEXT');
+
+    await expect(applyUndo()).resolves.toBe(true);
+    expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1, 1, 1]));
+  });
+
+  it('dispatches BATCH_REPLACE_EXISTING_TEXT across multiple pages with atomic commit and undo', async () => {
+    mutationEngineMocks.batchReplaceExistingText.mockResolvedValue({
+      replacedCount: 2,
+      affectedPageIndices: [0, 1],
+    });
+
+    const result = await execute({
+      type: 'BATCH_REPLACE_EXISTING_TEXT',
+      payload: {
+        schemaVersion: 1,
+        items: [
+          {
+            pageIndex: 0,
+            pageId: 'test-doc::stable::1',
+            span: buildExistingTextSpan(
+              { revisionId: 'test-doc', pageId: 'test-doc::stable::1', pageIndex: 0 },
+              {
+                sourceIndex: 0,
+                text: 'Old Code',
+                transform: [12, 0, 0, 12, 72, 700],
+                width: 50,
+                height: 12,
+                fontName: 'Helvetica',
+                direction: 'ltr',
+                hasEol: false,
+              },
+            ),
+            replacementText: 'New Code',
+          },
+          {
+            pageIndex: 1,
+            pageId: 'test-doc::stable::2',
+            span: buildExistingTextSpan(
+              { revisionId: 'test-doc', pageId: 'test-doc::stable::2', pageIndex: 1 },
+              {
+                sourceIndex: 0,
+                text: 'Old Code',
+                transform: [12, 0, 0, 12, 72, 700],
+                width: 50,
+                height: 12,
+                fontName: 'Helvetica',
+                direction: 'ltr',
+                hasEol: false,
+              },
+            ),
+            replacementText: 'New Code',
+          },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.commandType).toBe('BATCH_REPLACE_EXISTING_TEXT');
+    expect(mutationEngineMocks.batchReplaceExistingText).toHaveBeenCalledTimes(1);
+    expect(useHistoryStore.getState().undoStack.at(-1)?.command.type).toBe('BATCH_REPLACE_EXISTING_TEXT');
+
+    await expect(applyUndo()).resolves.toBe(true);
+    expect(useSessionStore.getState().workingBytes).toEqual(new Uint8Array([1, 1, 1]));
   });
 
   it('rejects reconstructed existing-text PageId drift before mutation-session write', async () => {
@@ -1403,6 +1597,7 @@ describe('canonical command dispatch', () => {
     expect(mutationEngineMocks.insertPdf).toHaveBeenCalledWith(
       1,
       expect.any(Uint8Array),
+      undefined,
     );
     expect(mutationEngineMocks.commit).toHaveBeenCalledTimes(1);
     expect(useSessionStore.getState().pageGraph?.pages).toHaveLength(6);
@@ -1415,6 +1610,40 @@ describe('canonical command dispatch', () => {
     expect(
       JSON.stringify(useHistoryStore.getState().undoStack[0]?.command),
     ).not.toContain(donor.fileName);
+  });
+
+  it('dispatches INSERT_PAGES with selective donorPageIndices to mutation engine and page graph', async () => {
+    const donor = await admitDonor('INSERT_PAGES');
+    mutationEngineMocks.commit.mockResolvedValueOnce({
+      bytes: new Uint8Array([1, 9, 2]),
+      pageCount: 5,
+    });
+
+    const result = await execute(
+      {
+        type: 'INSERT_PAGES',
+        payload: {
+          atIndex: 1,
+          donorResourceId: 'donor:0',
+          donorPageIndices: [0, 2],
+        },
+      },
+      {
+        resources: {
+          donors: {
+            'donor:0': donor,
+          },
+        },
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(mutationEngineMocks.insertPdf).toHaveBeenCalledWith(
+      1,
+      expect.any(Uint8Array),
+      [0, 2],
+    );
+    expect(useSessionStore.getState().pageGraph?.pages).toHaveLength(5);
   });
 
   it('rejects a fabricated donor before PDF mutation or transaction commit', async () => {

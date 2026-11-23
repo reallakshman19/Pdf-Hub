@@ -11,6 +11,7 @@ export interface OcrReviewSectionProps {
   regionTools?: React.ReactNode;
   tableReview?: React.ReactNode;
   writerInsertion?: React.ReactNode;
+  formFieldsReview?: React.ReactNode;
   emptyState?: React.ReactNode;
 }
 
@@ -21,6 +22,7 @@ export const OcrReviewSection: React.FC<OcrReviewSectionProps> = ({
   regionTools,
   tableReview,
   writerInsertion,
+  formFieldsReview,
   emptyState,
 }) => {
   const hasContent = Boolean(
@@ -29,7 +31,8 @@ export const OcrReviewSection: React.FC<OcrReviewSectionProps> = ({
       || correctionsPanel
       || regionTools
       || tableReview
-      || writerInsertion,
+      || writerInsertion
+      || formFieldsReview,
   );
 
   return (
@@ -80,6 +83,12 @@ export const OcrReviewSection: React.FC<OcrReviewSectionProps> = ({
       {tableReview ? (
         <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-2 dark:border-violet-900 dark:bg-violet-950/20" data-testid="ocr-review-table">
           {tableReview}
+        </div>
+      ) : null}
+
+      {formFieldsReview ? (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-2 dark:border-indigo-900 dark:bg-indigo-950/20" data-testid="ocr-review-form-fields">
+          {formFieldsReview}
         </div>
       ) : null}
 

@@ -2,6 +2,7 @@ import React from 'react';
 import type { AnnotationNodeProps, Point2D, Rect } from '@/core/annotations/types';
 import { computeCalloutPath } from '@/core/annotations/callout-geometry';
 import { SelectionHandles } from './shared/SelectionHandles';
+import { InlineTextEditor } from './shared/InlineTextEditor';
 
 type Props = AnnotationNodeProps & {
   anchorPoint?: Point2D | null;
@@ -85,7 +86,10 @@ export const NativeAppearanceNode: React.FC<Props> = ({
         top: rect.y,
         width: rect.width,
         height: rect.height,
+        opacity: annotation.data?.opacity ?? 1,
         pointerEvents: 'none',
+        zIndex: isEditing ? 50 : undefined,
+        overflow: isEditing ? 'visible' : undefined,
       }}
     >
       {!isEditing && nativeAppearanceUrl && (
@@ -158,13 +162,20 @@ export const NativeAppearanceNode: React.FC<Props> = ({
           left: 0,
           top: 0,
           width: '100%',
-          height: '100%',
+          height: isEditing ? 'auto' : '100%',
+          minHeight: isEditing ? '100%' : undefined,
           boxSizing: 'border-box',
-          background: isEditing ? '#ffffff' : 'transparent',
-          border: isSelected ? '1px solid rgba(37, 99, 235, 0.65)' : 'none',
+          background: isEditing
+            ? (annotation.data?.backgroundColor === 'transparent'
+                ? 'transparent'
+                : (annotation.data?.backgroundColor ?? 'rgba(255, 255, 255, 0.95)'))
+            : 'transparent',
+          border: (isSelected && !isEditing) ? '1px solid rgba(37, 99, 235, 0.65)' : 'none',
           cursor: isLocked ? 'pointer' : isEditing ? 'text' : isSelected ? 'move' : 'pointer',
           pointerEvents: 'all',
           touchAction: 'none',
+          overflow: isEditing ? 'visible' : 'hidden',
+          zIndex: isEditing ? 50 : undefined,
         }}
         onPointerDown={(event) => {
           onSelect(event);
@@ -194,25 +205,22 @@ export const NativeAppearanceNode: React.FC<Props> = ({
           </span>
         )}
         {editableText && isEditing && (
-          <textarea
-            autoFocus
-            defaultValue={editingValue}
+          <InlineTextEditor
+            defaultValue={editingValue ?? ''}
             style={{
-              width: '100%',
-              height: '100%',
-              resize: 'none',
-              color: '#111827',
-              background: '#ffffff',
-              outline: 'none',
-              padding: 2,
+              fontSize: annotation.data?.fontSize ?? 12,
+              fontFamily: annotation.data?.fontFamily ?? 'Helvetica, Arial, sans-serif',
+              fontWeight: annotation.data?.fontWeight ?? 'normal',
+              fontStyle: annotation.data?.fontStyle ?? 'normal',
+              textAlign: annotation.data?.textAlign ?? 'left',
+              color: annotation.data?.textColor ?? '#111827',
+              backgroundColor: annotation.data?.backgroundColor,
             }}
-            onBlur={(event) => onCommitEdit?.(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                onCommitEdit?.(event.currentTarget.value);
-              }
-              if (event.key === 'Escape') onCommitEdit?.(editingValue ?? '');
-            }}
+            bounds={{ width: rect.width, height: rect.height, y: rect.y }}
+            scale={scale}
+            rotation={annotation.data?.rotation ?? 0}
+            onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
+            onCancel={() => onCommitEdit?.(editingValue ?? '')}
           />
         )}
         {isSelected && !isLocked && !isEditing && (

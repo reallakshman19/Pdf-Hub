@@ -1132,4 +1132,69 @@ describe('PageSurface gesture consistency', () => {
       }),
     }));
   });
+
+  it('renders DrawingScaleBar and opens ScaleCalibrationDialog when clicked', async () => {
+    await act(async () => {
+      render(<DocumentWorkspace />);
+    });
+
+    const scaleBar = await screen.findByTestId('drawing-scale-bar');
+    expect(scaleBar).toBeInTheDocument();
+
+    const scaleButton = screen.getByRole('button', { name: /scale:/i });
+    await act(async () => {
+      fireEvent.click(scaleButton);
+    });
+
+    expect(screen.getByText(/Calibrate Drawing Scale/i)).toBeInTheDocument();
+  });
+
+  it('renders SnapIndicatorOverlay in PageSurface when drawingLineStart is active and snapped', () => {
+    const doc = {
+      numPages: 1,
+      getPage: vi.fn().mockResolvedValue({
+        getViewport: vi.fn().mockReturnValue({ width: 100, height: 100 }),
+        render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
+        getTextContent: vi.fn().mockResolvedValue({ items: [] }),
+        cleanup: vi.fn(),
+      }),
+      destroy: vi.fn(),
+    } as unknown as PDFDocumentProxy;
+
+    const props = {
+      doc,
+      pageNumber: 1,
+      scale: 1,
+      activeTool: 'line',
+      pageAnnotations: [],
+      selectedAnnotationIds: [],
+      existingTextPageId: null,
+      selectedExistingTextSourceIndex: null,
+      onActivate: vi.fn(),
+      onSelectExistingText: vi.fn(),
+      onCreateAnnotation: vi.fn(),
+      onCreateManyAnnotations: vi.fn(),
+      onSetSingleSelection: vi.fn(),
+      onToggleSelection: vi.fn(),
+      onSetSelection: vi.fn(),
+      onClearSelection: vi.fn(),
+      onCommitAnnotation: vi.fn(),
+      onCommitManyAnnotations: vi.fn(),
+      drawingLineStart: { pageNumber: 1, x: 10, y: 10 },
+      drawingLineCurrent: { x: 50, y: 50 },
+      setDrawingLineStart: vi.fn(),
+      setDrawingLineCurrent: vi.fn(),
+      activeSnapResult: {
+        point: { x: 50, y: 50 },
+        distance: 2,
+        snapped: true,
+        kind: 'endpoint' as const,
+      },
+      isAngleConstrained: false,
+    };
+
+    render(<PageSurface {...props} />);
+    expect(screen.getByTestId('snap-indicator-overlay')).toBeInTheDocument();
+    expect(screen.getByTestId('snap-glyph-square')).toBeInTheDocument();
+  });
 });

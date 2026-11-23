@@ -26,7 +26,7 @@ export const UnderlineNode: React.FC<AnnotationNodeProps<'underline'>> = ({
       }}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
     >
-      <svg width={rect.width} height={rect.height} style={{ overflow: 'visible' }}>
+      <svg width={rect.width} height={rect.height} style={{ overflow: 'visible', opacity: annotation.data?.opacity ?? 1 }}>
         {quads.map((quad, index) => {
           const start = pointOnTextMarkupQuad(quad, 0, quad.height * 0.83);
           const end = pointOnTextMarkupQuad(quad, quad.width, quad.height * 0.83);

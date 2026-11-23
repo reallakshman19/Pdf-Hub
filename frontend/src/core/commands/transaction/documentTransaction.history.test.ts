@@ -170,7 +170,7 @@ describe('document transaction history memory', () => {
     });
   });
 
-  it('rejects a page rewrite with pending native deletions before altering the source revision', async () => {
+  it('seamlessly re-indexes pending native deletion tombstones across page rewrites to the new revision', async () => {
     const commandId = 'explicit-user-deletion';
     useAnnotationStore.setState({
       annotations: [],
@@ -181,17 +181,31 @@ describe('document transaction history memory', () => {
         pageNumber: 1, pageId: 'stable-page', commandId,
       }],
     });
-    await expect(commitDocumentMutation({
+    await commitDocumentMutation({
       command: command('hash-1', 'rotate-with-native-delete-pending'),
       label: 'Rotate after native delete',
       beforeBytes: Uint8Array.from([1]),
       afterBytes: Uint8Array.from([2]),
       revisionMetadata: { beforePageCount: 1, afterPageCount: 1 },
-    })).rejects.toThrow(/pending native annotation deletions/);
-    expect(useSessionStore.getState().documentKey).toBe('hash-1');
-    expect(useSessionStore.getState().workingBytes).toEqual(Uint8Array.from([1]));
+    });
+    expect(useSessionStore.getState().documentKey).toBe('hash-2');
+    expect(useSessionStore.getState().workingBytes).toEqual(Uint8Array.from([2]));
+    expect(useAnnotationStore.getState().nativeDeletionTombstones[0].sourceRevision).toBe('hash-2');
     expect(useAnnotationStore.getState().nativeDeletionTombstones[0].commandId).toBe(commandId);
-    expect(persistenceMocks.saveAnnotations).not.toHaveBeenCalled();
+    expect(persistenceMocks.saveAnnotations).toHaveBeenCalledWith(
+      'hash-2',
+      [],
+      {
+        nativeDeletionTombstones: [{
+          sourceRevision: 'hash-2',
+          sourceRef: '10 0 R',
+          sourceName: 'original-native',
+          pageNumber: 1,
+          pageId: 'stable-page',
+          commandId,
+        }],
+      },
+    );
   });
 
   it('records native deletion command state in document history and persistence for same-revision commands', async () => {

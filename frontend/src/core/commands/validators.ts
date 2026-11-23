@@ -1,5 +1,9 @@
 import {
+  validateBatchReplaceExistingTextCommandPayload,
+  validateDeleteExistingTextCommandPayload,
+  validateEditTableCellTextCommandPayload,
   validateReconstructExistingTextCommandPayload,
+  validateReplaceExistingParagraphCommandPayload,
   validateReplaceExistingTextCommandPayload,
 } from '@/core/existing-text/commandValidation';
 import {
@@ -99,6 +103,12 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
     case 'INSERT_PAGES':
       requireNonNegativeInteger(command.payload.atIndex, 'payload.atIndex', errors);
       requireNonEmpty(command.payload.donorResourceId, 'payload.donorResourceId', errors);
+      if (command.payload.donorPageIndices !== undefined) {
+        validatePageIndices(command.payload.donorPageIndices, 'payload.donorPageIndices', errors);
+        if (new Set(command.payload.donorPageIndices).size !== command.payload.donorPageIndices.length) {
+          errors.push('payload.donorPageIndices cannot contain duplicate page indices.');
+        }
+      }
       break;
 
     case 'INSERT_BLANK_PAGE':
@@ -242,6 +252,38 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
         ...validateReconstructExistingTextCommandPayload(
           command.payload,
           command.documentKey,
+        ),
+      );
+      break;
+
+    case 'REPLACE_EXISTING_PARAGRAPH':
+      errors.push(
+        ...validateReplaceExistingParagraphCommandPayload(
+          command.payload,
+        ),
+      );
+      break;
+
+    case 'BATCH_REPLACE_EXISTING_TEXT':
+      errors.push(
+        ...validateBatchReplaceExistingTextCommandPayload(
+          command.payload,
+        ),
+      );
+      break;
+
+    case 'EDIT_TABLE_CELL_TEXT':
+      errors.push(
+        ...validateEditTableCellTextCommandPayload(
+          command.payload,
+        ),
+      );
+      break;
+
+    case 'DELETE_EXISTING_TEXT':
+      errors.push(
+        ...validateDeleteExistingTextCommandPayload(
+          command.payload,
         ),
       );
       break;

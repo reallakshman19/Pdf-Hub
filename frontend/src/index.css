@@ -34,3 +34,17 @@
 
 .toolbar-band-no-scrollbar::-webkit-scrollbar { display: none; }
 .toolbar-band-no-scrollbar { -ms-overflow-style: none; }
+
+/* Inline text editor scrollbar elimination across Windows/Chromium/WebKit */
+.inline-text-editor-textarea::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.inline-text-editor-textarea {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overflow: hidden !important;
+  resize: none !important;
+}
+

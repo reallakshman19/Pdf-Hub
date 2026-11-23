@@ -1,5 +1,5 @@
 import type { PdfAnnotation } from '@/core/annotations/types';
-import { ANNOTATION_TYPES, type AnnotationType } from '@/core/annotations/annotationTypes';
+import type { AnnotationType } from '@/core/annotations/annotationTypes';
 import manifest from './annotationManifest.json';
 
 export interface AnnotationFixtureDefinition {
@@ -16,7 +16,8 @@ export interface AnnotationFixtureDefinition {
   };
 }
 
-export const PHASE10_SUPPORTED_TYPES: readonly AnnotationType[] = ANNOTATION_TYPES;
+export const PHASE10_SUPPORTED_TYPES: readonly AnnotationType[] =
+  manifest.supported_annotation_types as unknown as readonly AnnotationType[];
 
 export function createDeterministicAnnotation(
   type: AnnotationType,

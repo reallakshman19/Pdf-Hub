@@ -3,6 +3,7 @@ import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { Lock } from 'lucide-react';
 import { FreeTextPreview } from './shared/FreeTextPreview';
+import { InlineTextEditor } from './shared/InlineTextEditor';
 
 export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
   annotation, rect, scale, isSelected, isEditing, editingValue,
@@ -24,6 +25,7 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
       ? rawBorderColor
       : (annotation.data?.textColor ?? '#60a5fa');
   const hasBorder = borderWidth > 0;
+  const isTransparentBg = annotation.data?.backgroundColor === 'transparent';
   return (
     <div
       data-annotation-type="textbox"
@@ -34,9 +36,14 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
         position: 'absolute',
         left: rect.x + (rect.width - bodyWidth) / 2,
         top: rect.y + (rect.height - bodyHeight) / 2,
-        width: bodyWidth, height: bodyHeight,
-        background: annotation.data?.backgroundColor ?? (hasBorder ? '#ffffff' : 'transparent'),
-        border: hasBorder ? `${borderWidth}px solid ${borderColor}` : 'none',
+        width: bodyWidth,
+        height: isEditing ? 'auto' : bodyHeight,
+        minHeight: isEditing ? bodyHeight : undefined,
+        opacity: annotation.data?.opacity ?? 1,
+        background: isEditing
+          ? (isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? (hasBorder ? '#ffffff' : 'transparent')))
+          : (isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? (hasBorder ? '#ffffff' : 'transparent'))),
+        border: isEditing ? 'none' : (hasBorder ? `${borderWidth}px solid ${borderColor}` : 'none'),
         color: annotation.data?.textColor ?? '#0f172a',
         fontFamily: annotation.data?.fontFamily ?? 'Helvetica, Arial, sans-serif',
         fontSize: (annotation.data?.fontSize ?? 12) * scale,
@@ -47,8 +54,10 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
         cursor: isLocked ? 'default' : (isEditing ? 'text' : (isSelected ? 'move' : 'pointer')),
         touchAction: 'none',
         userSelect: 'none',
-        outline: isSelected ? '2px solid rgba(37, 99, 235, 0.18)' : 'none',
+        outline: (isSelected && !isEditing) ? '2px solid rgba(37, 99, 235, 0.18)' : 'none',
         transform: `rotate(${contentRotation + (annotation.data.rotation ?? 0)}deg)`,
+        overflow: isEditing ? 'visible' : 'hidden',
+        zIndex: isEditing ? 50 : undefined,
       }}
       onPointerDown={e => {
         onSelect(e);
@@ -58,15 +67,22 @@ export const TextboxNode: React.FC<AnnotationNodeProps<'textbox'>> = ({
     >
       {isLocked && <div className="absolute top-1 right-1 opacity-70"><Lock className="w-3.5 h-3.5" /></div>}
       {isEditing ? (
-        <textarea
-          autoFocus
-          className="w-full h-full bg-white/95 text-slate-900 p-1 text-[11px] outline-none resize-none"
-          defaultValue={editingValue}
-          onBlur={e => onCommitEdit?.(e.currentTarget.value)}
-          onKeyDown={e => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') onCommitEdit?.(e.currentTarget.value);
-            if (e.key === 'Escape') onCommitEdit?.(editingValue ?? '');
+        <InlineTextEditor
+          defaultValue={editingValue ?? ''}
+          style={{
+            fontSize: annotation.data?.fontSize ?? 12,
+            fontFamily: annotation.data?.fontFamily ?? 'Helvetica, Arial, sans-serif',
+            fontWeight: annotation.data?.fontWeight ?? 'normal',
+            fontStyle: annotation.data?.fontStyle ?? 'normal',
+            textAlign: annotation.data?.textAlign ?? 'left',
+            color: annotation.data?.textColor ?? '#0f172a',
+            backgroundColor: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? (hasBorder ? '#ffffff' : 'transparent')),
           }}
+          bounds={{ width: bodyWidth, height: bodyHeight, y: rect.y }}
+          scale={scale}
+          rotation={contentRotation + (annotation.data.rotation ?? 0)}
+          onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
+          onCancel={() => onCommitEdit?.(editingValue ?? '')}
         />
       ) : (
         <FreeTextPreview

@@ -237,6 +237,7 @@ export class PdfDocumentLeaseCache {
         rejectFatal = reject;
       });
     let task: PDFDocumentLoadingTask | null = null;
+    // eslint-disable-next-line prefer-const
     let entry!: PdfDocumentCacheEntry;
 
     const transport =

@@ -3,7 +3,7 @@ import {
   MousePointer2, Hand, Expand, Maximize, AlignJustify, FileIcon, Columns2,
   Highlighter, UnderlineIcon, Strikethrough, Activity, MessageSquare, MessageCircle,
   MessageSquareDot, Stamp, Square, ScanText, Eye, EyeOff,
-  PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight,
+  PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight, Ruler,
   Sparkles, BrainCircuit, TableProperties, FileSearch, Info, MoreHorizontal, Copy, ClipboardPaste,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
@@ -20,6 +20,7 @@ import { WriterV2ToolbarControls } from '@/components/writer-v2/WriterV2ToolbarC
 import { useToastStore } from '@/core/toast/store';
 import type { ActiveTool } from '@/core/editor/types';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { ScaleCalibrationDialog } from '@/components/dialogs/ScaleCalibrationDialog';
 
 // Primitive building blocks
 const CtxLabel: React.FC<{ children: React.ReactNode; first?: boolean }> = ({ children, first }) => {
@@ -158,6 +159,48 @@ const ANNOTATE_MORE_TOOLS: Array<{
   { id: 'ocr-region', label: 'OCR Area', icon: ScanText, description: 'Recognize a selected page region' },
 ];
 
+const ScaleCalibrationButton: React.FC = () => {
+  const [open, setOpen] = React.useState(false);
+  const currentPage = useSessionStore((state) => state.viewState.currentPage);
+  const totalPages = useSessionStore((state) => state.pageCount || 1);
+  const { getPageCalibration, setPageCalibration, setAllPagesCalibration } = useAnnotationStore(
+    useShallow((s) => ({
+      getPageCalibration: s.getPageCalibration,
+      setPageCalibration: s.setPageCalibration,
+      setAllPagesCalibration: s.setAllPagesCalibration,
+    })),
+  );
+
+  const currentCal = getPageCalibration(currentPage);
+
+  return (
+    <>
+      <CtxBtn
+        icon={Ruler}
+        label="Scale"
+        title="Calibrate CAD drawing scale ratio"
+        onClick={() => setOpen(true)}
+      />
+      {open && (
+        <ScaleCalibrationDialog
+          isOpen={open}
+          currentPage={currentPage}
+          totalDocumentPages={totalPages}
+          currentCalibration={currentCal}
+          onClose={() => setOpen(false)}
+          onApply={(cal, scope) => {
+            if (scope === 'all') {
+              setAllPagesCalibration(cal);
+            } else {
+              setPageCalibration(currentPage, cal);
+            }
+          }}
+        />
+      )}
+    </>
+  );
+};
+
 const AnnotateSection: React.FC = () => {
   const { activeTool, setActiveTool } = useEditorStore(useShallow((state) => ({
     activeTool: state.activeTool,
@@ -168,12 +211,20 @@ const AnnotateSection: React.FC = () => {
     hideResolved: state.hideResolved,
     setHideResolved: state.setHideResolved,
   })));
-  const { selectedAnnotationIds, clipboard, clipboardDocumentKey, copySelection, pasteClipboard } = useAnnotationStore(useShallow((state) => ({
+  const {
+    selectedAnnotationIds,
+    clipboard,
+    clipboardDocumentKey,
+    copySelection,
+    pasteClipboard,
+    updateStyleForSelection,
+  } = useAnnotationStore(useShallow((state) => ({
     selectedAnnotationIds: state.selectedAnnotationIds,
     clipboard: state.clipboard,
     clipboardDocumentKey: state.clipboardDocumentKey,
     copySelection: state.copySelection,
     pasteClipboard: state.pasteClipboard,
+    updateStyleForSelection: state.updateStyleForSelection,
   })));
   const currentPage = useSessionStore((state) => state.viewState.currentPage);
   const documentKey = useSessionStore((state) => state.documentKey);
@@ -255,6 +306,39 @@ const AnnotateSection: React.FC = () => {
       <CtxBtn icon={Copy} label="Copy annotation" disabled={selectedAnnotationIds.length === 0} onClick={copySelection} />
       <CtxBtn icon={ClipboardPaste} label="Paste annotation" disabled={clipboard.length === 0 || clipboardDocumentKey !== documentKey} onClick={() => pasteClipboard(currentPage)} />
 
+      {selectedAnnotationIds.length > 0 && (
+        <>
+          <CtxSep />
+          <CtxLabel>Fill</CtxLabel>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              title="Set background solid (100% opaque)"
+              onClick={() => updateStyleForSelection({ backgroundColor: '#ffffff', opacity: 1 })}
+              className="flex items-center h-6 px-1.5 rounded-sm text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+            >
+              Solid
+            </button>
+            <button
+              type="button"
+              title="Set background translucent (50% wash)"
+              onClick={() => updateStyleForSelection({ backgroundColor: '#ffffff', opacity: 0.5 })}
+              className="flex items-center h-6 px-1.5 rounded-sm text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+            >
+              Translucent
+            </button>
+            <button
+              type="button"
+              title="Set no background (transparent)"
+              onClick={() => updateStyleForSelection({ backgroundColor: 'transparent' })}
+              className="flex items-center h-6 px-1.5 rounded-sm text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+            >
+              No BG
+            </button>
+          </div>
+        </>
+      )}
+
       <div ref={moreRef} className="relative shrink-0">
         <CtxBtn
           icon={MoreHorizontal}
@@ -325,6 +409,9 @@ const AnnotateSection: React.FC = () => {
         active={hideResolved}
         onClick={() => setHideResolved(!hideResolved)}
       />
+      <CtxSep />
+      <CtxLabel>Scale</CtxLabel>
+      <ScaleCalibrationButton />
     </>
   );
 };
@@ -335,6 +422,10 @@ const DrawSection: React.FC = () => {
     setActiveTool: state.setActiveTool,
   })));
   const { setActiveTool: setWriterActiveTool } = useWriterStore();
+  const { selectedAnnotationIds, updateStyleForSelection } = useAnnotationStore(useShallow((state) => ({
+    selectedAnnotationIds: state.selectedAnnotationIds,
+    updateStyleForSelection: state.updateStyleForSelection,
+  })));
 
   const handleToolClick = (tool: ActiveTool) => {
     if (isToolDisabled(tool)) return;
@@ -357,6 +448,41 @@ const DrawSection: React.FC = () => {
       <CtxLabel>Lines</CtxLabel>
       <CtxBtn icon={Minus} label="Line" active={activeTool === 'line'} onClick={() => handleToolClick('line')} />
       <CtxBtn icon={MoveRight} label="Arrow" active={activeTool === 'arrow'} onClick={() => handleToolClick('arrow')} />
+      {selectedAnnotationIds.length > 0 && (
+        <>
+          <CtxSep />
+          <CtxLabel>Fill</CtxLabel>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              title="Set background solid (100% opaque)"
+              onClick={() => updateStyleForSelection({ backgroundColor: '#ffffff', opacity: 1 })}
+              className="flex items-center h-6 px-1.5 rounded-sm text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+            >
+              Solid
+            </button>
+            <button
+              type="button"
+              title="Set background translucent (50% wash)"
+              onClick={() => updateStyleForSelection({ backgroundColor: '#ffffff', opacity: 0.5 })}
+              className="flex items-center h-6 px-1.5 rounded-sm text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+            >
+              Translucent
+            </button>
+            <button
+              type="button"
+              title="Set no background (transparent)"
+              onClick={() => updateStyleForSelection({ backgroundColor: 'transparent' })}
+              className="flex items-center h-6 px-1.5 rounded-sm text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+            >
+              No BG
+            </button>
+          </div>
+        </>
+      )}
+      <CtxSep />
+      <CtxLabel>Scale</CtxLabel>
+      <ScaleCalibrationButton />
     </>
   );
 };

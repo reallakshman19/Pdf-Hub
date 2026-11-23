@@ -786,4 +786,52 @@ describe('ExistingTextInspectorTab', () => {
       }),
     );
   });
+
+  it('renders font metadata badges and missing subset glyph badges', async () => {
+    vi.mocked(
+      evaluateExistingTextUiCapability,
+    ).mockImplementation(async () => ({
+      status: 'unavailable',
+      reasons: ['The font subset does not contain characters: é, ü.'],
+      nativeFit: {
+        schemaVersion: 1,
+        status: 'unmeasurable',
+        reason: 'MISSING_SUBSET_GLYPHS',
+        missingCharacters: ['é', 'ü'],
+        baseFont: 'CustomFont+Subset',
+        sourceText: 'Hello',
+        replacementText: 'Héllü',
+        observedAdvancePt: 30,
+        fontSizePt: 12,
+        tolerancePt: 0.25,
+      },
+      fontMetadata: {
+        resourceName: '/F1',
+        baseFont: 'CustomFont+Subset',
+        cleanFontFamily: 'CustomFont',
+        subtype: 'Type0',
+        encodingType: 'Identity-H',
+        isSubset: true,
+        cMap: null,
+        metrics: {
+          defaultWidthPt: 1,
+          widths: new Map(),
+          unitsPerEm: 1000,
+        },
+      },
+    }));
+
+    render(<ExistingTextInspectorTab />);
+    const input = await screen.findByTestId('existing-text-replacement-input');
+    await waitFor(() => expect(input).toHaveValue('Hello'));
+
+    fireEvent.change(input, { target: { value: 'Héllü' } });
+    fireEvent.click(screen.getByTestId('existing-text-check-btn'));
+
+    await screen.findByText('Characters missing from embedded font subset:');
+    expect(screen.getByText('é')).toBeInTheDocument();
+    expect(screen.getByText('ü')).toBeInTheDocument();
+    expect(screen.getByText('Type0')).toBeInTheDocument();
+    expect(screen.getByText('Subset')).toBeInTheDocument();
+  });
 });

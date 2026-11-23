@@ -840,7 +840,14 @@ function nativeData(
       ?? dict.lookupMaybe(lib.PDFName.of('LE'), lib.PDFArray)?.lookupMaybe(0, lib.PDFName)?.decodeText()
       ?? null;
     if (leRaw) {
-      data.arrowHead = leRaw === 'ClosedArrow' ? 'filled' : leRaw === 'None' ? 'none' : 'open';
+      const lower = leRaw.toLowerCase();
+      if (lower === 'closedarrow') data.arrowHead = 'filled';
+      else if (lower === 'none') data.arrowHead = 'none';
+      else if (lower === 'circle') data.arrowHead = 'circle';
+      else if (lower === 'square') data.arrowHead = 'square';
+      else if (lower === 'slash') data.arrowHead = 'slash';
+      else if (lower === 'diamond') data.arrowHead = 'diamond';
+      else data.arrowHead = 'open';
     }
   }
 

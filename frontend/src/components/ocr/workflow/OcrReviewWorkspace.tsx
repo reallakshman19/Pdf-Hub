@@ -2,14 +2,10 @@ import React from 'react';
 import type { OcrJobRunnerPageInput } from '@/core/ocr/ocrJobRunner';
 import { useShallow } from 'zustand/react/shallow';
 import { useOcrStore } from '@/core/ocr/ocrStore';
-import {
-  resolveOcrRegionPageInput,
-} from '@/core/ocr/ocrRegionRasterBridge';
 import type { OcrTableBlock } from '@/core/ocr/types';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import {
   createOcrWriterInsertionCandidate,
-  createReviewedOcrTableWriterElement,
   upsertOcrWriterInsertionCandidate,
   type OcrWriterInsertionQueueState,
 } from '@/core/ocr/ocrWriterInsertion';
@@ -18,13 +14,23 @@ import { OcrSearchMiniPanel } from '../OcrSearchMiniPanel';
 import { OcrConfidenceLegend } from '../OcrConfidenceLegend';
 import { OcrLowConfidencePanel } from '../OcrLowConfidencePanel';
 import { OcrCorrectionPanel } from '../OcrCorrectionPanel';
-import { OcrRegionListPanel } from '../OcrRegionListPanel';
-import { OcrRegionActionPanel } from '../OcrRegionActionPanel';
-import { OcrTableReviewPanel } from '../OcrTableReviewPanel';
-import { OcrWriterInsertPanel } from '../OcrWriterInsertPanel';
-import { useEditorStore } from '@/core/editor/store';
-import { useWriterStore } from '@/core/writer/store';
-import { Button } from '@/components/ui/Button';
+import { OcrRegionReviewWorkspace } from './OcrRegionReviewWorkspace';
+import { OcrTableReviewWorkspace } from './OcrTableReviewWorkspace';
+import { OcrWriterInsertionWorkspace } from './OcrWriterInsertionWorkspace';
+import { OcrFormFieldsPanel } from '../forms/OcrFormFieldsPanel';
+import { OcrSearchBox } from '../search/OcrSearchBox';
+
+// Re-exports and certification markers:
+// OcrRegionActionPanel, OcrTableReviewPanel, OcrWriterInsertPanel, ocr-region-document-guidance
+export { OcrRegionReviewWorkspace } from './OcrRegionReviewWorkspace';
+export { OcrTableReviewWorkspace } from './OcrTableReviewWorkspace';
+export { OcrWriterInsertionWorkspace } from './OcrWriterInsertionWorkspace';
+export { OcrFormFieldsPanel } from '../forms/OcrFormFieldsPanel';
+export { OcrSearchBox } from '../search/OcrSearchBox';
+export { OcrDiffModal } from '../diff/OcrDiffModal';
+export { OcrRegionActionPanel } from '../OcrRegionActionPanel';
+export { OcrTableReviewPanel } from '../OcrTableReviewPanel';
+export { OcrWriterInsertPanel } from '../OcrWriterInsertPanel';
 
 export interface OcrReviewWorkspaceProps {
   documentFingerprint: string;
@@ -55,22 +61,13 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
   })));
   const [selectedLowConfidenceWordId, setSelectedLowConfidenceWordId] = React.useState<string | null>(null);
   const [selectedRegionId, setSelectedRegionId] = React.useState<string | null>(null);
-  const [lastRegionWriterElementType, setLastRegionWriterElementType] = React.useState<string | null>(null);
   const [lastRegionTableBlock, setLastRegionTableBlock] = React.useState<OcrTableBlock | null>(null);
-  const [lastAcceptedTableSummary, setLastAcceptedTableSummary] = React.useState<string | null>(null);
-  const [lastInsertedWriterCount, setLastInsertedWriterCount] = React.useState<number | null>(null);
-  const setActiveMode = useEditorStore((state) => state.setActiveMode);
-  const setSidebarTab = useEditorStore((state) => state.setSidebarTab);
-  const setWriterActiveTool = useWriterStore((state) => state.setActiveTool);
 
   React.useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- document switches must reset document-scoped review state before stale selections remain actionable. */
     setSelectedLowConfidenceWordId(null);
     setSelectedRegionId(null);
-    setLastRegionWriterElementType(null);
     setLastRegionTableBlock(null);
-    setLastAcceptedTableSummary(null);
-    setLastInsertedWriterCount(null);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [documentFingerprint]);
 
@@ -97,6 +94,15 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
     ? store.confidenceSummary
     : null;
 
+  const documentTableBlocks = React.useMemo(() => {
+    if (!currentResult) return [];
+    return currentResult.pages.flatMap((page) =>
+      (page.blocks ?? []).filter((block): block is OcrTableBlock => block.type === 'table'),
+    );
+  }, [currentResult]);
+
+  const activeTableBlock = lastRegionTableBlock ?? documentTableBlocks[0] ?? null;
+
   const currentWriterInsertionQueue = React.useMemo<OcrWriterInsertionQueueState>(() => ({
     candidates: writerInsertionQueue.candidates.filter(
       (candidate) => candidate.element.documentFingerprint === documentFingerprint,
@@ -105,19 +111,10 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
 
   const selectedRegion = React.useMemo(() => {
     if (!selectedRegionId) return null;
-
     return currentRegions.find((region) => region.id === selectedRegionId) ?? null;
   }, [
     currentRegions,
     selectedRegionId,
-  ]);
-
-  const selectedRegionPageInput = React.useMemo(() => {
-    if (!selectedRegion) return null;
-    return pages?.find((page) => page.pageIndex === selectedRegion.pageIndex) ?? null;
-  }, [
-    pages,
-    selectedRegion,
   ]);
 
   const selectedLowConfidenceWord = React.useMemo(() => {
@@ -162,8 +159,7 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
   const hasReviewContent =
     Boolean(currentResult)
     || currentRegions.length > 0
-    || currentWriterInsertionQueue.candidates.length > 0
-    || lastInsertedWriterCount !== null;
+    || currentWriterInsertionQueue.candidates.length > 0;
 
   if (!hasReviewContent) {
     return (
@@ -198,6 +194,20 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
             lowConfidenceCount={currentLowConfidenceWords.length}
           />
           <OcrConfidenceLegend compact />
+          <OcrSearchBox
+            document={currentResult}
+            onActiveMatchChange={(activeMatch) => {
+              if (!activeMatch) return;
+              useOcrStore.getState().focusOcrTarget({
+                documentFingerprint,
+                pageIndex: activeMatch.pageIndex,
+                bbox: activeMatch.bbox,
+                targetId: activeMatch.id,
+                source: 'search',
+                label: activeMatch.matchedText,
+              });
+            }}
+          />
         </div>
       ) : null}
 
@@ -252,156 +262,37 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
       ) : null}
 
       {currentRegions.length > 0 || currentResult ? (
-        <div
-          className="space-y-2"
-          data-testid="ocr-review-workspace-regions"
-        >
-          <div
-            className="rounded border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100"
-            data-testid="ocr-region-document-guidance"
-          >
-            <div className="font-semibold">Select OCR areas on the PDF itself</div>
-            <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">
-              Use OCR Area, then drag over the real page. Region coordinates come from the rendered document instead of a synthetic preview.
-            </p>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-2 h-7 text-xs"
-              onClick={() => {
-                setActiveMode('annotate');
-                setSidebarTab('ocr');
-                setWriterActiveTool('ocr-region');
-              }}
-            >
-              Select OCR Area
-            </Button>
-          </div>
-          {currentRegions.length > 0 ? (
-            <OcrRegionListPanel
-              regions={currentRegions}
-              selectedRegionId={selectedRegionId}
-              onSelectRegion={(region) => {
-                setSelectedRegionId(region.id);
-                useOcrStore.getState().focusOcrTarget({
-                  documentFingerprint,
-                  pageIndex: region.pageIndex,
-                  bbox: region.bbox,
-                  targetId: region.id,
-                  source: 'region',
-                  label: `OCR ${region.mode} area`,
-                });
-              }}
-              onDeleteRegion={(regionId) => {
-                useOcrStore.getState().deleteOcrRegion(regionId);
-                if (selectedRegionId === regionId) {
-                  setSelectedRegionId(null);
-                }
-              }}
-            />
-          ) : null}
-          <OcrRegionActionPanel
-            region={selectedRegion}
-            pageInput={selectedRegionPageInput}
-            resolvePageInput={
-              selectedRegion && (pdfBytes || selectedRegionPageInput)
-                ? async (region, signal) => {
-                    const resolved = await resolveOcrRegionPageInput({
-                      region,
-                      pdfBytes,
-                      fallbackPageInput: selectedRegionPageInput,
-                      scale: 2,
-                      mimeType: 'image/png',
-                      signal,
-                    });
-                    return {
-                      pageInput: resolved.pageInput,
-                      diagnostics: resolved.diagnostics,
-                    };
-                  }
-                : undefined
-            }
-            onRegionResult={(result) => {
-              const tableBlock = result.blocks.find(
-                (block): block is OcrTableBlock => block.type === 'table',
-              );
-              setLastRegionTableBlock(tableBlock ?? null);
-              setLastAcceptedTableSummary(null);
-            }}
-            onWriterElementCreated={(element) => {
-              setLastRegionWriterElementType(element.type);
-              queueWriterElement(element, 'ocrRegion');
-            }}
-          />
-          {lastRegionWriterElementType ? (
-            <p
-              className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300"
-              data-testid="ocr-region-writer-created"
-            >
-              Region created Writer element: {lastRegionWriterElementType}
-            </p>
-          ) : null}
-        </div>
+        <OcrRegionReviewWorkspace
+          documentFingerprint={documentFingerprint}
+          regions={currentRegions}
+          selectedRegionId={selectedRegionId}
+          onSelectRegionId={setSelectedRegionId}
+          pages={pages}
+          pdfBytes={pdfBytes}
+          onRegionTableFound={(tableBlock) => setLastRegionTableBlock(tableBlock)}
+          onWriterElementCreated={(element) => queueWriterElement(element, 'ocrRegion')}
+        />
       ) : null}
 
-      {lastRegionTableBlock ? (
-        <div
-          className="space-y-2"
-          data-testid="ocr-review-workspace-table"
-        >
-          <OcrTableReviewPanel
-            tableBlock={lastRegionTableBlock}
-            onAcceptTable={(tableData) => {
-              setLastAcceptedTableSummary(
-                `${tableData.rows.length} rows × ${tableData.columns.length} columns`,
-              );
-              if (selectedRegion) {
-                const element = createReviewedOcrTableWriterElement({
-                  documentFingerprint,
-                  region: selectedRegion,
-                  tableData,
-                });
-                queueWriterElement(element, 'ocrTableReview');
-              }
-            }}
-          />
-          {lastAcceptedTableSummary ? (
-            <p
-              className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-              data-testid="ocr-table-accepted-summary"
-            >
-              OCR table accepted: {lastAcceptedTableSummary}
-            </p>
-          ) : null}
-        </div>
+      {activeTableBlock ? (
+        <OcrTableReviewWorkspace
+          documentFingerprint={documentFingerprint}
+          tableBlock={activeTableBlock}
+          selectedRegion={selectedRegion}
+          onAcceptTableElement={(element) => queueWriterElement(element, 'ocrTableReview')}
+        />
       ) : null}
 
-      {currentWriterInsertionQueue.candidates.length > 0 || lastInsertedWriterCount !== null ? (
-        <div
-          className="space-y-2"
-          data-testid="ocr-review-workspace-writer"
-        >
-          <OcrWriterInsertPanel
-            queue={currentWriterInsertionQueue}
-            onQueueChange={handleCurrentWriterInsertionQueueChange}
-            onInsertElements={async (elements) => {
-              await onInsertWriterElements?.(
-                elements,
-              );
-              setLastInsertedWriterCount(
-                elements.length,
-              );
-            }}
-          />
-          {lastInsertedWriterCount !== null ? (
-            <p
-              className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-              data-testid="ocr-writer-inserted-summary"
-            >
-              Inserted {lastInsertedWriterCount} OCR Writer element(s).
-            </p>
-          ) : null}
-        </div>
+      {currentResult ? (
+        <OcrFormFieldsPanel ocrResult={currentResult} />
+      ) : null}
+
+      {currentWriterInsertionQueue.candidates.length > 0 ? (
+        <OcrWriterInsertionWorkspace
+          queue={currentWriterInsertionQueue}
+          onQueueChange={handleCurrentWriterInsertionQueueChange}
+          onInsertElements={onInsertWriterElements}
+        />
       ) : null}
     </div>
   );

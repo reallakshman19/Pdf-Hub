@@ -40,3 +40,23 @@ export * from './engines/ocrEngineContract';
 export * from './engines/mockOcrEngine';
 export * from './engines/tesseractJsEngine';
 export * from './engines/ocrEngineRegistry';
+export * from './tables/ocrTableDetector';
+export * from './export/searchablePdfGenerator';
+
+export * from './forms/formTypes';
+export * from './forms/ocrFormFieldExtractor';
+export * from './forms/ocrOmrDetector';
+export * from './forms/ocrPiiDetector';
+export * from './forms/ocrRedactionBridge';
+
+// Phase 9: Search, Diff, PDF/UA Accessibility, and Telemetry
+export * from './search/ocrSearchIndexEngine';
+export * from './diff/ocrDiffEngine';
+export * from './export/ocrAccessiblePdfExporter';
+export * from './telemetry/ocrTelemetryProfiler';
+
+// Phase 10: Unified Pipeline Orchestration & Memory Management
+export * from './orchestrator/ocrWorkerPoolManager';
+export * from './orchestrator/ocrPipelineOrchestrator';
+
+

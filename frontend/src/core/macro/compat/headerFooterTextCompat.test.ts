@@ -132,12 +132,13 @@ describe('legacy header/footer macro compatibility compiler', () => {
     expect(resolved.ok).toBe(true);
     if (!resolved.ok) return;
 
-    expect(resolved.pages).toHaveLength(2);
-    expect(resolved.pages[0]?.footer?.center).toMatchObject({
+    const targetedPages = resolved.pages.filter((p) => p.footer || p.header);
+    expect(targetedPages).toHaveLength(2);
+    expect(targetedPages[0]?.footer?.center).toMatchObject({
       kind: 'text',
       text: `Page 1 of 3 | report.pdf | ${now.toLocaleDateString()}`,
     });
-    expect(resolved.pages[1]?.footer?.center).toMatchObject({
+    expect(targetedPages[1]?.footer?.center).toMatchObject({
       kind: 'text',
       text: `Page 3 of 3 | report.pdf | ${now.toLocaleDateString()}`,
     });

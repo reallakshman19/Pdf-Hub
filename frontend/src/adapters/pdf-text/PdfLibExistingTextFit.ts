@@ -6,6 +6,7 @@ import {
   EXISTING_TEXT_NATIVE_FIT_TOLERANCE_PT,
   type ExistingTextNativeFitDiagnostic,
 } from '@/core/existing-text/fitTypes';
+import { encodeTextForFont, type PdfFontMetadata } from '@/core/pdf-fonts';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 
 type PdfLibNs =
@@ -20,6 +21,7 @@ export async function measureExistingTextNativeFit(
     replacementText: string;
     observedAdvancePt: number;
     fontSizePt: number;
+    fontMetadata?: PdfFontMetadata | null;
     signal?: AbortSignal;
   },
   lib?: PdfLibNs,
@@ -76,39 +78,82 @@ export async function measureExistingTextNativeFit(
     input.signal,
     'measure existing-text replacement fit',
   );
-  const resolvedLib =
-    lib ?? await pdfLib();
-  const standardFont =
-    standardFontForBaseFont(
-      input.baseFont,
-      resolvedLib,
+
+  let measuredSourceWidthPt: number;
+  let measuredReplacementWidthPt: number;
+
+  const shouldUseFontMetadata =
+    input.fontMetadata
+    && (input.fontMetadata.subtype === 'Type0'
+      || (input.fontMetadata.metrics.widths.size > 0 && !isStandard14Font(input.baseFont)));
+
+  if (shouldUseFontMetadata && input.fontMetadata) {
+    const sourceEnc = encodeTextForFont(
+      input.sourceText,
+      input.fontMetadata,
+      input.fontSizePt,
     );
-  const measurementDocument =
-    await raceWithAbort(
-      resolvedLib.PDFDocument.create(),
-      input.signal,
-      'create Standard-14 fit measurement document',
-    );
-  const font =
-    await raceWithAbort(
-      measurementDocument
-        .embedFont(
-          standardFont,
-        ),
-      input.signal,
-      'load Standard-14 fit metrics',
+    const replEnc = encodeTextForFont(
+      input.replacementText,
+      input.fontMetadata,
+      input.fontSizePt,
     );
 
-  const measuredSourceWidthPt =
-    font.widthOfTextAtSize(
-      input.sourceText,
-      input.fontSizePt,
-    );
-  const measuredReplacementWidthPt =
-    font.widthOfTextAtSize(
-      input.replacementText,
-      input.fontSizePt,
-    );
+    if (replEnc.status === 'missing-glyphs') {
+      return {
+        schemaVersion: 1,
+        status: 'unmeasurable',
+        reason: 'MISSING_SUBSET_GLYPHS',
+        missingCharacters: replEnc.missingCharacters,
+        baseFont: input.baseFont,
+        sourceText: input.sourceText,
+        replacementText: input.replacementText,
+        observedAdvancePt: input.observedAdvancePt,
+        fontSizePt: input.fontSizePt,
+        tolerancePt,
+      };
+    }
+
+    measuredSourceWidthPt =
+      sourceEnc.status === 'encodable' && sourceEnc.advanceWidthPt > 0
+        ? sourceEnc.advanceWidthPt
+        : input.observedAdvancePt;
+    measuredReplacementWidthPt = replEnc.advanceWidthPt;
+  } else {
+    const resolvedLib =
+      lib ?? await pdfLib();
+    const standardFont =
+      standardFontForBaseFont(
+        input.baseFont,
+        resolvedLib,
+      );
+    const measurementDocument =
+      await raceWithAbort(
+        resolvedLib.PDFDocument.create(),
+        input.signal,
+        'create Standard-14 fit measurement document',
+      );
+    const font =
+      await raceWithAbort(
+        measurementDocument
+          .embedFont(
+            standardFont,
+          ),
+        input.signal,
+        'load Standard-14 fit metrics',
+      );
+
+    measuredSourceWidthPt =
+      font.widthOfTextAtSize(
+        input.sourceText,
+        input.fontSizePt,
+      );
+    measuredReplacementWidthPt =
+      font.widthOfTextAtSize(
+        input.replacementText,
+        input.fontSizePt,
+      );
+  }
 
   if (
     !Number.isFinite(
@@ -228,4 +273,15 @@ function standardFontForBaseFont(
         `Unsupported Standard-14 BaseFont for fit measurement: ${baseFont}.`,
       );
   }
+}
+
+function isStandard14Font(baseFont: string): boolean {
+  const clean = baseFont.replace(/^\//, '');
+  return (
+    clean.startsWith('Helvetica')
+    || clean.startsWith('Times')
+    || clean.startsWith('Courier')
+    || clean.startsWith('Symbol')
+    || clean.startsWith('ZapfDingbats')
+  );
 }

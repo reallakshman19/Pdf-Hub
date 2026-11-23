@@ -292,6 +292,13 @@ export async function writeNativePdfAnnotations(
     const page = doc.getPage(pageNumber - 1);
     const annots = getOrCreateAnnotsArray(doc, page, lib);
 
+    const scaleAnnot = pageAnnotations.find(
+      (a) => typeof a.data?.dimensionScale === 'number' && (a.data.dimensionScale as number) > 0,
+    );
+    if (scaleAnnot && typeof scaleAnnot.data?.dimensionScale === 'number') {
+      attachPageViewportScale(doc, page, scaleAnnot.data.dimensionScale, (scaleAnnot.data.dimensionUnit as string) ?? 'mm', lib);
+    }
+
     for (const candidate of pageAnnotations) {
       let annotation = candidate;
       if (annotation.data.nativeIdentityAmbiguous) {
@@ -812,6 +819,42 @@ function getOrCreateAnnotsArray(
 
   page.node.set(lib.PDFName.of('Annots'), existing);
   return existing;
+}
+
+function attachPageViewportScale(
+  doc: PDFDocument,
+  page: PDFPage,
+  scaleRatio: number,
+  unit: string,
+  lib: PdfLibModule,
+): void {
+  const existingVp = page.node.lookupMaybe(lib.PDFName.of('VP'), lib.PDFArray);
+  if (existingVp && existingVp.size() > 0) return;
+
+  const width = page.getWidth();
+  const height = page.getHeight();
+
+  const measureDict = doc.context.obj({
+    Type: lib.PDFName.of('Measure'),
+    Subtype: lib.PDFName.of('RL'),
+    R: lib.PDFString.of(`1 / ${scaleRatio}`),
+    X: doc.context.obj([
+      doc.context.obj({
+        Type: lib.PDFName.of('NumberFormat'),
+        U: lib.PDFString.of(unit),
+        C: scaleRatio,
+      }),
+    ]),
+  });
+
+  const viewportDict = doc.context.obj({
+    Type: lib.PDFName.of('Viewport'),
+    BBox: doc.context.obj([0, 0, width, height]),
+    Name: lib.PDFString.of('CAD Scale'),
+    Measure: measureDict,
+  });
+
+  page.node.set(lib.PDFName.of('VP'), doc.context.obj([viewportDict]));
 }
 
 function findManagedRootDict(
@@ -2521,7 +2564,7 @@ async function registerNativeAnnotation(
   const stroke = readColor(annotation.data.borderColor, annotation.type === 'shape-polygon' ? readColor('#3b82f6', DEFAULT_STROKE)
     : annotation.type === 'ink' ? { r: 0, g: 0, b: 0 }
       : annotation.type === 'line' || annotation.type === 'arrow' ? readColor('#111827', DEFAULT_STROKE) : DEFAULT_STROKE);
-  const fill = readColor(annotation.data.backgroundColor, DEFAULT_FILL);
+  const fill = annotation.data.backgroundColor === 'transparent' ? undefined : readColor(annotation.data.backgroundColor, DEFAULT_FILL);
   const opacity =
     annotation.type === 'redaction' ? 1
       : typeof annotation.data.opacity === 'number'
@@ -2819,7 +2862,7 @@ async function registerNativeAnnotation(
       }
       attachNativeMarkupAppearance(
         doc, dict, annotation, geometry.rect, nativeQuads,
-        annotation.type === 'highlight' ? fill : stroke, opacity, borderWidth, lib,
+        annotation.type === 'highlight' ? (fill ?? DEFAULT_FILL) : stroke, opacity, borderWidth, lib,
       );
       // Never bless an imported AP as app-generated. Only seal a form that was
       // just constructed by this writer or was verified against the actual PDF.
@@ -2867,7 +2910,7 @@ async function registerNativeAnnotation(
       annotation,
       geometry,
       stroke,
-      fill,
+      fill ?? DEFAULT_FILL,
       readColor(annotation.data.textColor, stroke),
       opacity,
       lib,
@@ -2926,7 +2969,7 @@ function addSubtypeFields(
   annotation: PdfAnnotation,
   geometry: AnnotationGeometry,
   stroke: PdfColor,
-  fill: PdfColor,
+  fill: PdfColor | undefined,
   opacity: number,
   borderWidth: number,
   sourceDict: PDFDict | null,
@@ -2955,7 +2998,7 @@ function addSubtypeFields(
       if (!sourceDict) {
         target.Name = textAnnotationNameValue(null, lib);
         target.Open = annotation.data.isCollapsed === false;
-        target.C = colorArray(fill);
+        target.C = colorArray(fill ?? DEFAULT_FILL);
         return;
       }
       if (!sourceModel) throw new Error('Cannot safely preserve this imported note without its native source model.');
@@ -2971,7 +3014,7 @@ function addSubtypeFields(
       if (annotation.data.backgroundColor === sourceModel.data.backgroundColor) {
         if (originalColor) target.C = originalColor;
       } else {
-        target.C = colorArray(fill);
+        target.C = colorArray(fill ?? DEFAULT_FILL);
       }
       return;
     }
@@ -2991,7 +3034,7 @@ function addSubtypeFields(
         : annotation.data.borderColor === sourceModel.data.borderColor)) {
         const original = sourceDict.get(lib.PDFName.of('C'));
         if (original) target.C = original;
-      } else target.C = colorArray(annotation.type === 'highlight' ? fill : stroke);
+      } else target.C = colorArray(annotation.type === 'highlight' ? (fill ?? DEFAULT_FILL) : stroke);
       if (sourceDict && sourceModel && annotation.data.opacity === sourceModel.data.opacity) {
         const original = sourceDict.get(lib.PDFName.of('CA'));
         if (original) target.CA = original;
@@ -3029,14 +3072,16 @@ function addSubtypeFields(
           target.C = sourceC;
         }
         const sourceIc = sourceDict.get(lib.PDFName.of('IC'));
-        if (annotation.data.backgroundColor) {
+        if (annotation.data.backgroundColor === 'transparent') {
+          // Explicitly transparent / no background: do not set target.IC
+        } else if (annotation.data.backgroundColor && fill) {
           target.IC = colorArray(fill);
         } else if (sourceIc) {
           target.IC = sourceIc;
         }
       } else {
         target.C = colorArray(stroke);
-        if (annotation.data.backgroundColor) {
+        if (annotation.data.backgroundColor && annotation.data.backgroundColor !== 'transparent' && fill) {
           target.IC = colorArray(fill);
         }
       }
@@ -3060,11 +3105,26 @@ function addSubtypeFields(
           const calloutLine = calloutCoordinates(annotation, geometry);
           if (calloutLine) target.CL = calloutLine;
         }
-        const sourceLe = sourceDict?.get(lib.PDFName.of('LE'));
-        if (sourceLe) {
-          target.LE = sourceLe;
-        } else if (!sourceDict) {
-          target.LE = lib.PDFName.of('OpenArrow');
+        const leStyle = annotation.data.arrowHead;
+        if (typeof leStyle === 'string') {
+          const map: Record<string, string> = {
+            filled: 'ClosedArrow',
+            open: 'OpenArrow',
+            circle: 'Circle',
+            square: 'Square',
+            slash: 'Slash',
+            diamond: 'Diamond',
+            none: 'None',
+          };
+          const resolvedName = map[leStyle.toLowerCase()];
+          target.LE = resolvedName ? lib.PDFName.of(resolvedName) : lib.PDFName.of('OpenArrow');
+        } else {
+          const sourceLe = sourceDict?.get(lib.PDFName.of('LE'));
+          if (sourceLe) {
+            target.LE = sourceLe;
+          } else if (!sourceDict) {
+            target.LE = lib.PDFName.of('OpenArrow');
+          }
         }
       } else {
         const sourceIntent = sourceDict?.get(lib.PDFName.of('IT'));
@@ -3079,7 +3139,7 @@ function addSubtypeFields(
       colorField('C', annotation.data.borderColor, annotation.type === 'redaction' ? { r: 0, g: 0, b: 0 } : stroke);
       if (annotation.type !== 'shape-rect' || (annotation.data.backgroundColor !== 'transparent'
         && (sourceDict || annotation.data.backgroundColor !== undefined))) {
-        colorField('IC', annotation.data.backgroundColor, annotation.type === 'redaction' ? { r: 0, g: 0, b: 0 } : fill);
+        colorField('IC', annotation.data.backgroundColor, annotation.type === 'redaction' ? { r: 0, g: 0, b: 0 } : (fill ?? DEFAULT_FILL));
       }
       applyAnnotationBorderFields(
         target,
@@ -3097,7 +3157,7 @@ function addSubtypeFields(
     case 'shape-ellipse':
       colorField('C', annotation.data.borderColor, stroke);
       if (annotation.data.backgroundColor !== 'transparent' && (sourceDict || annotation.data.backgroundColor !== undefined)) {
-        colorField('IC', annotation.data.backgroundColor, fill);
+        colorField('IC', annotation.data.backgroundColor, fill ?? DEFAULT_FILL);
       }
       applyAnnotationBorderFields(
         target,
@@ -3111,10 +3171,15 @@ function addSubtypeFields(
 
     case 'shape-polygon':
       target.Vertices = polygonVertices(annotation, geometry);
+      if (sourceDict?.get(lib.PDFName.of('IT'))) {
+        target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
+      } else if (annotation.data?.isAreaTakeoff) {
+        target.IT = lib.PDFName.of('PolygonDimension');
+      }
       colorField('C', annotation.data.borderColor, stroke);
       if (annotation.data.backgroundColor !== 'transparent'
         && (sourceDict || annotation.data.backgroundColor !== undefined)) {
-        colorField('IC', annotation.data.backgroundColor, fill);
+        colorField('IC', annotation.data.backgroundColor, fill ?? DEFAULT_FILL);
       }
       applyAnnotationBorderFields(
         target,
@@ -3130,7 +3195,11 @@ function addSubtypeFields(
     case 'arrow': {
       target.L = lineCoordinates(annotation, geometry, sourceDict, lib);
       if (sourceDict?.get(lib.PDFName.of('IC'))) target.IC = sourceDict.get(lib.PDFName.of('IC'))!;
-      if (sourceDict?.get(lib.PDFName.of('IT'))) target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
+      if (sourceDict?.get(lib.PDFName.of('IT'))) {
+        target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
+      } else if (annotation.data?.isDimension || annotation.data?.dimensionScale !== undefined) {
+        target.IT = lib.PDFName.of('LineDimension');
+      }
       const endings = lineEndingsValue(
         annotation,
         sourceDict,
@@ -3226,6 +3295,12 @@ function subtypeFor(type: PdfAnnotation['type']): string {
       return 'Ink';
     case 'stamp':
       return 'Stamp';
+    case 'piping-support':
+    case 'piping-valve':
+    case 'perimeter-takeoff':
+    case 'area-takeoff':
+    default:
+      return 'Square';
   }
 }
 

@@ -29,8 +29,7 @@ export interface ExistingTextReconstructedReplacementMutationResult {
   fontResourceName: string;
   baseFont: string;
   nativeFit:
-    ExistingTextNativeFitDiagnostic
-    & { status: 'overflows' };
+    ExistingTextNativeFitDiagnostic;
   evidence:
     ExistingTextReconstructedOverlayEvidence;
   proof:

@@ -21,7 +21,7 @@ const TITLES: Record<ThumbnailMacroKind, string> = {
   fileHeader: 'Add File Header',
   textStamp: 'Batch Text Stamp',
   watermark: 'Diagonal Watermark',
-  visualMask: 'Visual Mask',
+  visualMask: 'Visual Mask (Not Secure Redaction)',
 };
 
 const ALIGN_OPTIONS = ['left', 'center', 'right'] as const;

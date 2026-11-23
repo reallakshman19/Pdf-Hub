@@ -11,6 +11,10 @@ import type {
 import type {
   ExistingTextReconstructedReplacementMutationResult,
 } from '@/core/existing-text/reconstructedTypes';
+import type {
+  ExistingTextParagraphReplacementMutationInput,
+  ExistingTextParagraphReplacementMutationResult,
+} from '@/core/existing-text/paragraphTypes';
 
 export interface PdfMutationPageMetrics {
   width: number;
@@ -146,6 +150,7 @@ export interface PdfMutationSession {
   insertPdf(
     atIndex: number,
     donorBytes: Uint8Array,
+    donorPageIndices?: readonly number[],
   ): Promise<void>;
 
   replacePage(
@@ -194,6 +199,33 @@ export interface PdfMutationSession {
         ExistingTextSimpleTextOperator;
     },
   ): Promise<ExistingTextReconstructedReplacementMutationResult>;
+
+  replaceExistingParagraph(
+    input: ExistingTextParagraphReplacementMutationInput,
+  ): Promise<ExistingTextParagraphReplacementMutationResult>;
+
+  batchReplaceExistingText(
+    input: {
+      currentRevisionId: string;
+      items: import('@/core/commands/types').BatchReplaceExistingTextCommandItem[];
+    },
+  ): Promise<{ replacedCount: number; affectedPageIndices: number[] }>;
+
+  editTableCellText(
+    input: import('@/core/existing-text/tableCellTypes').ExistingTextTableCellMutationInput & {
+      currentRevisionId: string;
+    },
+  ): Promise<import('@/core/existing-text/tableCellTypes').ExistingTextTableCellMutationResult>;
+
+  deleteExistingText(
+    input: {
+      span: import('@/core/existing-text/types').ExistingTextSpan;
+      intent: import('@/core/existing-text/erasureTypes').ExistingTextDeleteIntent;
+      provenance?: import('@/core/existing-text/provenanceTypes').ExistingTextSimpleTextOperator;
+      strategy?: import('@/core/existing-text/erasureTypes').ExistingTextDeleteStrategy;
+      currentRevisionId: string;
+    },
+  ): Promise<import('@/core/existing-text/erasureTypes').ExistingTextDeletionResult>;
 
   commit(): Promise<PdfMutationCommitResult>;
 

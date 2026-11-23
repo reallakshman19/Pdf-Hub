@@ -5,6 +5,8 @@ import {
   FileText,
   Loader2,
   ShieldCheck,
+  Trash2,
+  Type,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -28,6 +30,7 @@ import {
 } from '@/core/cancellation/operationCancellation';
 import {
   buildExistingTextPageInspection,
+  createExistingTextDeleteIntent,
 } from '@/core/existing-text/model';
 import type {
   ExistingTextSpan,
@@ -536,6 +539,55 @@ export const ExistingTextInspectorTab: React.FC = () => {
       }
     };
 
+  const deleteSpan = async () => {
+    if (!workingBytes || !documentKey || !selectedSpan || replacing) return;
+    setReplacing(true);
+    try {
+      const deleteIntent = createExistingTextDeleteIntent(selectedSpan, 'auto');
+      const result = await commandBus.execute({
+        workingBytes,
+        command: materializePdfCommand(
+          {
+            type: 'DELETE_EXISTING_TEXT',
+            payload: {
+              schemaVersion: 1,
+              span: selectedSpan,
+              intent: deleteIntent,
+              provenance: capability?.provenance,
+              strategy: 'auto',
+            },
+          },
+          'toolbar',
+          documentKey,
+        ),
+      });
+
+      if (!result.success) {
+        addToast({
+          type: 'error',
+          title: 'Deletion failed',
+          message: result.error?.message ?? result.message,
+        });
+        return;
+      }
+
+      addToast({
+        type: 'success',
+        title: 'Existing text deleted',
+        message: result.message,
+      });
+      setExistingTextSelection(null);
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Deletion failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setReplacing(false);
+    }
+  };
+
   const canInspect =
     Boolean(
       workingBytes
@@ -673,8 +725,28 @@ export const ExistingTextInspectorTab: React.FC = () => {
               <p className="mt-2 whitespace-pre-wrap break-words text-xs text-slate-800 dark:text-slate-200">
                 {selectedSpan.text}
               </p>
-              <div className="mt-2 text-[10px] text-slate-500">
-                PageId {selectedSpan.pageId}
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                <span className="inline-flex items-center gap-1 font-mono text-slate-700 dark:text-slate-300">
+                  <Type className="h-3 w-3 text-slate-400" />
+                  {selectedSpan.fontName || 'Unknown font'}
+                </span>
+                <span>•</span>
+                <span>{selectedSpan.fontSizePt.toFixed(1)} pt</span>
+                {capability?.fontMetadata && (
+                  <>
+                    <span>•</span>
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      {capability.fontMetadata.subtype}
+                    </span>
+                    {capability.fontMetadata.isSubset && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                        Subset
+                      </span>
+                    )}
+                  </>
+                )}
+                <span>•</span>
+                <span>PageId {selectedSpan.pageId}</span>
               </div>
             </div>
           )}
@@ -773,13 +845,18 @@ export const ExistingTextInspectorTab: React.FC = () => {
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <div className="font-semibold">
-                Replacement is too wide; fallback evidence is proved
+                {capability.fallbackReason === 'SUBSET_GLYPH_SUBSTITUTION'
+                  ? `Subset font fallback (${capability.substituteFontName ?? 'Helvetica'})`
+                  : capability.fallbackReason === 'STYLE_OVERRIDE'
+                  ? 'Style override reconstruction'
+                  : 'Replacement is too wide; fallback evidence is proved'}
               </div>
               <div className="mt-1 text-[11px] opacity-90">
-                A solid background and foreign-paint-free clearance region were
-                proved for this revision. Applying this action masks the proved
-                source appearance and redraws the replacement; it does not rewrite
-                the original text operator.
+                {capability.fallbackReason === 'SUBSET_GLYPH_SUBSTITUTION'
+                  ? `Characters outside the embedded font subset will be rendered cleanly using the closest matching standard font (${capability.substituteFontName ?? 'Helvetica'}) over a proved solid background.`
+                  : capability.fallbackReason === 'STYLE_OVERRIDE'
+                  ? 'Custom typography and styling overrides will be applied over a proved solid background.'
+                  : 'A solid background and foreign-paint-free clearance region were proved for this revision. Applying this action masks the proved source appearance and redraws the replacement; it does not rewrite the original text operator.'}
               </div>
             </div>
           </div>
@@ -804,10 +881,30 @@ export const ExistingTextInspectorTab: React.FC = () => {
         <StatusCard tone="danger">
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div>
+            <div className="w-full">
               <div className="font-semibold">
                 Editing unavailable
               </div>
+              {capability.nativeFit?.status === 'unmeasurable' &&
+                capability.nativeFit.reason === 'MISSING_SUBSET_GLYPHS' &&
+                capability.nativeFit.missingCharacters &&
+                capability.nativeFit.missingCharacters.length > 0 && (
+                  <div className="my-2 rounded bg-rose-100/90 p-2 text-rose-950 dark:bg-rose-950/60 dark:text-rose-200">
+                    <span className="font-medium text-[11px]">
+                      Characters missing from embedded font subset:
+                    </span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {capability.nativeFit.missingCharacters.map((char, idx) => (
+                        <span
+                          key={idx}
+                          className="rounded border border-rose-300 bg-white px-1.5 py-0.5 font-mono text-[11px] font-bold text-rose-700 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-300"
+                        >
+                          {char === ' ' ? 'SPACE' : char}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] opacity-90">
                 {capability.reasons
                   .slice(0, 4)
@@ -829,6 +926,22 @@ export const ExistingTextInspectorTab: React.FC = () => {
             </div>
           </div>
         </StatusCard>
+      )}
+
+      {selectedSpan && (
+        <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+          <Button
+            data-testid="existing-text-delete-btn"
+            variant="secondary"
+            size="sm"
+            className="w-full text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900 flex items-center justify-center gap-1.5"
+            disabled={replacing}
+            onClick={() => void deleteSpan()}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete text element
+          </Button>
+        </div>
       )}
     </div>
   );

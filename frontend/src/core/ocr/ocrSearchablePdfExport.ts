@@ -83,7 +83,8 @@ export interface OcrSearchablePdfDiagnostic {
 interface DrawOcrTextContext {
   page: import('pdf-lib').PDFPage;
   font: import('pdf-lib').PDFFont;
-  rgb: typeof import('pdf-lib').rgb;
+  fontRefKey: import('pdf-lib').PDFName;
+  lib: typeof import('pdf-lib');
   pageSize: {
     width: number;
     height: number;
@@ -107,10 +108,10 @@ interface OcrTextItem {
 export async function exportSearchableOcrPdf(
   input: OcrSearchablePdfExportInput,
 ): Promise<OcrSearchablePdfExportResult> {
-  const { PDFDocument, StandardFonts, rgb } = await pdfLib();
-  const doc = await PDFDocument.load(input.pdfBytes);
+  const lib = await pdfLib();
+  const doc = await lib.PDFDocument.load(input.pdfBytes);
   const pages = doc.getPages();
-  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const font = await doc.embedFont(lib.StandardFonts.Helvetica);
 
   const ocrDocument = input.useCorrections === false
     ? input.ocrResult
@@ -169,10 +170,13 @@ export async function exportSearchableOcrPdf(
       });
     }
 
+    const fontRefKey = page.node.newFontDictionary('Helvetica', font.ref);
+
     const context: DrawOcrTextContext = {
       page,
       font,
-      rgb,
+      fontRefKey,
+      lib,
       pageSize,
       ocrPageSize: {
         width: ocrPageWidth,
@@ -296,57 +300,42 @@ function drawOcrTextItem(
     return;
   }
 
-  const fontSize = fitFontSizeToRect({
-    font: context.font,
-    text: sanitizedText,
-    rect,
-  });
+  const fontSize = Math.max(1, Math.min(rect.height, 36));
+  const measuredWidth = context.font.widthOfTextAtSize(sanitizedText, fontSize);
+  const hScale = (measuredWidth > 0 && rect.width > 0)
+    ? Math.max(10, Math.min(500, (rect.width / measuredWidth) * 100))
+    : 100;
 
-  const opacity = context.visibilityMode === 'debug-visible'
-    ? 0.45
-    : context.invisibleOpacity;
+  const encodedText = context.font.encodeText(sanitizedText);
 
-  const color = context.visibilityMode === 'debug-visible'
-    ? context.rgb(1, 0, 0)
-    : context.rgb(1, 1, 1);
-
-  context.page.drawText(sanitizedText, {
-    x: rect.x,
-    y: rect.y,
-    size: fontSize,
-    font: context.font,
-    color,
-    opacity,
-    maxWidth: Math.max(1, rect.width),
-    lineHeight: Math.max(1, rect.height),
-  });
-}
-
-function fitFontSizeToRect(input: {
-  font: import('pdf-lib').PDFFont;
-  text: string;
-  rect: PdfRect;
-}): number {
-  const maxSize = Math.max(1, Math.min(input.rect.height, 24));
-  const minSize = 1;
-
-  if (!input.text.trim()) {
-    return minSize;
+  if (context.visibilityMode === 'invisible') {
+    // ISO 32000-1 §9.3.5: Text rendering mode 3 (neither fill nor stroke text)
+    context.page.pushOperators(
+      context.lib.pushGraphicsState(),
+      context.lib.beginText(),
+      context.lib.setTextRenderingMode(context.lib.TextRenderingMode.Invisible),
+      context.lib.setFontAndSize(context.fontRefKey, fontSize),
+      context.lib.PDFOperator.of('Tz' as unknown as import('pdf-lib').PDFOperatorNames, [context.lib.asPDFNumber(hScale)]),
+      context.lib.rotateAndSkewTextRadiansAndTranslate(0, 0, 0, rect.x, rect.y),
+      context.lib.showText(encodedText),
+      context.lib.endText(),
+      context.lib.popGraphicsState(),
+    );
+  } else {
+    // Debug visible: Red text at 0.45 opacity
+    context.page.pushOperators(
+      context.lib.pushGraphicsState(),
+      context.lib.beginText(),
+      context.lib.setTextRenderingMode(context.lib.TextRenderingMode.Fill),
+      context.lib.setFillingColor(context.lib.rgb(1, 0, 0)),
+      context.lib.setFontAndSize(context.fontRefKey, fontSize),
+      context.lib.PDFOperator.of('Tz' as unknown as import('pdf-lib').PDFOperatorNames, [context.lib.asPDFNumber(hScale)]),
+      context.lib.rotateAndSkewTextRadiansAndTranslate(0, 0, 0, rect.x, rect.y),
+      context.lib.showText(encodedText),
+      context.lib.endText(),
+      context.lib.popGraphicsState(),
+    );
   }
-
-  let size = maxSize;
-
-  while (size > minSize) {
-    const width = input.font.widthOfTextAtSize(input.text, size);
-
-    if (width <= input.rect.width || input.rect.width <= 1) {
-      return size;
-    }
-
-    size -= 0.5;
-  }
-
-  return minSize;
 }
 
 function getOcrTextItemSkipDiagnostic(

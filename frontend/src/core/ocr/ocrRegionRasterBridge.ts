@@ -8,9 +8,11 @@ import type {
   RasterizedPdfPage,
 } from './pdfPageRasterizer';
 import {
+  calculateAdaptiveOcrScale,
   rasterizePdfPageForOcr,
   rasterizedPdfPageToOcrEnginePageInput,
 } from './pdfPageRasterizer';
+import type { OcrPreprocessingOptions } from './preprocessing/ocrImagePreprocessor';
 
 export interface ResolveOcrRegionPageInputInput extends PdfPageRasterizerOptions {
   region: OcrRegion;
@@ -35,6 +37,7 @@ export interface RasterizeOcrRegionToPageInputInput {
   mimeType?: PdfRasterImageMimeType;
   quality?: number;
   canvasFactory?: PdfPageRasterizerOptions['canvasFactory'];
+  preprocessing?: OcrPreprocessingOptions;
   signal?: AbortSignal;
 }
 
@@ -70,16 +73,25 @@ export async function resolveOcrRegionPageInput(
 export async function rasterizeOcrRegionToPageInput(
   input: RasterizeOcrRegionToPageInputInput,
 ): Promise<ResolveOcrRegionPageInputResult> {
+  const scale = input.scale ?? calculateAdaptiveOcrScale({
+    width: input.region.bbox.width,
+    height: input.region.bbox.height,
+    targetDpi: 300,
+    maxCanvasPixels: input.maxCanvasPixels,
+    isRegionCrop: true,
+  });
+
   const rasterizedPage = await rasterizePdfPageForOcr({
     pdfBytes: input.pdfBytes ?? undefined,
     document: input.document ?? undefined,
     pageIndex: input.region.pageIndex,
     region: input.region.bbox,
-    scale: input.scale ?? 2,
+    scale,
     maxCanvasPixels: input.maxCanvasPixels,
     mimeType: input.mimeType ?? 'image/png',
     quality: input.quality ?? 0.92,
     canvasFactory: input.canvasFactory,
+    preprocessing: input.preprocessing ?? { mode: 'sauvola' },
     signal: input.signal,
   });
 

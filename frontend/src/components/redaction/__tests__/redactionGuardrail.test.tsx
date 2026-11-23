@@ -13,18 +13,18 @@ import {
 describe('Redaction guardrails', () => {
   beforeEach(() => clearRegions());
 
-  test('browser build explicitly exposes visual-mask-only capability', () => {
-    expect(REDACTION_CAPABILITY).toBe('visual-mask-only');
-    expect(supportsSecureRedaction()).toBe(false);
+  test('browser build exposes secure-redaction-supported capability in Phase 9', () => {
+    expect(REDACTION_CAPABILITY).toBe('secure-redaction-supported');
+    expect(supportsSecureRedaction()).toBe(true);
   });
 
-  test('RedactionTool renders no Apply button and warns about extractable content', () => {
+  test('RedactionTool renders note and indicates secure redaction capability', () => {
     render(<RedactionTool />);
     expect(screen.queryByRole('button', { name: /apply/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /redact now/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /confirm redaction/i })).toBeNull();
     expect(screen.getByText(/visual mask \(not secure redaction\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/searchable or extractable/i)).toBeInTheDocument();
+    expect(screen.getByText(/secure redaction is available in this build/i)).toBeInTheDocument();
   });
 
   test('RedactionPreviewPanel renders no Apply button', () => {

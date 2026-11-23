@@ -2,12 +2,14 @@ import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { nativeTextDisplayRect } from './shared/nativeTextAnchor';
+import { InlineTextEditor } from './shared/InlineTextEditor';
 
 export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
   annotation, rect, scale, isSelected, isEditing, editingValue,
   onSelect, onTransformStart, onDoubleClick, onCommitEdit, pageRotation = 0,
 }) => {
   const displayRect = nativeTextDisplayRect(rect, pageRotation);
+  const isTransparentBg = annotation.data?.backgroundColor === 'transparent';
   return (
     <div
       data-annotation-type="comment"
@@ -17,24 +19,33 @@ export const CommentNode: React.FC<AnnotationNodeProps<'comment'>> = ({
       style={{
         position: 'absolute',
         left: displayRect.x, top: displayRect.y, width: displayRect.width, height: displayRect.height,
-        background: annotation.data?.backgroundColor ?? '#fff7cc',
+        opacity: annotation.data?.opacity ?? 1,
+        background: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#fff7cc'),
         border: `1.5px solid ${annotation.data?.borderColor ?? '#d4b106'}`,
         color: annotation.data?.textColor ?? '#111827',
         fontSize: (annotation.data?.fontSize ?? 12) * scale,
         borderRadius: 6, padding: 4,
         cursor: isEditing ? 'text' : (isSelected ? 'move' : 'pointer'), pointerEvents: 'all',
         touchAction: 'none', userSelect: 'none',
+        overflow: isEditing ? 'visible' : 'hidden',
+        zIndex: isEditing ? 50 : undefined,
       }}
       onPointerDown={e => { onSelect(e); onTransformStart(e, 'move'); }}
       onDoubleClick={onDoubleClick}
     >
       {isEditing ? (
-        <textarea
-          autoFocus
-          className="w-full h-full bg-transparent text-slate-900 outline-none resize-none"
-          defaultValue={editingValue}
-          onBlur={e => onCommitEdit?.(e.currentTarget.value)}
-          onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') onCommitEdit?.(e.currentTarget.value); }}
+        <InlineTextEditor
+          defaultValue={editingValue ?? ''}
+          style={{
+            fontSize: annotation.data?.fontSize ?? 12,
+            fontFamily: 'inherit',
+            color: annotation.data?.textColor ?? '#111827',
+            backgroundColor: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#fff7cc'),
+          }}
+          bounds={{ width: displayRect.width, height: displayRect.height, y: displayRect.y }}
+          scale={scale}
+          onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
+          onCancel={() => onCommitEdit?.(editingValue ?? '')}
         />
       ) : (
         <div className="w-full h-full">{annotation.data?.text ?? 'Note'}</div>

@@ -108,6 +108,25 @@ vi.mock('../dialogs/ReplacePageDialog', () => ({
   ) : null,
 }));
 
+vi.mock('../dialogs/InsertPdfDialog', () => ({
+  InsertPdfDialog: ({
+    isOpen,
+    onClose,
+    onConfirm,
+    donorPageCount,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: (config: { placement: 'before' | 'after'; targetPage: number; donorPageIndices?: number[] }) => void;
+    donorPageCount: number;
+  }) => isOpen ? (
+    <div data-testid="insert-pdf-dialog" data-page-count={donorPageCount}>
+      <button onClick={onClose}>Cancel Insert</button>
+      <button onClick={() => onConfirm({ placement: 'before', targetPage: 1 })}>Confirm Insert</button>
+    </div>
+  ) : null,
+}));
+
 function admittedReplacement(pageCount = 4): AdmittedDonorSet {
   const donor: AdmittedDonorPdf = Object.freeze({
     inputIndex: 0,

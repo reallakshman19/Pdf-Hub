@@ -5,6 +5,7 @@ import { CtxBar } from '../CtxBar';
 import { useEditorStore } from '@/core/editor/store';
 import { useWriterStore } from '@/core/writer/store';
 import { useReviewStore } from '@/core/review/store';
+import { useAnnotationStore } from '@/core/annotations/store';
 
 vi.mock('@/hooks/useIsMobile', () => ({
   useIsMobile: () => false,
@@ -63,5 +64,42 @@ describe('CtxBar annotate mode', () => {
 
     expect(useEditorStore.getState().activeTool).toBe('select');
     expect(useWriterStore.getState().activeTool).toBe('ocr-region');
+  });
+
+  it('renders quick fill buttons (Solid, Translucent, No BG) when an annotation is selected', () => {
+    useAnnotationStore.setState({
+      selectedAnnotationIds: ['annot-1'],
+      annotations: [{
+        id: 'annot-1',
+        type: 'callout',
+        pageNumber: 1,
+        rect: { x: 10, y: 10, width: 100, height: 40 },
+        createdAt: 1,
+        updatedAt: 1,
+        data: { text: 'Rest', backgroundColor: '#ffffff', opacity: 1 },
+      }],
+    });
+
+    render(<CtxBar />);
+
+    expect(screen.getByRole('button', { name: 'Solid' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Translucent' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'No BG' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Translucent' }));
+    let annot = useAnnotationStore.getState().annotations.find((a) => a.id === 'annot-1');
+    expect(annot?.data.opacity).toBe(0.5);
+
+    fireEvent.click(screen.getByRole('button', { name: 'No BG' }));
+    annot = useAnnotationStore.getState().annotations.find((a) => a.id === 'annot-1');
+    expect(annot?.data.backgroundColor).toBe('transparent');
+  });
+
+  it('opens ScaleCalibrationDialog when Scale button is clicked', () => {
+    render(<CtxBar />);
+    const scaleBtn = screen.getByRole('button', { name: 'Scale' });
+    expect(scaleBtn).toBeTruthy();
+    fireEvent.click(scaleBtn);
+    expect(screen.getByText('Drawing Scale Calibration')).toBeTruthy();
   });
 });

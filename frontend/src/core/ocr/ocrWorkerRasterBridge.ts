@@ -16,6 +16,7 @@ import {
 import type {
   OcrRasterWorkerProgressPayload,
 } from './workers/ocrRasterWorkerTypes';
+import type { OcrPreprocessingOptions } from './preprocessing/ocrImagePreprocessor';
 
 export interface RasterizeForOcrWithOptionalWorkerInput {
   pdfBytes: Uint8Array;
@@ -24,6 +25,7 @@ export interface RasterizeForOcrWithOptionalWorkerInput {
   maxCanvasPixels: number;
   mimeType?: PdfRasterImageMimeType;
   quality?: number;
+  preprocessing?: OcrPreprocessingOptions;
   useWorker?: boolean;
   signal?: AbortSignal;
   workerClient?: Pick<OcrRasterWorkerClient, 'rasterizePages' | 'dispose'>;
@@ -39,6 +41,7 @@ export interface RasterizeRegionForOcrWithOptionalWorkerInput {
   maxCanvasPixels: number;
   mimeType?: PdfRasterImageMimeType;
   quality?: number;
+  preprocessing?: OcrPreprocessingOptions;
   useWorker?: boolean;
   signal?: AbortSignal;
   workerClient?: Pick<OcrRasterWorkerClient, 'rasterizeRegion' | 'dispose'>;
@@ -62,6 +65,7 @@ export async function rasterizeForOcrWithOptionalWorker(
           maxCanvasPixels: input.maxCanvasPixels,
           mimeType: input.mimeType ?? 'image/png',
           quality: input.quality,
+          preprocessing: input.preprocessing,
         },
         {
           signal: input.signal,
@@ -82,6 +86,7 @@ export async function rasterizeForOcrWithOptionalWorker(
     maxCanvasPixels: input.maxCanvasPixels,
     mimeType: input.mimeType ?? 'image/png',
     quality: input.quality,
+    preprocessing: input.preprocessing,
     signal: input.signal,
   });
 
@@ -105,6 +110,7 @@ export async function rasterizeRegionForOcrWithOptionalWorker(
           maxCanvasPixels: input.maxCanvasPixels,
           mimeType: input.mimeType ?? 'image/png',
           quality: input.quality,
+          preprocessing: input.preprocessing,
         },
         {
           signal: input.signal,
@@ -134,6 +140,7 @@ export async function rasterizeRegionForOcrWithOptionalWorker(
     maxCanvasPixels: input.maxCanvasPixels,
     mimeType: input.mimeType ?? 'image/png',
     quality: input.quality,
+    preprocessing: input.preprocessing,
   });
 
   return rasterizedPdfPageToOcrEnginePageInput(rasterized);

@@ -1,8 +1,9 @@
 import React from 'react';
-import type { AnnotationNodeProps, Point2D } from '../../core/annotations/types';
-import { computeCalloutPath } from '../../core/annotations/callout-geometry';
+import type { AnnotationNodeProps, CalloutLeaderBranch, Point2D } from '../../core/annotations/types';
+import { computeMultiCalloutPaths } from '../../core/annotations/callout-geometry';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { FreeTextPreview } from './shared/FreeTextPreview';
+import { InlineTextEditor } from './shared/InlineTextEditor';
 
 interface CalloutExtras {
   anchorPoint?: Point2D | null;
@@ -31,7 +32,8 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
     rawBorderColor && rawBorderColor.toLowerCase() !== '#ffffff'
       ? rawBorderColor
       : (annotation.data?.textColor ?? '#475569');
-  const fillColor = annotation.data?.backgroundColor ?? '#ffffff';
+  const isTransparentBg = annotation.data?.backgroundColor === 'transparent';
+  const fillColor = isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#ffffff');
   const borderWidth = typeof annotation.data?.borderWidth === 'number' ? annotation.data.borderWidth : 1.5;
   const effectiveAnchor = anchorPoint !== undefined ? anchorPoint : (annotation.data?.anchor as Point2D | undefined);
   const effectiveKnee = kneePoint !== undefined ? kneePoint : (annotation.data?.knee as Point2D | undefined);
@@ -57,17 +59,25 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
     height: bodyHeight,
   };
 
-  const geometry = effectiveAnchor
-    ? computeCalloutPath(
-        { x: effectiveAnchor.x * scale, y: effectiveAnchor.y * scale },
-        visualBox,
-        {
+  const rawLeaders: CalloutLeaderBranch[] = (annotation.data?.leaders && annotation.data.leaders.length > 0)
+    ? annotation.data.leaders
+    : effectiveAnchor
+      ? [{
+          id: 'primary',
+          anchor: effectiveAnchor,
+          knee: effectiveKnee,
           leaderStyle,
-          kneePoint: effectiveKnee ? { x: effectiveKnee.x * scale, y: effectiveKnee.y * scale } : null,
-        },
-      )
-    : null;
+          arrowHead: (arrowHead as CalloutLeaderBranch['arrowHead']),
+        }]
+      : [];
 
+  const scaledLeaders = rawLeaders.map((branch) => ({
+    ...branch,
+    anchor: { x: branch.anchor.x * scale, y: branch.anchor.y * scale },
+    knee: branch.knee ? { x: branch.knee.x * scale, y: branch.knee.y * scale } : null,
+  }));
+
+  const paths = computeMultiCalloutPaths(scaledLeaders, visualBox);
   const strokeWidth = Math.max(borderWidth * scale, 1);
 
   return (
@@ -77,68 +87,75 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
       data-native-source-ref={annotation.data.nativeSourceRef}
       data-native-selected={isSelected ? 'true' : 'false'}
       className="absolute inset-0 w-full h-full pointer-events-none"
+      style={{ opacity: annotation.data?.opacity ?? 1 }}
     >
-      {geometry && (
+      {paths.length > 0 && (
         <svg
           className="absolute inset-0 w-full h-full pointer-events-none"
           width="100%"
           height="100%"
           style={{ overflow: 'visible' }}
         >
-          {/* Wide transparent hit target for leader line click & drag */}
-          <polyline
-            points={geometry.points.map((point) => `${point.x},${point.y}`).join(' ')}
-            fill="none"
-            stroke="transparent"
-            strokeWidth={Math.max(strokeWidth, 14)}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ pointerEvents: 'stroke', cursor: isSelected ? 'move' : 'pointer', touchAction: 'none' }}
-            onPointerDown={(e) => {
-              onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
-              onTransformStart(e as unknown as React.PointerEvent<HTMLDivElement>, 'move-all');
-            }}
-          />
-          {/* Visible leader line */}
-          <polyline
-            points={geometry.points.map((point) => `${point.x},${point.y}`).join(' ')}
-            fill="none"
-            stroke={borderColor}
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ pointerEvents: 'none' }}
-          />
-          {arrowHead !== 'none' && geometry.points.length >= 2 && (
-            <LeaderArrowHead
-              from={geometry.points[geometry.points.length - 2]}
-              to={geometry.anchorPoint}
-              color={borderColor}
-              strokeWidth={strokeWidth}
-              styleType={arrowHead}
-              scale={scale}
-              cursor={effectiveAnchor && onAnchorDragStart ? 'crosshair' : (isSelected ? 'move' : 'pointer')}
-              onPointerDown={(e) => {
-                if (effectiveAnchor && onAnchorDragStart) {
-                  onAnchorDragStart(e);
-                } else {
-                  onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
-                  onTransformStart(e as unknown as React.PointerEvent<HTMLDivElement>, 'move-all');
-                }
-              }}
-            />
-          )}
-          {effectiveAnchor && onAnchorDragStart && (
-            <circle
-              cx={geometry.anchorPoint.x}
-              cy={geometry.anchorPoint.y}
-              r={Math.max(5 * scale, 3)}
-              fill={borderColor}
-              cursor="crosshair"
-              style={{ pointerEvents: 'all', touchAction: 'none' }}
-              onPointerDown={onAnchorDragStart}
-            />
-          )}
+          {paths.map((p) => {
+            return (
+              <React.Fragment key={p.id}>
+                {/* Wide transparent hit target for leader line click & drag */}
+                <polyline
+                  points={p.points.map((point) => `${point.x},${point.y}`).join(' ')}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={Math.max(strokeWidth, 14)}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ pointerEvents: 'stroke', cursor: isSelected ? 'move' : 'pointer', touchAction: 'none' }}
+                  onPointerDown={(e) => {
+                    onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
+                    onTransformStart(e as unknown as React.PointerEvent<HTMLDivElement>, 'move-all');
+                  }}
+                />
+                {/* Visible leader line */}
+                <polyline
+                  points={p.points.map((point) => `${point.x},${point.y}`).join(' ')}
+                  fill="none"
+                  stroke={borderColor}
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ pointerEvents: 'none' }}
+                />
+                {p.arrowHead !== 'none' && p.points.length >= 2 && (
+                  <LeaderArrowHead
+                    from={p.points[p.points.length - 2]}
+                    to={p.anchorPoint}
+                    color={borderColor}
+                    strokeWidth={strokeWidth}
+                    styleType={p.arrowHead}
+                    scale={scale}
+                    cursor={onAnchorDragStart ? 'crosshair' : (isSelected ? 'move' : 'pointer')}
+                    onPointerDown={(e) => {
+                      if (onAnchorDragStart) {
+                        onAnchorDragStart(e);
+                      } else {
+                        onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
+                        onTransformStart(e as unknown as React.PointerEvent<HTMLDivElement>, 'move-all');
+                      }
+                    }}
+                  />
+                )}
+                {onAnchorDragStart && (
+                  <circle
+                    cx={p.anchorPoint.x}
+                    cy={p.anchorPoint.y}
+                    r={Math.max(5 * scale, 3)}
+                    fill={borderColor}
+                    cursor="crosshair"
+                    style={{ pointerEvents: 'all', touchAction: 'none' }}
+                    onPointerDown={onAnchorDragStart}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })}
         </svg>
       )}
       <div
@@ -147,9 +164,12 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
           left: visualBox.x,
           top: visualBox.y,
           width: visualBox.width,
-          height: visualBox.height,
-          background: fillColor,
-          border: `${borderWidth}px solid ${borderColor}`,
+          height: isEditing ? 'auto' : visualBox.height,
+          minHeight: isEditing ? visualBox.height : undefined,
+          background: isEditing
+            ? (isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#ffffff'))
+            : fillColor,
+          border: isEditing ? 'none' : `${borderWidth}px solid ${borderColor}`,
           borderRadius: 4,
           padding: '1px 3px',
           color: annotation.data?.textColor ?? '#111827',
@@ -160,8 +180,9 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
           textAlign: annotation.data?.textAlign ?? 'left',
           cursor: isEditing ? 'text' : (isSelected ? 'move' : 'pointer'),
           pointerEvents: 'all',
-          outline: isSelected ? `2px solid ${borderColor}` : 'none',
-          overflow: 'hidden',
+          outline: (isSelected && !isEditing) ? `2px solid ${borderColor}` : 'none',
+          overflow: isEditing ? 'visible' : 'hidden',
+          zIndex: isEditing ? 50 : undefined,
           boxSizing: 'border-box',
           touchAction: 'none',
           userSelect: 'none',
@@ -176,24 +197,21 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
         onDoubleClick={onDoubleClick}
       >
         {isEditing ? (
-          <textarea
-            autoFocus
-            defaultValue={editingValue}
+          <InlineTextEditor
+            defaultValue={editingValue ?? ''}
             style={{
-              width: '100%',
-              height: '100%',
-              border: 'none',
-              outline: 'none',
-              resize: 'none',
-              background: 'transparent',
-              fontSize: 'inherit',
+              fontSize: annotation.data?.fontSize ?? 10,
+              fontFamily: annotation.data?.fontFamily ?? 'Helvetica, Arial, sans-serif',
+              fontWeight: annotation.data?.fontWeight ?? 'normal',
+              fontStyle: annotation.data?.fontStyle ?? 'normal',
+              textAlign: annotation.data?.textAlign ?? 'left',
+              color: annotation.data?.textColor ?? '#111827',
+              backgroundColor: isTransparentBg ? 'transparent' : (annotation.data?.backgroundColor ?? '#ffffff'),
             }}
-            onBlur={(e) => onCommitEdit?.(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                onCommitEdit?.(e.currentTarget.value);
-              }
-            }}
+            bounds={{ width: visualBox.width, height: visualBox.height, y: visualBox.y }}
+            scale={scale}
+            onCommit={(val, stylePatch) => (stylePatch !== undefined ? onCommitEdit?.(val, stylePatch) : onCommitEdit?.(val))}
+            onCancel={() => onCommitEdit?.(editingValue ?? '')}
           />
         ) : (
           <FreeTextPreview
@@ -215,7 +233,7 @@ interface LeaderArrowHeadProps {
   to: Point2D;
   color: string;
   strokeWidth: number;
-  styleType: 'open' | 'filled';
+  styleType: 'open' | 'filled' | 'circle' | 'square' | 'slash' | 'diamond';
   scale?: number;
   cursor?: string;
   onPointerDown?: (e: React.PointerEvent<SVGElement>) => void;
@@ -252,6 +270,64 @@ const LeaderArrowHead: React.FC<LeaderArrowHeadProps> = ({
     return (
       <polygon
         points={`${to.x},${to.y} ${left.x},${left.y} ${right.x},${right.y}`}
+        fill={color}
+        style={style}
+        onPointerDown={onPointerDown}
+      />
+    );
+  }
+
+  if (styleType === 'circle') {
+    const r = Math.max(4 * scale, strokeWidth * 2);
+    return (
+      <circle
+        cx={to.x}
+        cy={to.y}
+        r={r}
+        fill={color}
+        style={style}
+        onPointerDown={onPointerDown}
+      />
+    );
+  }
+
+  if (styleType === 'square') {
+    const s = Math.max(4 * scale, strokeWidth * 2);
+    return (
+      <rect
+        x={to.x - s}
+        y={to.y - s}
+        width={2 * s}
+        height={2 * s}
+        fill={color}
+        style={style}
+        onPointerDown={onPointerDown}
+      />
+    );
+  }
+
+  if (styleType === 'slash') {
+    const s = Math.max(6 * scale, strokeWidth * 2.5);
+    return (
+      <line
+        x1={to.x - s}
+        y1={to.y - s}
+        x2={to.x + s}
+        y2={to.y + s}
+        stroke={color}
+        strokeWidth={strokeWidth * 1.5}
+        strokeLinecap="round"
+        style={style}
+        onPointerDown={onPointerDown}
+      />
+    );
+  }
+
+  if (styleType === 'diamond') {
+    const s = Math.max(5 * scale, strokeWidth * 2);
+    return (
+      <polygon
+        points={`${to.x},${to.y - s} ${to.x + s},${to.y} ${to.x},${to.y + s} ${to.x - s},${to.y}`}
         fill={color}
         style={style}
         onPointerDown={onPointerDown}

@@ -6,6 +6,7 @@ import {
   vi,
 } from 'vitest';
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -106,18 +107,20 @@ describe('OcrPanelWriterConnected', () => {
   };
 
   const addAndSelectRegion = async (documentFingerprint: string) => {
-    useOcrStore.getState().addOcrRegion({
-      id: `region-${documentFingerprint}`,
-      geometryProvenance: 'pdf-user-space-v2',
-      documentFingerprint,
-      pageIndex: 0,
-      mode: 'text',
-      bbox: {
-        x: 72,
-        y: 100,
-        width: 180,
-        height: 60,
-      },
+    act(() => {
+      useOcrStore.getState().addOcrRegion({
+        id: `region-${documentFingerprint}`,
+        geometryProvenance: 'pdf-user-space-v2',
+        documentFingerprint,
+        pageIndex: 0,
+        mode: 'text',
+        bbox: {
+          x: 72,
+          y: 100,
+          width: 180,
+          height: 60,
+        },
+      });
     });
 
     await waitFor(() => {

@@ -11,6 +11,7 @@ import {
   type OcrExecutionPolicy,
   type OcrExecutionScalePreset,
 } from '@/core/ocr/ocrExecutionPolicy';
+import { OcrLanguageSelector } from './languages/OcrLanguageSelector';
 
 export interface OcrExecutionSettingsPanelProps {
   policy: OcrExecutionPolicy;
@@ -21,11 +22,11 @@ export interface OcrExecutionSettingsPanelProps {
 }
 
 const PRESET_LABELS: Record<OcrExecutionScalePreset, string> = {
-  fast: 'Fast Mode (1–5 pages, quick)',
-  balanced: 'Balanced (Standard 2x)',
-  accurate: 'Accurate (3x High-Res)',
-  high: 'Maximum Quality (4x Scale)',
-  'ten-page-batch': '10-Page Batch Mode (3x)',
+  fast: 'Fast Mode (1.5x Scale, Contrast Stretch)',
+  balanced: 'Balanced (2.5x Scale, Contrast Stretch)',
+  accurate: 'Accurate (300 DPI, Sauvola Adaptive)',
+  high: 'Maximum Quality (300 DPI, Sauvola Adaptive)',
+  'ten-page-batch': '10-Page Batch Mode (3x, Sauvola Adaptive)',
 };
 
 export const OcrExecutionSettingsPanel: React.FC<OcrExecutionSettingsPanelProps> = ({
@@ -122,12 +123,52 @@ export const OcrExecutionSettingsPanel: React.FC<OcrExecutionSettingsPanelProps>
           </select>
         </label>
 
+        <label className="text-xs text-slate-600 dark:text-slate-300">
+          Image Preprocessing
+          <select
+            className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
+            value={policy.preprocessing?.mode ?? 'contrast'}
+            data-testid="ocr-execution-preprocessing"
+            disabled={running}
+            onChange={(event) => {
+              const mode = event.currentTarget.value as 'none' | 'contrast' | 'sauvola';
+              updatePolicy({
+                preprocessing: { mode },
+              });
+            }}
+          >
+            <option value="sauvola">Sauvola Adaptive Binarization (CAD / Blueprints)</option>
+            <option value="contrast">Contrast Stretch & Sharpen (Standard Documents)</option>
+            <option value="none">None (Raw Raster)</option>
+          </select>
+        </label>
+
+        <label className="text-xs text-slate-600 dark:text-slate-300">
+          Domain Lexicon Tuning
+          <select
+            className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
+            value={policy.domainLexicon ?? 'engineering'}
+            data-testid="ocr-execution-domain-lexicon"
+            disabled={running}
+            onChange={(event) => {
+              const domainLexicon = event.currentTarget.value as 'none' | 'general' | 'engineering';
+              updatePolicy({
+                domainLexicon,
+              });
+            }}
+          >
+            <option value="engineering">Engineering & Industrial (Units, Symbols, CAD)</option>
+            <option value="general">General Standard</option>
+            <option value="none">None (Raw OCR Tokens)</option>
+          </select>
+        </label>
+
         <div className="grid grid-cols-2 gap-2">
           <NumberField
             label="Raster scale"
             value={policy.rasterScale}
             min={0.5}
-            max={4}
+            max={5}
             step={0.25}
             disabled={running}
             testId="ocr-execution-scale"
@@ -171,6 +212,36 @@ export const OcrExecutionSettingsPanel: React.FC<OcrExecutionSettingsPanelProps>
         <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
           <input
             type="checkbox"
+            checked={policy.multiPass ?? true}
+            disabled={running}
+            data-testid="ocr-execution-multi-pass"
+            onChange={(event) =>
+              updatePolicy({
+                multiPass: event.currentTarget.checked,
+              })
+            }
+          />
+          Multi-pass fallback (Automatic retry for sparse text / low confidence)
+        </label>
+
+        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <input
+            type="checkbox"
+            checked={policy.preserveInterwordSpaces ?? true}
+            disabled={running}
+            data-testid="ocr-execution-preserve-spaces"
+            onChange={(event) =>
+              updatePolicy({
+                preserveInterwordSpaces: event.currentTarget.checked,
+              })
+            }
+          />
+          Preserve interword spaces
+        </label>
+
+        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <input
+            type="checkbox"
             checked={policy.allowLargeJobs}
             disabled={running}
             data-testid="ocr-execution-allow-large"
@@ -182,6 +253,14 @@ export const OcrExecutionSettingsPanel: React.FC<OcrExecutionSettingsPanelProps>
           />
           Allow large OCR jobs
         </label>
+
+        <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+          <OcrLanguageSelector
+            languageHints={policy.languageHints ?? ['eng']}
+            disabled={running}
+            onChange={(languageHints) => updatePolicy({ languageHints })}
+          />
+        </div>
 
         <div
           className="rounded bg-slate-50 px-2 py-1 text-[11px] text-slate-600 dark:bg-slate-900 dark:text-slate-300"

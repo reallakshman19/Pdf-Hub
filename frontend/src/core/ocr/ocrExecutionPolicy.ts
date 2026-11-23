@@ -1,3 +1,5 @@
+import type { OcrPreprocessingOptions } from './preprocessing/ocrImagePreprocessor';
+
 export type OcrExecutionScalePreset =
   | 'fast'
   | 'balanced'
@@ -13,6 +15,11 @@ export interface OcrExecutionPolicy {
   timeoutMs: number;
   allowLargeJobs: boolean;
   batchChunkSize?: number;
+  preprocessing?: OcrPreprocessingOptions;
+  multiPass?: boolean;
+  domainLexicon?: 'general' | 'engineering' | 'none';
+  preserveInterwordSpaces?: boolean;
+  languageHints?: string[];
 }
 
 export interface OcrExecutionPolicyInput {
@@ -23,6 +30,11 @@ export interface OcrExecutionPolicyInput {
   timeoutMs?: number;
   allowLargeJobs?: boolean;
   batchChunkSize?: number;
+  preprocessing?: OcrPreprocessingOptions;
+  multiPass?: boolean;
+  domainLexicon?: 'general' | 'engineering' | 'none';
+  preserveInterwordSpaces?: boolean;
+  languageHints?: string[];
 }
 
 export interface OcrExecutionPageSize {
@@ -57,6 +69,7 @@ export interface OcrExecutionDiagnostic {
     | 'OCR_PAGE_INDEX_OUT_OF_RANGE'
     | 'OCR_LARGE_JOB_BLOCKED'
     | 'OCR_RASTER_MEMORY_HIGH'
+    | 'OCR_LOW_MEMORY_GUARD'
     | 'OCR_TIMEOUT_ENABLED'
     | 'OCR_CANCELLED'
     | 'OCR_TIMEOUT_REACHED';
@@ -66,39 +79,55 @@ export interface OcrExecutionDiagnostic {
 export const OCR_EXECUTION_PRESETS: Record<OcrExecutionScalePreset, OcrExecutionPolicy> = {
   fast: {
     preset: 'fast',
-    rasterScale: 1.25,
+    rasterScale: 1.5,
     maxPagesPerJob: 10,
     maxCanvasPixels: 8_000_000,
     timeoutMs: 45_000,
     allowLargeJobs: false,
     batchChunkSize: 5,
+    preprocessing: { mode: 'contrast' },
+    multiPass: false,
+    domainLexicon: 'general',
+    preserveInterwordSpaces: true,
   },
   balanced: {
     preset: 'balanced',
-    rasterScale: 2,
+    rasterScale: 2.5,
     maxPagesPerJob: 25,
     maxCanvasPixels: 16_000_000,
     timeoutMs: 90_000,
     allowLargeJobs: false,
     batchChunkSize: 5,
+    preprocessing: { mode: 'contrast' },
+    multiPass: true,
+    domainLexicon: 'general',
+    preserveInterwordSpaces: true,
   },
   accurate: {
     preset: 'accurate',
-    rasterScale: 3,
+    rasterScale: 4.1667,
     maxPagesPerJob: 40,
     maxCanvasPixels: 24_000_000,
     timeoutMs: 150_000,
     allowLargeJobs: false,
     batchChunkSize: 5,
+    preprocessing: { mode: 'sauvola' },
+    multiPass: true,
+    domainLexicon: 'engineering',
+    preserveInterwordSpaces: true,
   },
   high: {
     preset: 'high',
-    rasterScale: 4,
+    rasterScale: 4.1667,
     maxPagesPerJob: 60,
     maxCanvasPixels: 32_000_000,
     timeoutMs: 240_000,
     allowLargeJobs: false,
     batchChunkSize: 5,
+    preprocessing: { mode: 'sauvola' },
+    multiPass: true,
+    domainLexicon: 'engineering',
+    preserveInterwordSpaces: true,
   },
   'ten-page-batch': {
     preset: 'ten-page-batch',
@@ -108,24 +137,53 @@ export const OCR_EXECUTION_PRESETS: Record<OcrExecutionScalePreset, OcrExecution
     timeoutMs: 300_000,
     allowLargeJobs: true,
     batchChunkSize: 10,
+    preprocessing: { mode: 'sauvola' },
+    multiPass: true,
+    domainLexicon: 'engineering',
+    preserveInterwordSpaces: true,
   },
 };
+
+export function isLowMemoryDevice(): boolean {
+  if (typeof navigator !== 'undefined') {
+    const nav = navigator as unknown as { deviceMemory?: number; userAgent?: string };
+    if (typeof nav.deviceMemory === 'number' && nav.deviceMemory < 4) {
+      return true;
+    }
+    if (typeof nav.userAgent === 'string' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(nav.userAgent)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 export function createOcrExecutionPolicy(
   input: OcrExecutionPolicyInput = {},
 ): OcrExecutionPolicy {
-  const base = OCR_EXECUTION_PRESETS[input.preset ?? 'balanced'];
+  const isLowMem = isLowMemoryDevice();
+  const defaultPreset: OcrExecutionScalePreset = isLowMem ? 'fast' : 'balanced';
+  const base = OCR_EXECUTION_PRESETS[input.preset ?? defaultPreset];
+  const maxPixelsCap = isLowMem ? 8_000_000 : 64_000_000;
+  const maxCanvasPixels = Math.min(
+    maxPixelsCap,
+    Math.max(1_000_000, Math.floor(input.maxCanvasPixels ?? base.maxCanvasPixels)),
+  );
 
   return {
     ...base,
     ...input,
     preset: input.preset ?? base.preset,
-    rasterScale: clampNumber(input.rasterScale ?? base.rasterScale, 0.5, 4),
+    rasterScale: clampNumber(input.rasterScale ?? base.rasterScale, 0.5, 5),
     maxPagesPerJob: Math.max(1, Math.floor(input.maxPagesPerJob ?? base.maxPagesPerJob)),
-    maxCanvasPixels: Math.max(1_000_000, Math.floor(input.maxCanvasPixels ?? base.maxCanvasPixels)),
+    maxCanvasPixels,
     timeoutMs: Math.max(5_000, Math.floor(input.timeoutMs ?? base.timeoutMs)),
     allowLargeJobs: input.allowLargeJobs ?? base.allowLargeJobs,
     batchChunkSize: input.batchChunkSize ?? base.batchChunkSize,
+    preprocessing: input.preprocessing ?? base.preprocessing,
+    multiPass: input.multiPass ?? base.multiPass,
+    domainLexicon: input.domainLexicon ?? base.domainLexicon,
+    preserveInterwordSpaces: input.preserveInterwordSpaces ?? base.preserveInterwordSpaces,
+    languageHints: input.languageHints ?? base.languageHints ?? ['eng'],
   };
 }
 
@@ -207,6 +265,14 @@ export function createOcrExecutionPlan(
       level: 'warning',
       code: 'OCR_RASTER_MEMORY_HIGH',
       message: `Estimated OCR raster memory is high: ${formatBytes(estimatedRasterMemoryBytes)}.`,
+    });
+  }
+
+  if (isLowMemoryDevice()) {
+    diagnostics.push({
+      level: 'info',
+      code: 'OCR_LOW_MEMORY_GUARD',
+      message: 'Low-memory device detected; raster memory capped for safety.',
     });
   }
 

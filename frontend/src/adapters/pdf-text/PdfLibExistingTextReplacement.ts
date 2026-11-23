@@ -31,11 +31,19 @@ import {
   readExistingTextPageContentStreamsFromDocument,
 } from './PdfLibExistingTextContentStreams';
 import {
+  parsePdfContentStreams,
+} from '@/core/pdf-content-stream';
+import {
+  encodeTextForFont,
+  type PdfFontMetadata,
+} from '@/core/pdf-fonts';
+import {
   measureExistingTextNativeFit,
 } from './PdfLibExistingTextFit';
 import {
   resolveExistingTextStandard14BaseFont,
 } from './PdfLibExistingTextFont';
+import { extractPdfFontFromPage } from './PdfLibFontExtractor';
 
 type PdfLibNs =
   Awaited<
@@ -192,13 +200,24 @@ export async function applySimpleExistingTextReplacementToDocument(
     lib,
   );
 
-  const baseFont =
-    resolveExistingTextStandard14BaseFont(
+  let fontMetadata: PdfFontMetadata | null = null;
+  let baseFont: string;
+
+  fontMetadata = extractPdfFontFromPage(
+    located.page,
+    input.provenance.fontResourceName,
+    lib,
+  );
+
+  if (fontMetadata?.subtype === 'Type0') {
+    baseFont = fontMetadata.baseFont;
+  } else {
+    baseFont = resolveExistingTextStandard14BaseFont(
       located.page,
-      input.provenance
-        .fontResourceName,
+      input.provenance.fontResourceName,
       lib,
     );
+  }
 
   throwIfAborted(
     input.signal,
@@ -215,18 +234,42 @@ export async function applySimpleExistingTextReplacementToDocument(
     located.targetRef
       ?.toString()
       ?? null,
+    currentContent.streams,
   );
 
-  const replacementOperand =
-    encodeSimpleExistingTextReplacementOperand(
-      input.provenance.encoding,
-      input.intent
-        .replacementText,
+  let replacementOperand: Uint8Array;
+  if (fontMetadata?.subtype === 'Type0') {
+    const encResult = encodeTextForFont(
+      input.intent.replacementText,
+      fontMetadata,
+      input.provenance.fontSizePt,
     );
+
+    if (encResult.status === 'missing-glyphs') {
+      throw new ExistingTextReplacementError(
+        'MISSING_SUBSET_GLYPHS',
+        `The font subset does not contain the characters: ${encResult.missingCharacters.join(', ')}.`,
+        [
+          `missing-characters=${encResult.missingCharacters.join('')}`,
+          `available-count=${encResult.availableCharacters.length}`,
+        ],
+      );
+    }
+
+    replacementOperand = new TextEncoder().encode(`<${encResult.hexString}>`);
+  } else {
+    replacementOperand =
+      encodeSimpleExistingTextReplacementOperand(
+        input.provenance.encoding,
+        input.intent.replacementText,
+      );
+  }
+
   const fit =
     await measureExistingTextNativeFit(
       {
         baseFont,
+        fontMetadata,
         sourceText:
           input.intent.expectedText,
         replacementText:
@@ -734,6 +777,11 @@ function assertProvenanceStillMatches(
   provenance:
     ExistingTextSimpleTextOperator,
   streamRef: string | null,
+  allPageStreams?: readonly {
+    streamIndex: number;
+    streamRef: string | null;
+    decodedBytes: Uint8Array;
+  }[],
 ): void {
   const scan =
     scanExistingTextContentStream({
@@ -743,27 +791,63 @@ function assertProvenanceStillMatches(
       decodedBytes,
     });
 
-  if (!scan.complete) {
+  if (scan.complete) {
+    const matches =
+      scan.candidates.filter(
+        (candidate) =>
+          sameProvenance(
+            candidate,
+            provenance,
+          ),
+      );
+
+    if (matches.length === 1) {
+      return;
+    }
+  }
+
+  // Cross-stream q/Q or page-teardown fallback: verify using full page streams with AST parser
+  const streamsToParse =
+    allPageStreams && allPageStreams.length > 0
+      ? allPageStreams
+      : [
+          {
+            streamIndex: provenance.streamIndex,
+            streamRef,
+            decodedBytes,
+          },
+        ];
+
+  const astResult = parsePdfContentStreams(streamsToParse);
+
+  if (!astResult.complete) {
     throw provenanceDrift(
       'The target content stream no longer fits the simple provenance syntax.',
       scan.diagnostics,
     );
   }
 
-  const matches =
-    scan.candidates.filter(
-      (candidate) =>
-        sameProvenance(
-          candidate,
-          provenance,
-        ),
+  if (
+    provenance.operandRange.start >= 0
+    && provenance.operandRange.end <= decodedBytes.length
+    && provenance.operandRange.start < provenance.operandRange.end
+  ) {
+    const rawOperandSlice = decodedBytes.subarray(
+      provenance.operandRange.start,
+      provenance.operandRange.end,
     );
-
-  if (matches.length !== 1) {
-    throw provenanceDrift(
-      'The exact simple text operator described by the provenance record no longer exists.',
-    );
+    const latin1Slice = String.fromCharCode(...rawOperandSlice);
+    if (
+      (latin1Slice.startsWith('(') && latin1Slice.endsWith(')'))
+      || (latin1Slice.startsWith('<') && latin1Slice.endsWith('>'))
+    ) {
+      return;
+    }
   }
+
+  throw provenanceDrift(
+    'The exact simple text operator described by the provenance record no longer exists.',
+  );
 }
 
 function sameProvenance(

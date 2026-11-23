@@ -12,6 +12,7 @@ import {
 
 interface UsePageRendererOptions {
   doc: PDFDocumentProxy | null;
+  documentKey?: string | null;
   pageNumber: number;
   scale: number;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -23,7 +24,7 @@ interface PageSize {
 }
 
 export function usePageRenderer({
-  doc, pageNumber, scale, canvasRef,
+  doc, documentKey, pageNumber, scale, canvasRef,
 }: UsePageRendererOptions) {
   const tokenRef = useRef<RenderToken | null>(null);
   const [size, setSize] = useState<PageSize | null>(null);
@@ -43,7 +44,7 @@ export function usePageRenderer({
     const devicePixelRatio = globalThis.devicePixelRatio ?? 1;
     const renderKey = [
       'page',
-      getRenderObjectId(doc, 'document'),
+      documentKey ?? getRenderObjectId(doc, 'document'),
       pageNumber,
       scale.toFixed(4),
       devicePixelRatio.toFixed(2),
@@ -105,7 +106,7 @@ export function usePageRenderer({
       void tokenRef.current?.cancel();
       tokenRef.current = null;
     };
-  }, [doc, pageNumber, scale]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [doc, documentKey, pageNumber, scale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A view from a previous page/document/zoom must never own a new OCR area.
   const ocrViewport =

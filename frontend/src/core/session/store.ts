@@ -42,6 +42,18 @@ export interface CommitWorkingCopyPayload {
   activeRevisionId?: string | null;
 }
 
+export interface CommitMutationPayload {
+  bytes: Uint8Array;
+  pageCount: number;
+  documentKey: string;
+  activeRevisionId?: string | null;
+  pageGraph?: PageGraph<PageNode> | null;
+  selectedPages?: number[];
+  selectedPageIds?: PageId[];
+  currentPage?: number | null;
+  currentPageId?: PageId | null;
+}
+
 export interface SessionActions {
   setDocumentKey: (documentKey: string | null) => void;
   setPageGraph: (pageGraph: PageGraph<PageNode> | null) => void;
@@ -52,6 +64,7 @@ export interface SessionActions {
     activeRevisionId?: string | null,
   ) => void;
   commitWorkingCopy: (payload: CommitWorkingCopyPayload) => void;
+  commitMutation: (payload: CommitMutationPayload) => void;
   setPage: (pageNumber: number) => void;
   setPageById: (pageId: PageId) => void;
   setZoom: (zoom: number) => void;
@@ -572,6 +585,97 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
           status: 'saved',
           pendingCount: 0,
           lastSavedAt: Date.now(),
+        },
+      };
+    });
+  },
+
+  commitMutation: ({
+    bytes,
+    pageCount,
+    documentKey,
+    activeRevisionId,
+    pageGraph,
+    selectedPages,
+    selectedPageIds,
+    currentPage,
+    currentPageId,
+  }) => {
+    if (import.meta.env.DEV) Object.freeze(bytes.buffer);
+    return set((state) => {
+      const nextActiveRevisionId =
+        activeRevisionId !== undefined
+          ? activeRevisionId
+          : state.activeRevisionId === documentKey
+            ? state.activeRevisionId
+            : null;
+      if (
+        nextActiveRevisionId
+        && nextActiveRevisionId !== documentKey
+      ) {
+        throw new Error(
+          `activeRevisionId ${nextActiveRevisionId} must match documentKey ${documentKey}.`,
+        );
+      }
+      if (
+        nextActiveRevisionId
+        && !state.revisionStoreId
+      ) {
+        throw new Error(
+          'Cannot commit activeRevisionId without a registered revisionStoreId.',
+        );
+      }
+
+      const nextPageGraph =
+        pageGraph !== undefined
+          ? pageGraph
+          : state.pageGraph && state.pageGraph.pages.length === pageCount
+            ? rekeyPageGraph(state.pageGraph, documentKey)
+            : null;
+
+      const navigation = nextPageGraph
+        ? resolveNavigationForGraph(state, nextPageGraph)
+        : {
+            selectedPageIds: selectedPageIds ?? state.selectedPageIds,
+            selectedPages: selectedPages ?? validSelectedPages(state.selectedPages, pageCount),
+            currentPageId: currentPageId ?? state.viewState.currentPageId,
+            currentPage: typeof currentPage === 'number'
+              ? clampPage(currentPage, pageCount)
+              : clampPage(state.viewState.currentPage, pageCount),
+          };
+
+      const finalSelectedPageIds = selectedPageIds ?? navigation.selectedPageIds;
+      const finalSelectedPages = selectedPages ?? (nextPageGraph
+        ? pageNumbersForIds(nextPageGraph, finalSelectedPageIds)
+        : validSelectedPages(state.selectedPages, pageCount));
+
+      const finalCurrentPage = typeof currentPage === 'number'
+        ? clampPage(currentPage, pageCount)
+        : navigation.currentPage;
+      const finalCurrentPageId = typeof currentPage === 'number'
+        ? (nextPageGraph ? pageIdForNumber(nextPageGraph, finalCurrentPage) : null)
+        : (currentPageId ?? navigation.currentPageId);
+
+      return {
+        workingBytes: bytes,
+        documentKey,
+        activeRevisionId: nextActiveRevisionId,
+        pageCount,
+        pageGraph: nextPageGraph,
+        isDirty: true,
+        isDocumentDirty: true,
+        isReviewDirty: true,
+        isSessionDirty: true,
+        selectedPageIds: finalSelectedPageIds,
+        selectedPages: finalSelectedPages,
+        viewState: {
+          ...state.viewState,
+          currentPageId: finalCurrentPageId,
+          currentPage: finalCurrentPage,
+        },
+        saveState: {
+          status: 'idle',
+          message: 'Unsaved document changes',
         },
       };
     });
