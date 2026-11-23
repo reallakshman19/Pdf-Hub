@@ -2,8 +2,14 @@ import React from 'react';
 import type {
   WriterPagePreset,
   WriterPageSetupV2,
+  WriterPageTemplateKind,
 } from '@/core/writer-v2/types';
 import { createWriterPageSetup } from '@/core/writer-v2/writerDocumentMode';
+import {
+  ALL_PAGE_TEMPLATE_KINDS,
+  PAGE_TEMPLATE_PRESETS,
+  getDefaultPageTemplateOptions,
+} from '@/core/writer-v2/templates/pageTemplates';
 
 export interface BlankDocumentPageSetupDialogProps {
   open: boolean;
@@ -19,6 +25,12 @@ export const BlankDocumentPageSetupDialog: React.FC<BlankDocumentPageSetupDialog
   onApply,
 }) => {
   const [preset, setPreset] = React.useState<WriterPagePreset>(pageSetup.preset);
+  const [templateKind, setTemplateKind] = React.useState<WriterPageTemplateKind>(
+    pageSetup.pageTemplate?.kind ?? 'blank',
+  );
+  const [templateSpacing, setTemplateSpacing] = React.useState<number | undefined>(
+    pageSetup.pageTemplate?.spacing,
+  );
   const [width, setWidth] = React.useState(pageSetup.width);
   const [height, setHeight] = React.useState(pageSetup.height);
   const [marginTop, setMarginTop] = React.useState(pageSetup.marginTop);
@@ -33,19 +45,14 @@ export const BlankDocumentPageSetupDialog: React.FC<BlankDocumentPageSetupDialog
     // The dialog owns a local draft that must reset from committed page setup on every open.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPreset(pageSetup.preset);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTemplateKind(pageSetup.pageTemplate?.kind ?? 'blank');
+    setTemplateSpacing(pageSetup.pageTemplate?.spacing);
     setWidth(pageSetup.width);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHeight(pageSetup.height);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMarginTop(pageSetup.marginTop);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMarginRight(pageSetup.marginRight);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMarginBottom(pageSetup.marginBottom);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMarginLeft(pageSetup.marginLeft);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBackgroundColor(pageSetup.backgroundColor ?? '#ffffff');
   }, [open, pageSetup]);
 
@@ -73,6 +80,13 @@ export const BlankDocumentPageSetupDialog: React.FC<BlankDocumentPageSetupDialog
   };
 
   const submit = () => {
+    const pageTemplate = templateKind !== 'blank'
+      ? {
+          ...getDefaultPageTemplateOptions(templateKind),
+          ...(typeof templateSpacing === 'number' && templateSpacing > 0 ? { spacing: templateSpacing } : {}),
+        }
+      : { kind: 'blank' as const };
+
     onApply(createWriterPageSetup(preset, {
       width,
       height,
@@ -81,6 +95,8 @@ export const BlankDocumentPageSetupDialog: React.FC<BlankDocumentPageSetupDialog
       marginBottom,
       marginLeft,
       backgroundColor,
+      pageTemplate,
+      pageTemplates: pageSetup.pageTemplates,
     }));
   };
 
@@ -155,6 +171,43 @@ export const BlankDocumentPageSetupDialog: React.FC<BlankDocumentPageSetupDialog
             </label>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+              Page template
+              <select
+                data-testid="blank-page-setup-template-select"
+                className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900"
+                value={templateKind}
+                onChange={(event) => {
+                  const nextKind = event.currentTarget.value as WriterPageTemplateKind;
+                  setTemplateKind(nextKind);
+                  setTemplateSpacing(PAGE_TEMPLATE_PRESETS[nextKind].defaultSpacing || undefined);
+                }}
+              >
+                {ALL_PAGE_TEMPLATE_KINDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {PAGE_TEMPLATE_PRESETS[kind].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {templateKind !== 'blank' && PAGE_TEMPLATE_PRESETS[templateKind].defaultSpacing > 0 ? (
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                Line spacing, pt
+                <input
+                  data-testid="blank-page-setup-template-spacing-input"
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900"
+                  type="number"
+                  min={4}
+                  max={72}
+                  value={templateSpacing ?? PAGE_TEMPLATE_PRESETS[templateKind].defaultSpacing}
+                  onChange={(event) => setTemplateSpacing(Number(event.currentTarget.value))}
+                />
+              </label>
+            ) : null}
+          </div>
+
           <div className="grid grid-cols-4 gap-2">
             <MarginInput label="Top" testId="blank-page-setup-margin-top-input" value={marginTop} onChange={setMarginTop} />
             <MarginInput label="Right" testId="blank-page-setup-margin-right-input" value={marginRight} onChange={setMarginRight} />
@@ -177,7 +230,7 @@ export const BlankDocumentPageSetupDialog: React.FC<BlankDocumentPageSetupDialog
             data-testid="blank-page-setup-summary"
             className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
           >
-            {Math.round(width)} × {Math.round(height)} pt · margins {Math.round(marginTop)} / {Math.round(marginRight)} / {Math.round(marginBottom)} / {Math.round(marginLeft)} pt
+            {PAGE_TEMPLATE_PRESETS[templateKind].label} · {Math.round(width)} × {Math.round(height)} pt · margins {Math.round(marginTop)} / {Math.round(marginRight)} / {Math.round(marginBottom)} / {Math.round(marginLeft)} pt
           </div>
         </div>
 

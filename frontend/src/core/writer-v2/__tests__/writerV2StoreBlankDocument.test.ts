@@ -75,7 +75,7 @@ describe('writerV2Store blank document mode', () => {
       ],
     });
 
-    useWriterV2Store.getState().addBlankWriterPage(0, '2026-01-03T00:00:00.000Z');
+    useWriterV2Store.getState().addBlankWriterPage(0, undefined, '2026-01-03T00:00:00.000Z');
 
     const state = useWriterV2Store.getState();
 
