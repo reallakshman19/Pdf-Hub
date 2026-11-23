@@ -123,11 +123,17 @@ function isVisible(annotation: PDFDict, lib: PdfLib): boolean {
  * If a visible annotation has an unsupported appearance, fail rather than
  * silently dropping it from a purportedly complete flattened export.
  */
-export async function flattenNativePdfAnnotations(bytes: Uint8Array): Promise<Uint8Array> {
+export async function flattenNativePdfAnnotations(
+  bytes: Uint8Array,
+  pageIndices?: readonly number[],
+): Promise<Uint8Array> {
   const lib = await pdfLib();
   const pdf = await lib.PDFDocument.load(bytes);
 
   for (const [index, page] of pdf.getPages().entries()) {
+    if (pageIndices && !pageIndices.includes(index)) {
+      continue;
+    }
     const annots = page.node.lookupMaybe(lib.PDFName.of('Annots'), lib.PDFArray);
     if (!annots) continue;
     // Preserve hyperlinks as portable /Link objects. They are navigation,
