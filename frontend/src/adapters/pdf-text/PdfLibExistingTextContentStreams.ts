@@ -8,6 +8,7 @@ import type {
   ExistingTextContentStreamReadResult,
   ExistingTextDecodedContentStream,
 } from '@/core/existing-text/provenanceTypes';
+import { buildExistingTextFontDecoders } from './PdfLibExistingTextFontDecoders';
 
 type PdfLibNs =
   Awaited<
@@ -181,6 +182,19 @@ export function readExistingTextPageContentStreamsFromDocument(
     }
   }
 
+  let fontDecoders:
+    ExistingTextContentStreamReadResult['fontDecoders'];
+  try {
+    fontDecoders =
+      buildExistingTextFontDecoders(
+        page,
+        lib,
+      );
+  } catch {
+    // Without decoders the matcher falls back to printable-ASCII strings only.
+    fontDecoders = undefined;
+  }
+
   return {
     pageIndex,
     complete:
@@ -189,6 +203,7 @@ export function readExistingTextPageContentStreamsFromDocument(
         === entries.length,
     streams,
     diagnostics,
+    fontDecoders,
   };
 }
 

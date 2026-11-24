@@ -8,6 +8,13 @@ import {
 import {
   scanExistingTextContentStream,
 } from './contentStreamScanner';
+import {
+  normalizeExistingTextForMatch,
+} from './fontDecoding';
+import {
+  walkExistingTextPageSpaceShows,
+  type ExistingTextPageSpaceCandidate,
+} from './pageSpaceTextWalker';
 import type {
   ExistingTextContentStreamReadResult,
   ExistingTextProvenanceMatchInput,
@@ -101,78 +108,108 @@ export function matchExistingTextSpanToContentStream(
     );
   }
 
+  const astResult = parsePdfContentStreams(
+    content.streams.map((s) => ({
+      streamIndex: s.streamIndex,
+      streamRef: s.streamRef,
+      decodedBytes: s.decodedBytes,
+    })),
+  );
+
   // If isolated single-stream scanning failed (e.g. cross-stream q/Q or §8.4.1 page teardown),
   // re-parse with the multi-stream ISO 32000-1 AST engine before failing closed.
+  let exactCandidates: ExistingTextSimpleTextOperator[] | null =
+    candidates;
   if (singleStreamScanFailed) {
-    const astResult = parsePdfContentStreams(
-      content.streams.map((s) => ({
-        streamIndex: s.streamIndex,
-        streamRef: s.streamRef,
-        decodedBytes: s.decodedBytes,
-      })),
-    );
-
-    if (astResult.complete) {
-      const astCandidates = buildCandidatesFromAst(astResult, content);
-      const matchedAstCandidates = astCandidates.filter((c) =>
-        candidateMatchesSpan(c, span),
-      );
-
-      if (matchedAstCandidates.length === 1) {
-        return {
-          status: 'matched',
-          spanId: span.id,
-          provenance: matchedAstCandidates[0],
-        };
-      }
-      if (matchedAstCandidates.length > 1) {
-        return unmapped(
-          span,
-          'AMBIGUOUS_SIMPLE_TEXT_OPERATOR_MATCH',
-          matchedAstCandidates.length,
-          diagnostics,
-        );
-      }
-      return unmapped(
-        span,
-        'NO_SIMPLE_TEXT_OPERATOR_MATCH',
-        0,
-        diagnostics,
-      );
-    }
-
-    return unmapped(
-      span,
-      'UNSUPPORTED_CONTENT_STREAM_SYNTAX',
-      0,
-      diagnostics,
-    );
+    exactCandidates = astResult.complete
+      ? buildCandidatesFromAst(astResult, content).filter((c) =>
+          candidateMatchesSpan(c, span),
+        )
+      : null;
   }
 
-  if (candidates.length === 0) {
-    return unmapped(
-      span,
-      'NO_SIMPLE_TEXT_OPERATOR_MATCH',
-      0,
-      diagnostics,
-    );
-  }
-
-  if (candidates.length > 1) {
+  if (exactCandidates && exactCandidates.length > 1) {
     return unmapped(
       span,
       'AMBIGUOUS_SIMPLE_TEXT_OPERATOR_MATCH',
-      candidates.length,
+      exactCandidates.length,
       diagnostics,
     );
   }
 
-  return {
-    status: 'matched',
-    spanId: span.id,
-    provenance:
-      candidates[0],
-  };
+  if (exactCandidates && exactCandidates.length === 1) {
+    return {
+      status: 'matched',
+      spanId: span.id,
+      provenance: exactCandidates[0],
+    };
+  }
+
+  // Page-space fallback: replay CTM, text state, spacing and advances, and
+  // decode strings through the page fonts, so real-world streams (cm, scaled
+  // Tm, Tc/Tw/Tz, kerned TJ, several shows per BT) can still map uniquely.
+  if (!astResult.complete) {
+    return unmapped(
+      span,
+      exactCandidates === null
+        ? 'UNSUPPORTED_CONTENT_STREAM_SYNTAX'
+        : 'NO_SIMPLE_TEXT_OPERATOR_MATCH',
+      0,
+      diagnostics,
+    );
+  }
+
+  const streamRefs = new Map(
+    content.streams.map((s) => [s.streamIndex, s.streamRef] as const),
+  );
+  const pageSpaceMatches = walkExistingTextPageSpaceShows(
+    astResult,
+    streamRefs,
+    content.fontDecoders,
+  ).filter((candidate) => pageSpaceCandidateMatchesSpan(candidate, span));
+
+  if (pageSpaceMatches.length > 1) {
+    return unmapped(
+      span,
+      'AMBIGUOUS_SIMPLE_TEXT_OPERATOR_MATCH',
+      pageSpaceMatches.length,
+      diagnostics,
+    );
+  }
+  if (pageSpaceMatches.length === 1) {
+    return {
+      status: 'matched',
+      spanId: span.id,
+      provenance: {
+        ...pageSpaceMatches[0].provenance,
+        // Normalised-equal to the operator text; downstream identity checks bind to span text.
+        decodedText: span.text,
+      },
+    };
+  }
+
+  return unmapped(
+    span,
+    'NO_SIMPLE_TEXT_OPERATOR_MATCH',
+    0,
+    diagnostics,
+  );
+}
+
+function pageSpaceCandidateMatchesSpan(
+  candidate: ExistingTextPageSpaceCandidate,
+  span: ExistingTextSpan,
+): boolean {
+  const spanText = normalizeExistingTextForMatch(span.text);
+  if (
+    spanText.length === 0
+    || normalizeExistingTextForMatch(candidate.text) !== spanText
+  ) {
+    return false;
+  }
+  return candidate.renderMatrix.every((value, index) =>
+    nearlyEqual(value, span.transform[index]),
+  );
 }
 
 function candidateMatchesSpan(

@@ -1,4 +1,7 @@
 import type {
+  ExistingTextFontDecoders,
+} from './fontDecoding';
+import type {
   ExistingTextSpan,
   ExistingTextTransform,
 } from './types';
@@ -28,6 +31,9 @@ export interface ExistingTextContentStreamReadResult {
     ExistingTextDecodedContentStream[];
   diagnostics:
     ExistingTextContentStreamDiagnostic[];
+  /** Per page font resource name (without leading slash): how to decode its string bytes. */
+  fontDecoders?:
+    ExistingTextFontDecoders;
 }
 
 export type ExistingTextSimpleStringEncoding =
@@ -53,6 +59,15 @@ export interface ExistingTextSimpleTextOperatorBase {
   fontSizePt: number;
   textMatrix:
     ExistingTextTransform;
+  /**
+   * Character (Tc) and word (Tw) spacing in page-space points per glyph /
+   * per single-byte space, when the operator was matched in page space.
+   * Absent for the legacy exact-subset scanner, which rejects Tc/Tw.
+   */
+  spacingPt?: {
+    char: number;
+    word: number;
+  };
 }
 
 export interface ExistingTextTjOperator

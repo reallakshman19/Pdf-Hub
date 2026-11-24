@@ -22,6 +22,8 @@ export async function measureExistingTextNativeFit(
     observedAdvancePt: number;
     fontSizePt: number;
     fontMetadata?: PdfFontMetadata | null;
+    /** Page-space Tc / Tw that the rewritten operator keeps applying (ISO 32000-1 §9.3.2–9.3.3). */
+    spacingPt?: { char: number; word: number };
     signal?: AbortSignal;
   },
   lib?: PdfLibNs,
@@ -196,12 +198,41 @@ export async function measureExistingTextNativeFit(
     };
   }
 
+  // Tc/Tw add a fixed amount per glyph / space on top of the glyph widths, so
+  // they are taken out of the observed advance before scaling and added back
+  // for the replacement's own glyph and space count.
+  const sourceSpacingPt =
+    spacingAdvancePt(input.sourceText, input.spacingPt);
+  const replacementSpacingPt =
+    spacingAdvancePt(input.replacementText, input.spacingPt);
+  const observedGlyphAdvancePt =
+    input.observedAdvancePt - sourceSpacingPt;
+  if (
+    !Number.isFinite(observedGlyphAdvancePt)
+    || observedGlyphAdvancePt <= 0
+  ) {
+    return {
+      schemaVersion: 1,
+      status: 'unmeasurable',
+      reason: 'INVALID_OBSERVED_ADVANCE',
+      baseFont: input.baseFont,
+      sourceText: input.sourceText,
+      replacementText:
+        input.replacementText,
+      observedAdvancePt:
+        input.observedAdvancePt,
+      fontSizePt:
+        input.fontSizePt,
+      tolerancePt,
+    };
+  }
   const observedToMetricScale =
-    input.observedAdvancePt
+    observedGlyphAdvancePt
     / measuredSourceWidthPt;
   const projectedReplacementAdvancePt =
     measuredReplacementWidthPt
-    * observedToMetricScale;
+    * observedToMetricScale
+    + replacementSpacingPt;
   const overflowPt =
     Math.max(
       0,
@@ -233,6 +264,20 @@ export async function measureExistingTextNativeFit(
     projectedReplacementAdvancePt,
     overflowPt,
   };
+}
+
+function spacingAdvancePt(
+  text: string,
+  spacing: { char: number; word: number } | undefined,
+): number {
+  if (!spacing) return 0;
+  let glyphs = 0;
+  let spaces = 0;
+  for (const character of text) {
+    glyphs += 1;
+    if (character === ' ') spaces += 1;
+  }
+  return glyphs * spacing.char + spaces * spacing.word;
 }
 
 function standardFontForBaseFont(
