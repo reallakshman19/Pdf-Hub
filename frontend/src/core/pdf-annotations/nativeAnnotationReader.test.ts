@@ -126,6 +126,38 @@ describe('readNativePdfAnnotations', () => {
     });
   });
 
+  it('imports the /Name icon and /C colour of external notes, defaulting /Name to Note', async () => {
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([300, 400]);
+    const named = doc.context.register(doc.context.obj({
+      Type: 'Annot', Subtype: 'Text', Rect: [20, 300, 40, 320],
+      Contents: PDFHexString.fromText('UDEFM57/HUM'), NM: PDFString.of('named'),
+      Name: 'Comment', C: [0.55, 0.25, 0.95], Open: false,
+    }));
+    const unnamed = doc.context.register(doc.context.obj({
+      Type: 'Annot', Subtype: 'Text', Rect: [60, 300, 80, 320],
+      Contents: PDFHexString.fromText('plain'), NM: PDFString.of('unnamed'),
+    }));
+    const annots = doc.context.obj([]);
+    annots.push(named);
+    annots.push(unnamed);
+    page.node.set(PDFName.of('Annots'), annots);
+
+    const read = await readNativePdfAnnotations(new Uint8Array(await doc.save()));
+    const byId = (id: string) => read.annotations.find((item) => item.id === id);
+
+    expect(byId('named')?.data).toMatchObject({ noteIcon: 'Comment', borderColor: '#8c40f2', isCollapsed: true });
+    expect(byId('unnamed')?.data.noteIcon).toBe('Note');
+  });
+
+  it('does not mark PDF Hub authored notes as icon notes', async () => {
+    const written = await writeNativePdfAnnotations(await createPdf(), [
+      annotation('own-note', 'sticky-note', { text: 'mine', author: 'Me' }, { x: 20, y: 30, width: 24, height: 24 }),
+    ]);
+    const read = await readNativePdfAnnotations(written.bytes);
+    expect(read.annotations.find((item) => item.id === 'own-note')?.data.noteIcon).toBeUndefined();
+  });
+
   it('skips unrelated annotation types such as links', async () => {
     const doc = await PDFDocument.create();
     const page = doc.addPage([300, 400]);
