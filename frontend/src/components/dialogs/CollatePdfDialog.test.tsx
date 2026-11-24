@@ -47,7 +47,8 @@ describe('CollatePdfDialog', () => {
       mode: 'forward',
       donorPageIndices: undefined,
     });
-    expect(handleClose).toHaveBeenCalledTimes(1);
+    // onClose is the owner's cancel path; confirm must not invoke it.
+    expect(handleClose).not.toHaveBeenCalled();
   });
 
   it('switches to reverse-duplex mode and custom range', () => {

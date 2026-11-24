@@ -52,7 +52,9 @@ describe('InsertPdfDialog', () => {
       placement: 'after',
       targetPage: 2,
     });
-    expect(handleClose).toHaveBeenCalledTimes(1);
+    // onClose is the owner's cancel path (it aborts the staged operation);
+    // confirm must not invoke it — the owner closes the dialog itself.
+    expect(handleClose).not.toHaveBeenCalled();
   });
 
   it('parses custom page range and passes 0-based indices on confirm', () => {
