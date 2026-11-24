@@ -23,12 +23,30 @@ import { ExtractPagesDialog } from '@/components/dialogs/ExtractPagesDialog';
 import { PageLabelsDialog } from '@/components/dialogs/PageLabelsDialog';
 import { CollatePdfDialog } from '@/components/dialogs/CollatePdfDialog';
 import { NormalizePageSizeDialog } from '@/components/dialogs/NormalizePageSizeDialog';
+import { BatesNumberingDialog } from '@/components/dialogs/BatesNumberingDialog';
+import { CropMarginsDialog } from '@/components/dialogs/CropMarginsDialog';
 import {
   ThumbnailMacroConfigDialog,
   type ThumbnailMacroKind,
 } from './ThumbnailMacroConfigDialog';
 import { collatePdfDocuments } from '@/core/pdf-mutation/pdfCollation';
 import { normalizePdfPageDimensions, type NormalizeOptions } from '@/core/pdf-mutation/pdfNormalization';
+import { createSplitPagesZipBundle } from '@/core/pdf-mutation/pdfSplitBundle';
+import {
+  applyBatesNumbering,
+  type BatesNumberingOptions,
+} from '@/core/pdf-mutation/pdfBatesNumbering';
+import {
+  cropPdfMargins,
+  calculateContentBoundingBoxFromRgba,
+  type CropMarginOptions,
+  type DetectedBoundingBox,
+} from '@/core/pdf-mutation/pdfMarginCropping';
+import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
+import { usePageClipboardStore, serializeSelectedPagesToPdf } from '@/core/clipboard/pageClipboardStore';
+import { copyPageImageToClipboard, downloadPageAsPng } from '@/core/thumbnails/quickPageExport';
+import { usePdfStore } from '@/core/session/pdfStore';
+import { flattenNativePdfAnnotations } from '@/core/pdf-annotations/flattenNativePdfAnnotations';
 
 interface ThumbnailContextMenuProps {
   x: number;
@@ -37,6 +55,7 @@ interface ThumbnailContextMenuProps {
   selectedPages: number[];
   onClose: () => void;
   onOpenMacros?: () => void;
+  onOpenOcr?: () => void;
 }
 
 export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
@@ -46,9 +65,12 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
   selectedPages,
   onClose,
   onOpenMacros,
+  onOpenOcr,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const donorOperationRef = useRef<AbortController | null>(null);
+  const pdfDoc = usePdfStore((state) => state.pdfDoc);
+  const { clipboard, copyPages, cutPages, clearClipboard } = usePageClipboardStore();
   const {
     workingBytes,
     documentKey,
@@ -63,7 +85,7 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
     pageGraph: state.pageGraph,
   })));
   const addToast = useToastStore((state) => state.addToast);
-  const targetPages = selectedPages.includes(page) ? selectedPages : [page];
+  const targetPages = (selectedPages.includes(page) ? [...selectedPages] : [page]).sort((a, b) => a - b);
   const pageIndices = targetPages.map((value) => value - 1);
   const pageIds = targetPages.flatMap((pageNumber) => {
     const pageId = pageGraph?.pages[pageNumber - 1]?.pageId;
@@ -93,6 +115,8 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
     documentKey: string;
   } | null>(null);
   const [isNormalizeOpen, setIsNormalizeOpen] = React.useState(false);
+  const [isBatesOpen, setIsBatesOpen] = React.useState(false);
+  const [isCropMarginsOpen, setIsCropMarginsOpen] = React.useState(false);
   const [extractDialogState, setExtractDialogState] = React.useState<{
     isOpen: boolean;
     initialMode: 'extract' | 'split';
@@ -108,6 +132,8 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
       stagedMultiReplace ||
       stagedCollate ||
       isNormalizeOpen ||
+      isBatesOpen ||
+      isCropMarginsOpen ||
       extractDialogState ||
       isPageLabelsOpen
     ) return;
@@ -138,6 +164,8 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
     stagedMultiReplace,
     stagedCollate,
     isNormalizeOpen,
+    isBatesOpen,
+    isCropMarginsOpen,
     extractDialogState,
     isPageLabelsOpen,
   ]);
@@ -699,6 +727,476 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
     }
   };
 
+  const confirmBatesNumbering = async (options: BatesNumberingOptions) => {
+    if (!workingBytes || !documentKey) return;
+    try {
+      const result = await applyBatesNumbering(workingBytes, options);
+      const cmdResult = await commandBus.execute({
+        workingBytes,
+        command: materializePdfCommand(
+          {
+            type: 'APPLY_WORKING_COPY',
+            payload: {
+              binaryResourceId: 'binary:bates',
+              nextPageCount: useSessionStore.getState().pageCount,
+              reason: `Bates numbering (${result.sampleFirstStamp})`,
+            },
+          },
+          'thumbnail-menu',
+          documentKey,
+        ),
+        resources: {
+          binaries: {
+            'binary:bates': result.modifiedBytes,
+          },
+        },
+      });
+
+      if (!cmdResult.success) {
+        if (cmdResult.error?.code === 'CANCELLED') return;
+        addToast({
+          type: 'error',
+          title: 'Bates Numbering Failed',
+          message: cmdResult.error?.message ?? cmdResult.message,
+        });
+        return;
+      }
+
+      addToast({
+        type: 'success',
+        title: 'Bates Numbering Complete',
+        message: `Stamped ${result.stampedPageCount} page(s) (e.g. ${result.sampleFirstStamp}).`,
+      });
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Bates Numbering Error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsBatesOpen(false);
+      onClose();
+    }
+  };
+
+  const confirmCropMargins = async (options: CropMarginOptions) => {
+    if (!workingBytes || !documentKey) return;
+    try {
+      let detectedBoxes: Record<number, DetectedBoundingBox> | undefined;
+
+      if (options.mode === 'auto' && pdfDoc) {
+        detectedBoxes = {};
+        const indices = options.pageIndices ?? Array.from({ length: useSessionStore.getState().pageCount }, (_, i) => i);
+        for (const idx of indices) {
+          try {
+            const pageProxy = await pdfDoc.getPage(idx + 1);
+            const viewport = pageProxy.getViewport({ scale: 1.0 });
+            const canvas = document.createElement('canvas');
+            await PdfRendererAdapter.renderPage(pageProxy, canvas, viewport).completed;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            if (ctx && canvas.width > 0 && canvas.height > 0) {
+              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const cropOffset = pageProxy.view ? { x: pageProxy.view[0], y: pageProxy.view[1] } : { x: 0, y: 0 };
+              detectedBoxes[idx] = calculateContentBoundingBoxFromRgba(
+                imgData.data,
+                canvas.width,
+                canvas.height,
+                viewport.width,
+                viewport.height,
+                options.autoPaddingPt ?? 14,
+                pageProxy.rotate ?? 0,
+                cropOffset,
+              );
+            }
+          } catch {
+            // fallback to conservative trim inside cropPdfMargins
+          }
+        }
+      }
+
+      const result = await cropPdfMargins(workingBytes, {
+        ...options,
+        detectedBoxes,
+      });
+
+      const cmdResult = await commandBus.execute({
+        workingBytes,
+        command: materializePdfCommand(
+          {
+            type: 'APPLY_WORKING_COPY',
+            payload: {
+              binaryResourceId: 'binary:cropped',
+              nextPageCount: useSessionStore.getState().pageCount,
+              reason: `Crop margins (${options.mode})`,
+            },
+          },
+          'thumbnail-menu',
+          documentKey,
+        ),
+        resources: {
+          binaries: {
+            'binary:cropped': result.modifiedBytes,
+          },
+        },
+      });
+
+      if (!cmdResult.success) {
+        if (cmdResult.error?.code === 'CANCELLED') return;
+        addToast({
+          type: 'error',
+          title: 'Crop Margins Failed',
+          message: cmdResult.error?.message ?? cmdResult.message,
+        });
+        return;
+      }
+
+      addToast({
+        type: 'success',
+        title: 'Crop Margins Complete',
+        message: `Cropped margins on ${result.croppedPageCount} page(s).`,
+      });
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Crop Margins Error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsCropMarginsOpen(false);
+      onClose();
+    }
+  };
+
+  const handleAutoTrimMargins = async () => {
+    await confirmCropMargins({
+      mode: 'auto',
+      pageIndices,
+      autoPaddingPt: 14,
+    });
+  };
+
+  const handleQuickSaveSelectedPages = async () => {
+    if (!workingBytes) return;
+    try {
+      const extractedBytes = await serializeSelectedPagesToPdf(workingBytes, pageIndices);
+      const baseName = (fileName ?? 'document.pdf').replace(/\.[^/.]+$/, '');
+      const rangeSuffix = targetPages.length === 1 ? `p${targetPages[0]}` : `p${targetPages[0]}-p${targetPages[targetPages.length - 1]}`;
+      const saveName = `${baseName}_${rangeSuffix}.pdf`;
+      await FileAdapter.savePdfBytes(extractedBytes, saveName, null);
+      addToast({
+        type: 'success',
+        title: 'Pages Extracted',
+        message: `Saved ${targetPages.length} page(s) as ${saveName}.`,
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Extraction Failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      onClose();
+    }
+  };
+
+  const handleCopyPages = async () => {
+    if (!workingBytes || !documentKey) return;
+    try {
+      const serialized = await serializeSelectedPagesToPdf(workingBytes, pageIndices);
+      copyPages({
+        sourceDocumentKey: documentKey,
+        sourceFileName: fileName ?? 'document.pdf',
+        pageIndices,
+        serializedPagesBytes: serialized,
+      });
+      addToast({
+        type: 'info',
+        title: 'Pages Copied',
+        message: `Copied ${targetPages.length} page(s) to clipboard.`,
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Copy Failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      onClose();
+    }
+  };
+
+  const handleCutPages = async () => {
+    if (!workingBytes || !documentKey) return;
+    try {
+      const serialized = await serializeSelectedPagesToPdf(workingBytes, pageIndices);
+      cutPages({
+        sourceDocumentKey: documentKey,
+        sourceFileName: fileName ?? 'document.pdf',
+        pageIndices,
+        serializedPagesBytes: serialized,
+      });
+      addToast({
+        type: 'info',
+        title: 'Pages Cut',
+        message: `Cut ${targetPages.length} page(s) to clipboard. Paste to place them.`,
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Cut Failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      onClose();
+    }
+  };
+
+  const handlePastePages = async (placement: 'before' | 'after') => {
+    if (!workingBytes || !documentKey || !clipboard) return;
+    const atIndex = placement === 'before' ? targetPages[0] - 1 : targetPages[targetPages.length - 1];
+    const controller = new AbortController();
+    donorOperationRef.current = controller;
+    const expectedDocumentKey = documentKey;
+
+    try {
+      const file = new File(
+        [clipboard.serializedPagesBytes.slice()],
+        clipboard.sourceFileName || 'clipboard.pdf',
+        { type: 'application/pdf' },
+      );
+      const admission = await admitDonorPdfFiles(
+        [{ file }],
+        'THUMBNAIL_CONTEXT_MENU',
+        'INSERT_PAGES',
+        {
+          signal: controller.signal,
+          ownerDocumentKey: expectedDocumentKey,
+          isContextCurrent: () => useSessionStore.getState().documentKey === expectedDocumentKey,
+        },
+      );
+      if (admission.outcome !== 'ACCEPTED') {
+        addToast({
+          type: 'error',
+          title: 'Paste Failed',
+          message: firstDonorAdmissionErrorMessage(admission) ?? 'Clipboard content could not be admitted.',
+        });
+        return;
+      }
+      assertAdmittedDonorSetDispatchAllowed(admission.value, {
+        signal: controller.signal,
+        ownerDocumentKey: expectedDocumentKey,
+        isContextCurrent: () => useSessionStore.getState().documentKey === expectedDocumentKey,
+      });
+      const donor = admission.value.donors[0];
+      const insertResult = await commandBus.execute({
+        command: materializePdfCommand(
+          {
+            type: 'INSERT_PAGES',
+            payload: {
+              atIndex,
+              donorResourceId: 'donor:clipboard',
+            },
+          },
+          'thumbnail-menu',
+          expectedDocumentKey,
+        ),
+        workingBytes,
+        resources: {
+          donors: {
+            'donor:clipboard': donor,
+          },
+        },
+        signal: controller.signal,
+      });
+
+      if (!insertResult.success) {
+        addToast({
+          type: 'error',
+          title: 'Paste Failed',
+          message: insertResult.error?.message ?? insertResult.message,
+        });
+        return;
+      }
+
+      // If this was a Cut operation from the same document, delete original cut pages
+      if (clipboard.isCut && clipboard.sourceDocumentKey === expectedDocumentKey) {
+        const donorCount = donor.pageCount;
+        const latestBytes = useSessionStore.getState().workingBytes || workingBytes;
+        const shiftedCutIndices = clipboard.pageIndices.map((idx) => (idx >= atIndex ? idx + donorCount : idx));
+        const deleteResult = await commandBus.execute({
+          command: materializePdfCommand(
+            {
+              type: 'DELETE_PAGES',
+              payload: {
+                pageIndices: shiftedCutIndices,
+              },
+            },
+            'thumbnail-menu',
+            expectedDocumentKey,
+          ),
+          workingBytes: latestBytes,
+          signal: controller.signal,
+        });
+        if (!deleteResult.success) {
+          // The pasted copy is already in place; keep the clipboard so the
+          // user can see what happened and remove the originals manually.
+          addToast({
+            type: 'error',
+            title: 'Cut Source Not Removed',
+            message: `Pasted ${donor.pageCount} page(s), but the original cut pages could not be removed: ${deleteResult.error?.message ?? deleteResult.message}`,
+          });
+          return;
+        }
+        clearClipboard();
+      }
+
+      addToast({
+        type: 'success',
+        title: 'Pages Pasted',
+        message: `Pasted ${donor.pageCount} page(s) ${placement}.`,
+      });
+    } catch (err) {
+      if (!isOperationCancelledError(err)) {
+        addToast({
+          type: 'error',
+          title: 'Paste Failed',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    } finally {
+      if (donorOperationRef.current === controller) {
+        donorOperationRef.current = null;
+      }
+      onClose();
+    }
+  };
+
+  const handleReverseOrder = async () => {
+    const totalPages = useSessionStore.getState().pageCount;
+    if (totalPages <= 1) return;
+    const currentOrder = Array.from({ length: totalPages }, (_, i) => i);
+    const sortedTargetIndices = [...pageIndices].sort((a, b) => a - b);
+    const reversedTargetIndices = [...sortedTargetIndices].reverse();
+    const nextOrder = [...currentOrder];
+    for (let i = 0; i < sortedTargetIndices.length; i++) {
+      nextOrder[sortedTargetIndices[i]] = reversedTargetIndices[i];
+    }
+    await handleCommand(
+      { type: 'REORDER_PAGES_BY_ORDER', payload: { order: nextOrder } },
+      `Reversed order of ${pageIndices.length} page(s).`,
+    );
+  };
+
+  const handleCopyPageImage = async () => {
+    if (!pdfDoc) {
+      addToast({
+        type: 'error',
+        title: 'Copy Image Failed',
+        message: 'PDF document is not yet rendered.',
+      });
+      return;
+    }
+    try {
+      const result = await copyPageImageToClipboard(pdfDoc, page, 2.0);
+      addToast({
+        type: result.success ? 'success' : 'error',
+        title: result.success ? 'Page Copied' : 'Copy Failed',
+        message: result.message,
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Copy Failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      onClose();
+    }
+  };
+
+  const handleExportPagePng = async () => {
+    if (!pdfDoc) {
+      addToast({
+        type: 'error',
+        title: 'Export Failed',
+        message: 'PDF document is not yet rendered.',
+      });
+      return;
+    }
+    try {
+      await downloadPageAsPng(pdfDoc, page, fileName ?? 'document.pdf', 2.0);
+      addToast({
+        type: 'success',
+        title: 'Page Exported',
+        message: `Page ${page} exported as PNG.`,
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Export Failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      onClose();
+    }
+  };
+
+  const handleFlattenAnnotations = async (scope: 'selected' | 'document' = 'selected') => {
+    if (!workingBytes || !documentKey) return;
+    const isSelective = scope === 'selected';
+    const targetIndices = isSelective ? pageIndices : undefined;
+    try {
+      const flattenedBytes = await flattenNativePdfAnnotations(workingBytes, targetIndices);
+      const cmdResult = await commandBus.execute({
+        workingBytes,
+        command: materializePdfCommand(
+          {
+            type: 'APPLY_WORKING_COPY',
+            payload: {
+              binaryResourceId: 'binary:flattened',
+              nextPageCount: useSessionStore.getState().pageCount,
+              reason: isSelective
+                ? `Flatten annotations on page(s) ${targetPages.join(', ')}`
+                : 'Flatten annotations into page graphics',
+            },
+          },
+          'thumbnail-menu',
+          documentKey,
+        ),
+        resources: {
+          binaries: {
+            'binary:flattened': flattenedBytes,
+          },
+        },
+      });
+
+      if (!cmdResult.success) {
+        addToast({
+          type: 'error',
+          title: 'Flatten Failed',
+          message: cmdResult.error?.message ?? cmdResult.message,
+        });
+        return;
+      }
+
+      addToast({
+        type: 'success',
+        title: 'Annotations Flattened',
+        message: isSelective
+          ? `Burned annotations permanently into page graphics on ${targetPages.length} page(s).`
+          : 'All annotations permanently burned into page graphics.',
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Flatten Failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      onClose();
+    }
+  };
+
   if (stagedInsert) {
     return (
       <InsertPdfDialog
@@ -821,6 +1319,38 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
     );
   }
 
+  if (isBatesOpen) {
+    return (
+      <BatesNumberingDialog
+        isOpen={true}
+        totalDocumentPages={useSessionStore.getState().pageCount}
+        selectedPages={targetPages}
+        currentPage={page}
+        onClose={() => {
+          setIsBatesOpen(false);
+          onClose();
+        }}
+        onConfirm={(options) => void confirmBatesNumbering(options)}
+      />
+    );
+  }
+
+  if (isCropMarginsOpen) {
+    return (
+      <CropMarginsDialog
+        isOpen={true}
+        totalDocumentPages={useSessionStore.getState().pageCount}
+        selectedPages={targetPages}
+        currentPage={page}
+        onClose={() => {
+          setIsCropMarginsOpen(false);
+          onClose();
+        }}
+        onConfirm={(options) => void confirmCropMargins(options)}
+      />
+    );
+  }
+
   if (extractDialogState) {
     return (
       <ExtractPagesDialog
@@ -834,8 +1364,42 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
           setExtractDialogState(null);
           onClose();
         }}
-        onConfirm={async ({ pageIndices: selectedIndices, mode, outputFileName }) => {
+        onConfirm={async ({ pageIndices: selectedIndices, mode, outputFileName, packageAsZip }) => {
           setExtractDialogState(null);
+          if (packageAsZip && workingBytes) {
+            try {
+              const zipResult = await createSplitPagesZipBundle(
+                workingBytes,
+                selectedIndices,
+                outputFileName,
+              );
+              await FileAdapter.savePdfBytes(zipResult.zipBytes, outputFileName, null);
+              if (mode === 'split') {
+                await handleCommand(
+                  {
+                    type: 'DELETE_PAGES',
+                    payload: { pageIndices: selectedIndices },
+                  },
+                  `Split ${selectedIndices.length} page(s) into ${outputFileName} and removed from original.`,
+                );
+              } else {
+                addToast({
+                  type: 'success',
+                  title: 'Pages Packaged',
+                  message: `Packaged ${selectedIndices.length} page(s) into ${outputFileName}.`,
+                });
+                onClose();
+              }
+            } catch (err) {
+              addToast({
+                type: 'error',
+                title: 'Packaging Failed',
+                message: err instanceof Error ? err.message : String(err),
+              });
+              onClose();
+            }
+            return;
+          }
           const commandType = mode === 'split' ? 'SPLIT_PAGES' : 'EXTRACT_PAGES';
           const successMsg = mode === 'split'
             ? `Split ${selectedIndices.length} page(s) into ${outputFileName}.`
@@ -905,24 +1469,131 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
 
   const style: React.CSSProperties = {
     position: 'fixed',
-    top: Math.min(y, window.innerHeight - 450),
-    left: Math.min(x, window.innerWidth - 240),
+    top: Math.min(y, window.innerHeight - 560),
+    left: Math.min(x, window.innerWidth - 270),
     zIndex: 1000,
+    maxHeight: 'calc(100vh - 40px)',
+    overflowY: 'auto',
   };
 
   return (
     <div
       ref={menuRef}
       style={style}
-      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md shadow-lg py-1 w-56 text-sm"
+      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md shadow-lg py-1 w-64 text-sm"
       role="menu"
       aria-label="Page actions"
     >
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-        onClick={() => handleCommand({ type: 'ROTATE_PAGES', payload: { pageIndices, angle: 90 } }, 'Rotated selected pages.')}
+        onClick={() => handleCommand({ type: 'ROTATE_PAGES', payload: { pageIndices, angle: 90 } }, 'Rotated selected pages 90° clockwise.')}
       >
-        Rotate 90°
+        Rotate 90° Clockwise
+      </button>
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => handleCommand({ type: 'ROTATE_PAGES', payload: { pageIndices, angle: 270 } }, 'Rotated selected pages 90° counter-clockwise.')}
+      >
+        Rotate 90° Counter-Clockwise
+      </button>
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => handleCommand({ type: 'ROTATE_PAGES', payload: { pageIndices, angle: 180 } }, 'Rotated selected pages 180°.')}
+      >
+        Rotate 180° (Flip)
+      </button>
+
+      <div className="h-px bg-slate-200 dark:bg-slate-800 my-1" />
+
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => void handleCopyPages()}
+      >
+        {targetPages.length > 1 ? `Copy ${targetPages.length} Pages` : 'Copy Page'}
+      </button>
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => void handleCutPages()}
+      >
+        {targetPages.length > 1 ? `Cut ${targetPages.length} Pages` : 'Cut Page'}
+      </button>
+      {clipboard && (
+        <>
+          <button
+            className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+            onClick={() => void handlePastePages('before')}
+          >
+            Paste {clipboard.pageIndices.length} Page(s) Before
+          </button>
+          <button
+            className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+            onClick={() => void handlePastePages('after')}
+          >
+            Paste {clipboard.pageIndices.length} Page(s) After
+          </button>
+        </>
+      )}
+      {targetPages.length > 1 && (
+        <button
+          className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+          onClick={() => void handleReverseOrder()}
+        >
+          Reverse Selected Page Order
+        </button>
+      )}
+
+      <div className="h-px bg-slate-200 dark:bg-slate-800 my-1" />
+
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => void handleCopyPageImage()}
+      >
+        Copy Page Image to Clipboard
+      </button>
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => void handleExportPagePng()}
+      >
+        Export Page as PNG...
+      </button>
+
+      <div className="h-px bg-slate-200 dark:bg-slate-800 my-1" />
+
+      {onOpenOcr && (
+        <button
+          className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+          onClick={() => {
+            onClose();
+            onOpenOcr();
+          }}
+        >
+          {targetPages.length > 1 ? `Run OCR on ${targetPages.length} Selected Pages...` : `Run OCR on Page ${page}...`}
+        </button>
+      )}
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => void handleFlattenAnnotations('selected')}
+      >
+        {targetPages.length > 1
+          ? `Flatten Annotations on ${targetPages.length} Pages`
+          : `Flatten Annotations on Page ${page}`}
+      </button>
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => void handleFlattenAnnotations('document')}
+      >
+        Flatten Annotations on Document...
+      </button>
+
+      <div className="h-px bg-slate-200 dark:bg-slate-800 my-1" />
+
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => void handleQuickSaveSelectedPages()}
+      >
+        {targetPages.length > 1
+          ? `Quick Save ${targetPages.length} Pages as PDF`
+          : `Quick Save Page ${page} as PDF`}
       </button>
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
@@ -1024,9 +1695,27 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
       >
         Normalize Page Dimensions...
       </button>
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => setIsCropMarginsOpen(true)}
+      >
+        Crop Page Margins...
+      </button>
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => void handleAutoTrimMargins()}
+      >
+        Auto-Trim White Margins
+      </button>
 
       <div className="h-px bg-slate-200 dark:bg-slate-800 my-1" />
 
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+        onClick={() => setIsBatesOpen(true)}
+      >
+        Bates Numbering / Revision Stamp...
+      </button>
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
         onClick={() => setConfigKind('pageNumbers')}

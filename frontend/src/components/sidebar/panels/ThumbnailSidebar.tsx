@@ -1428,6 +1428,10 @@ const ThumbnailSidebar: React.FC = () => {
           setContextMenu(null);
           setSidebarTab('macros');
         }}
+        onOpenOcr={() => {
+          setContextMenu(null);
+          setSidebarTab('ocr');
+        }}
       />
     )}
 
