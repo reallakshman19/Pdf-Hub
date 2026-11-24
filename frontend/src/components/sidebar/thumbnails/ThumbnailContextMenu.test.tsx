@@ -242,6 +242,10 @@ describe('ThumbnailContextMenu PDF Insertion and Page Replacement', () => {
         }),
       );
     });
+    // Regression: confirming must not run the dialog's cancel path, which
+    // aborted this signal and made the real command bus return CANCELLED.
+    const dispatched = mocks.execute.mock.calls.at(-1)?.[0] as { signal?: AbortSignal };
+    expect(dispatched.signal?.aborted).toBe(false);
   });
 
   it('dispatches INSERT_PAGES after target page when Insert PDF After is clicked', async () => {
@@ -293,6 +297,8 @@ describe('ThumbnailContextMenu PDF Insertion and Page Replacement', () => {
         }),
       );
     });
+    const dispatched = mocks.execute.mock.calls.at(-1)?.[0] as { signal?: AbortSignal };
+    expect(dispatched.signal?.aborted).toBe(false);
   });
 
   it('replaces immediately when donor PDF has exactly one page', async () => {

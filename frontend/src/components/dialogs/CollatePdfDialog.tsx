@@ -63,7 +63,7 @@ export const CollatePdfDialog: React.FC<CollatePdfDialogProps> = ({
       mode,
       donorPageIndices: activeDonorIndices,
     });
-    onClose();
+    // Owner closes the dialog; onClose is its cancel path (aborts the operation).
   };
 
   const isSubmitDisabled = pageScope === 'custom' && !rangeValidation.valid;

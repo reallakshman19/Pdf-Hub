@@ -42,6 +42,9 @@ export const InsertPdfDialog: React.FC<InsertPdfDialogProps> = ({
     return parsePageRangeString(rangeText, donorPageCount);
   }, [pageScope, rangeText, donorPageCount]);
 
+  // Confirm hands the staged operation to the owner, which closes the dialog
+  // itself. Calling onClose here would run the owner's cancel path, which
+  // aborts the very operation just confirmed.
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (pageScope === 'all') {
@@ -50,7 +53,6 @@ export const InsertPdfDialog: React.FC<InsertPdfDialogProps> = ({
         placement,
         targetPage,
       });
-      onClose();
       return;
     }
 
@@ -63,7 +65,6 @@ export const InsertPdfDialog: React.FC<InsertPdfDialogProps> = ({
       placement,
       targetPage,
     });
-    onClose();
   };
 
   const isSubmitDisabled = pageScope === 'custom' && !rangeValidation.valid;

@@ -14,8 +14,8 @@ export const ReplacePageDialog: React.FC<Props> = ({ isOpen, onClose, onConfirm,
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Owner closes the dialog; onClose is its cancel path (aborts the operation).
     onConfirm(donorPage);
-    onClose();
   };
 
   return (
