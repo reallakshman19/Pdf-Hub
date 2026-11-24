@@ -246,4 +246,47 @@ describe('resolveLineEndpoint', () => {
     expect(result.angleConstrained).toBe(true);
     expect(result.snapResult).toBeNull();
   });
+
+  it('snaps to orthogonal grid when grid snapping is enabled and no annotation nearby', () => {
+    const result = resolveLineEndpoint(
+      { x: 0, y: 0 },
+      { x: 23, y: 38 },
+      [],
+      false,
+      { gridMode: 'ortho', gridSpacing: 20, snapEnabled: true },
+    );
+    expect(result.point).toEqual({ x: 20, y: 40 });
+    expect(result.snapResult?.snapped).toBe(true);
+  });
+
+  it('snaps to isometric grid when gridMode=isometric and snapEnabled=true', () => {
+    const spacing = 20;
+    const dxStep = spacing * (Math.sqrt(3) / 2);
+    const result = resolveLineEndpoint(
+      { x: 0, y: 0 },
+      { x: dxStep + 1, y: 11 },
+      [],
+      false,
+      { gridMode: 'isometric', gridSpacing: spacing, snapEnabled: true },
+    );
+    expect(result.point.x).toBeCloseTo(dxStep, 1);
+    expect(result.point.y).toBeCloseTo(10, 1);
+  });
+
+  it('constrains to isometric angles when shift is held and gridMode=isometric', () => {
+    const origin = { x: 100, y: 100 };
+    const target = { x: 200, y: 45 }; // ~30° drafting
+    const result = resolveLineEndpoint(
+      origin,
+      target,
+      [],
+      true,
+      { gridMode: 'isometric', isoplane: 'all' },
+    );
+    expect(result.angleConstrained).toBe(true);
+    const dx = result.point.x - origin.x;
+    const dy = result.point.y - origin.y;
+    const angle = (-Math.atan2(dy, dx) * 180) / Math.PI;
+    expect(angle).toBeCloseTo(30, 0);
+  });
 });

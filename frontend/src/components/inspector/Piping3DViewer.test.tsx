@@ -129,4 +129,10 @@ describe('Piping3DViewer component', () => {
     fireEvent.click(node120Label);
     expect(onSelectNode).toHaveBeenCalledWith(120);
   });
+
+  it('renders in main canvas mode with expanded space and header badge', () => {
+    render(<Piping3DViewer model={mockModel} isMainCanvas={true} />);
+
+    expect(screen.getByText(/3D Piping Space \(Main Canvas\)/i)).toBeInTheDocument();
+  });
 });

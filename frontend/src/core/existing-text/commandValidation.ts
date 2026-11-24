@@ -1006,3 +1006,103 @@ export function validateReflowCrossPageTextCommandPayload(value: unknown): strin
   return errors;
 }
 
+const FRAME_RESIZE_HANDLES: ReadonlySet<string> = new Set([
+  'nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w',
+]);
+
+function validateFrameRect(value: unknown, field: string, errors: string[]): void {
+  if (!isRecord(value)) {
+    errors.push(`${field} must be an object.`);
+    return;
+  }
+  requireFiniteNumber(value.x, `${field}.x`, errors);
+  requireFiniteNumber(value.y, `${field}.y`, errors);
+  requirePositiveFiniteNumber(value.width, `${field}.width`, errors);
+  requirePositiveFiniteNumber(value.height, `${field}.height`, errors);
+}
+
+/**
+ * Shared envelope checks for frame move/resize commands: page identity, the
+ * frame geometry the adapter draws from, and intent/payload page agreement.
+ */
+function validateTextFrameCommandEnvelope(
+  value: unknown,
+  errors: string[],
+): UnknownRecord | null {
+  if (!isRecord(value)) {
+    errors.push('payload must be an object.');
+    return null;
+  }
+  if (value.schemaVersion !== 1) {
+    errors.push('payload.schemaVersion must be 1.');
+  }
+  requireNonNegativeInteger(value.sourcePageIndex, 'payload.sourcePageIndex', errors);
+  requireNonEmptyString(value.sourcePageId, 'payload.sourcePageId', errors);
+  const intent = value.intent;
+  if (!isRecord(intent)) {
+    errors.push('payload.intent must be an object.');
+    return null;
+  }
+  if (intent.schemaVersion !== 1) {
+    errors.push('payload.intent.schemaVersion must be 1.');
+  }
+  requireNonEmptyString(intent.sourceRevisionId, 'payload.intent.sourceRevisionId', errors);
+  if (intent.pageIndex !== value.sourcePageIndex) {
+    errors.push('payload.intent.pageIndex must equal payload.sourcePageIndex.');
+  }
+  if (intent.pageId !== value.sourcePageId) {
+    errors.push('payload.intent.pageId must equal payload.sourcePageId.');
+  }
+  const frame = intent.frame;
+  if (!isRecord(frame)) {
+    errors.push('payload.intent.frame must be an object.');
+  } else {
+    requireString(frame.text, 'payload.intent.frame.text', errors);
+    validateFrameRect(frame.bounds, 'payload.intent.frame.bounds', errors);
+    validateFrameRect(frame.originalBounds, 'payload.intent.frame.originalBounds', errors);
+    requirePositiveFiniteNumber(frame.fontSizePt, 'payload.intent.frame.fontSizePt', errors);
+    requirePositiveFiniteNumber(frame.leadingPt, 'payload.intent.frame.leadingPt', errors);
+  }
+  if (intent.backgroundColorHex !== undefined
+    && (typeof intent.backgroundColorHex !== 'string'
+      || !/^#?[0-9a-fA-F]{6}$/.test(intent.backgroundColorHex))) {
+    errors.push('payload.intent.backgroundColorHex must be a 6-digit hex colour (#RRGGBB).');
+  }
+  return intent;
+}
+
+export function validateMoveExistingTextBlockCommandPayload(value: unknown): string[] {
+  const errors: string[] = [];
+  const intent = validateTextFrameCommandEnvelope(value, errors);
+  if (!intent) return errors;
+  const target = intent.targetPosition;
+  if (!isRecord(target)) {
+    errors.push('payload.intent.targetPosition must be an object.');
+  } else {
+    requireFiniteNumber(target.x, 'payload.intent.targetPosition.x', errors);
+    requireFiniteNumber(target.y, 'payload.intent.targetPosition.y', errors);
+  }
+  return errors;
+}
+
+export function validateResizeExistingTextBlockCommandPayload(value: unknown): string[] {
+  const errors: string[] = [];
+  const intent = validateTextFrameCommandEnvelope(value, errors);
+  if (!intent) return errors;
+  requirePositiveFiniteNumber(intent.newWidthPt, 'payload.intent.newWidthPt', errors);
+  if (intent.newHeightPt !== undefined) {
+    requirePositiveFiniteNumber(intent.newHeightPt, 'payload.intent.newHeightPt', errors);
+  }
+  if (typeof intent.handle !== 'string' || !FRAME_RESIZE_HANDLES.has(intent.handle)) {
+    errors.push('payload.intent.handle must be one of nw, n, ne, e, se, s, sw, w.');
+  }
+  if (intent.reflowedText !== undefined) {
+    requireString(intent.reflowedText, 'payload.intent.reflowedText', errors);
+  }
+  if (intent.overflowPolicy !== undefined
+    && intent.overflowPolicy !== 'spillover'
+    && intent.overflowPolicy !== 'fail-closed') {
+    errors.push("payload.intent.overflowPolicy must be 'spillover' or 'fail-closed'.");
+  }
+  return errors;
+}

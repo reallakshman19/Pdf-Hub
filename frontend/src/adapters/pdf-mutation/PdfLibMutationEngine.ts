@@ -29,6 +29,10 @@ import {
 import {
   applyCrossPageFlowToDocument,
 } from '@/adapters/pdf-text/PdfLibCrossPageFlowReconstruction';
+import {
+  applyMoveTextFrameToDocument,
+  applyResizeTextFrameToDocument,
+} from '@/adapters/pdf-text/PdfLibExistingTextFrameReconstruction';
 import type { ExistingTextSimpleTextOperator } from '@/core/existing-text/provenanceTypes';
 import type {
   PdfMutationCommitResult,
@@ -717,6 +721,34 @@ class PdfLibMutationSession implements PdfMutationSession {
     this.assertPageIndex(input.intent.targetPageIndex);
 
     return applyCrossPageFlowToDocument(
+      this.document,
+      this.lib,
+      input,
+    );
+  }
+
+  async moveExistingTextBlock(
+    input: Parameters<PdfMutationSession['moveExistingTextBlock']>[0],
+  ): ReturnType<PdfMutationSession['moveExistingTextBlock']> {
+    this.assertOpen('move existing text frame');
+    throwIfAborted(this.signal, 'move existing text frame');
+    this.assertPageIndex(input.pageIndex);
+
+    return applyMoveTextFrameToDocument(
+      this.document,
+      this.lib,
+      input,
+    );
+  }
+
+  async resizeExistingTextBlock(
+    input: Parameters<PdfMutationSession['resizeExistingTextBlock']>[0],
+  ): ReturnType<PdfMutationSession['resizeExistingTextBlock']> {
+    this.assertOpen('resize existing text frame');
+    throwIfAborted(this.signal, 'resize existing text frame');
+    this.assertPageIndex(input.pageIndex);
+
+    return applyResizeTextFrameToDocument(
       this.document,
       this.lib,
       input,

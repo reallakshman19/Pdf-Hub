@@ -104,7 +104,7 @@ export const InspectorPanel: React.FC = () => {
     { id: 'style', icon: Palette, label: 'Style' },
     { id: 'history', icon: Info, label: 'Metadata' },
     { id: 'review', icon: MessageSquare, label: 'Review' },
-    { id: 'takeoff', icon: Calculator, label: 'Takeoff' },
+    { id: 'takeoff', icon: Calculator, label: 'Takeoff & 3D' },
     { id: 'redaction', icon: ShieldAlert, label: 'Redaction' },
   ] as const;
 
@@ -131,7 +131,7 @@ export const InspectorPanel: React.FC = () => {
         {inspectorTab === 'text'
           ? 'Current page PDF text'
           : inspectorTab === 'takeoff'
-            ? 'Bill of Materials & Quantity Takeoff'
+            ? 'Bill of Materials & Quantity Takeoff (3D Canvas)'
             : inspectorTab === 'redaction'
               ? 'Secure Content Redaction'
               : selection.length > 1

@@ -1,5 +1,6 @@
 import type { AnnotationType } from '@/core/annotations/annotationTypes';
 import type { PageId } from '@/core/pages/types';
+import type { CadGridMode, IsoplaneMode } from '@/core/cad-grid/types';
 
 export type ActiveMode = 'file' | 'view' | 'annotate' | 'draw' | 'write' | 'organize' | 'generate';
 
@@ -16,6 +17,7 @@ export type SidebarTab =
 
 export type InspectorTab = 'properties' | 'text' | 'style' | 'history' | 'review' | 'takeoff' | 'redaction';
 export type RibbonTab = 'file' | 'organize' | 'annotate' | 'macro' | 'view';
+export type WorkspaceViewMode = '2d' | '3d';
 
 export interface ExistingPdfTextSelection {
   revisionId: string;
@@ -28,6 +30,7 @@ export interface EditorState {
   activeMode: ActiveMode;
   sidebarTab: SidebarTab;
   inspectorTab: InspectorTab;
+  workspaceViewMode: WorkspaceViewMode;
   leftPanelWidth: number;
   rightPanelWidth: number;
   macroBuilderOpen: boolean;
@@ -35,4 +38,8 @@ export interface EditorState {
   mobileDrawerOpen: boolean;
   mobileSheetOpen: boolean;
   existingTextSelection: ExistingPdfTextSelection | null;
+  cadGridMode: CadGridMode;
+  cadIsoplane: IsoplaneMode;
+  cadGridSnap: boolean;
+  cadGridSpacing: number;
 }

@@ -10,8 +10,21 @@
  */
 
 import type { Point2D, PdfAnnotation } from './types';
+import {
+  snapToIsometricGrid,
+  snapToOrthogonalGrid,
+  constrainAngleToIsoplane,
+} from '../cad-grid/gridMath';
+import type { CadGridMode, IsoplaneMode } from '../cad-grid/types';
 
 export type SnapPointKind = 'endpoint' | 'midpoint' | 'vertex' | 'center' | 'corner';
+
+export interface GridSnapOptions {
+  gridMode?: CadGridMode;
+  gridSpacing?: number;
+  isoplane?: IsoplaneMode;
+  snapEnabled?: boolean;
+}
 
 export interface SnapPoint {
   point: Point2D;
@@ -226,14 +239,47 @@ export function resolveLineEndpoint(
   cursor: Point2D,
   snapPoints: SnapPoint[],
   shiftKey: boolean,
+  gridOptions?: GridSnapOptions,
 ): { point: Point2D; snapResult: SnapResult | null; angleConstrained: boolean } {
   if (shiftKey) {
+    if (gridOptions?.gridMode === 'isometric') {
+      const isoplane = gridOptions.isoplane ?? 'all';
+      return {
+        point: constrainAngleToIsoplane(origin, cursor, isoplane),
+        snapResult: null,
+        angleConstrained: true,
+      };
+    }
     return { point: constrainAngleTo45(origin, cursor), snapResult: null, angleConstrained: true };
   }
+
+  // 1. Highest priority: magnetic snap to existing annotation geometry
   const snapResult = findSnapTarget(cursor, snapPoints);
   if (snapResult.snapped) {
     return { point: snapResult.point, snapResult, angleConstrained: false };
   }
+
+  // 2. Second priority: magnetic snap to grid if active and enabled
+  if (gridOptions?.snapEnabled && gridOptions.gridMode && gridOptions.gridMode !== 'none') {
+    const spacing = gridOptions.gridSpacing ?? 20;
+    const gridPoint =
+      gridOptions.gridMode === 'isometric'
+        ? snapToIsometricGrid(cursor, spacing)
+        : snapToOrthogonalGrid(cursor, spacing);
+
+    const dist = Math.hypot(cursor.x - gridPoint.x, cursor.y - gridPoint.y);
+    return {
+      point: gridPoint,
+      snapResult: {
+        point: gridPoint,
+        distance: dist,
+        snapped: true,
+        kind: 'vertex',
+      },
+      angleConstrained: false,
+    };
+  }
+
   return { point: { x: cursor.x, y: cursor.y }, snapResult: null, angleConstrained: false };
 }
 

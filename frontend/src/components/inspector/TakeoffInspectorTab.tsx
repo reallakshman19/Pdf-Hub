@@ -1,13 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
+import { useEditorStore } from '@/core/editor/store';
+import { usePipingTableStore } from '@/core/pipeline-geometry/table-store/pipingTableStore';
+import { PipingTableGrid } from './PipingTableGrid';
 import {
   computeTakeoffSummary,
   generateTakeoffCsv,
 } from '@/core/annotations/takeoffExport';
 import {
-  extractFullXmlBuilderModel,
   serializeXmlBuilderTablesToTsv,
   createXmlBuilderLaunchUrl,
 } from '@/core/pipeline-geometry/pipelineModelAggregator';
@@ -27,23 +29,34 @@ import {
 import { ScaleCalibrationDialog } from '@/components/dialogs/ScaleCalibrationDialog';
 import { Piping3DViewer } from './Piping3DViewer';
 import type { PipelineRoutingMode } from '@/core/pipeline-geometry/types';
-
-type XmlBuilderTab = 'coordinates' | 'branches' | 'restraints' | 'weights' | 'dtxr';
+import type { TableKind } from '@/core/pipeline-geometry/table-store/types';
 
 export const TakeoffInspectorTab: React.FC = () => {
   const [scope, setScope] = useState<'all' | 'page'>('page');
   const [showCalibrationDialog, setShowCalibrationDialog] = useState(false);
-  const [activeXmlTab, setActiveXmlTab] = useState<XmlBuilderTab>('coordinates');
+  const activeTableTab = usePipingTableStore((state) => state.activeTableTab);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [branchName, setBranchName] = useState('/CUSTOM-4"-PIPE/B1');
   const [startNode] = useState(100);
   const [elevationZ, setElevationZ] = useState(100000);
   const [routingMode, setRoutingMode] = useState<PipelineRoutingMode>('plan');
-  const [selectedNode, setSelectedNode] = useState<number | null>(null);
-  const [show3DViewer, setShow3DViewer] = useState<boolean>(true);
+  const { selectedNode, setSelectedNode } = usePipingTableStore(
+    useShallow((state) => ({
+      selectedNode: state.selectedNodeNumber,
+      setSelectedNode: state.setSelectedNodeNumber,
+    })),
+  );
+  const [show3DViewer] = useState<boolean>(true);
 
   const currentPage = useSessionStore((state) => state.viewState.currentPage);
   const totalPages = useSessionStore((state) => state.pageCount || 1);
+
+  const { workspaceViewMode, setWorkspaceViewMode } = useEditorStore(
+    useShallow((state) => ({
+      workspaceViewMode: state.workspaceViewMode ?? '2d',
+      setWorkspaceViewMode: state.setWorkspaceViewMode,
+    })),
+  );
 
   const {
     annotations,
@@ -51,6 +64,7 @@ export const TakeoffInspectorTab: React.FC = () => {
     setPageCalibration,
     setAllPagesCalibration,
     addAnnotation,
+    updateAnnotation,
   } = useAnnotationStore(
     useShallow((state) => ({
       annotations: state.annotations,
@@ -58,6 +72,7 @@ export const TakeoffInspectorTab: React.FC = () => {
       setPageCalibration: state.setPageCalibration,
       setAllPagesCalibration: state.setAllPagesCalibration,
       addAnnotation: state.addAnnotation,
+      updateAnnotation: state.updateAnnotation,
     })),
   );
 
@@ -74,20 +89,73 @@ export const TakeoffInspectorTab: React.FC = () => {
     return computeTakeoffSummary(filteredAnnotations, getPageCalibration);
   }, [filteredAnnotations, getPageCalibration]);
 
+  const {
+    coordinateRows,
+    branchRows,
+    restraintRows,
+    weightRows,
+    dtxrRows,
+    syncFromAnnotations,
+    computeAnnotationPatches,
+    clearDirtyCells,
+    getFullModel,
+  } = usePipingTableStore();
+
+  useEffect(() => {
+    syncFromAnnotations(
+      filteredAnnotations,
+      getPageCalibration,
+      {
+        branchName,
+        startNodeNumber: startNode,
+        defaultElevationZ: elevationZ,
+        routingMode,
+      },
+      currentPage,
+    );
+  }, [
+    filteredAnnotations,
+    getPageCalibration,
+    branchName,
+    startNode,
+    elevationZ,
+    routingMode,
+    currentPage,
+    syncFromAnnotations,
+  ]);
+
   const fullModel = useMemo(() => {
-    return extractFullXmlBuilderModel(filteredAnnotations, getPageCalibration, {
-      branchName,
-      startNodeNumber: startNode,
-      defaultElevationZ: elevationZ,
-      routingMode,
+    return getFullModel();
+  }, [coordinateRows, branchRows, restraintRows, weightRows, dtxrRows, getFullModel]);
+
+  const handleApplyTableToSheet = () => {
+    const patches = computeAnnotationPatches(annotations, getPageCalibration);
+    patches.forEach(({ id, patch }) => {
+      updateAnnotation(id, patch);
     });
-  }, [filteredAnnotations, getPageCalibration, branchName, startNode, elevationZ, routingMode]);
+    clearDirtyCells();
+  };
+
+  const handleResetFromSheet = () => {
+    clearDirtyCells();
+    syncFromAnnotations(
+      filteredAnnotations,
+      getPageCalibration,
+      {
+        branchName,
+        startNodeNumber: startNode,
+        defaultElevationZ: elevationZ,
+        routingMode,
+      },
+      currentPage,
+    );
+  };
 
   const tsvTables = useMemo(() => {
     return serializeXmlBuilderTablesToTsv(fullModel);
   }, [fullModel]);
 
-  const handleCopyTableTsv = async (tab: XmlBuilderTab) => {
+  const handleCopyTableTsv = async (tab: TableKind) => {
     let tsv = '';
     if (tab === 'coordinates') tsv = tsvTables.coordinateRows;
     else if (tab === 'branches') tsv = tsvTables.branchRows;
@@ -349,16 +417,17 @@ export const TakeoffInspectorTab: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setShow3DViewer((prev) => !prev)}
-              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${
-                show3DViewer
-                  ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-600 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900'
+              data-testid="takeoff-open-3d-tab-btn"
+              onClick={() => setWorkspaceViewMode(workspaceViewMode === '3d' ? '2d' : '3d')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${
+                workspaceViewMode === '3d'
+                  ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700 shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-slate-900 border border-slate-200 dark:border-slate-700'
               }`}
-              title="Toggle 3D Piping Wireframe View"
+              title={workspaceViewMode === '3d' ? 'Switch back to 2D Document Canvas' : 'Open in 3D Canvas Tab'}
             >
               <Rotate3d className="w-3 h-3" />
-              <span>3D View</span>
+              <span>{workspaceViewMode === '3d' ? '3D Tab Active' : 'Open in Tab'}</span>
             </button>
             <span className="text-[10px] text-purple-600 dark:text-purple-400 font-mono font-semibold">
               5-Table Model
@@ -366,13 +435,32 @@ export const TakeoffInspectorTab: React.FC = () => {
           </div>
         </div>
 
-        {/* 3D Wireframe Viewer */}
-        {show3DViewer && (
-          <Piping3DViewer
-            model={fullModel}
-            selectedNode={selectedNode}
-            onSelectNode={setSelectedNode}
-          />
+        {/* 3D Tab Active Banner or Side Panel Viewer */}
+        {workspaceViewMode === '3d' ? (
+          <div
+            data-testid="takeoff-3d-active-banner"
+            className="flex items-center justify-between p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs text-purple-700 dark:text-purple-300"
+          >
+            <div className="flex items-center gap-1.5 font-medium">
+              <Rotate3d className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+              <span>Viewing in Main 3D Canvas Tab</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWorkspaceViewMode('2d')}
+              className="text-[11px] underline hover:text-purple-900 dark:hover:text-purple-100 font-medium"
+            >
+              Return to 2D
+            </button>
+          </div>
+        ) : (
+          show3DViewer && (
+            <Piping3DViewer
+              model={fullModel}
+              selectedNode={selectedNode}
+              onSelectNode={setSelectedNode}
+            />
+          )
         )}
 
         {/* Branch, Elevation & 3D Routing Mode inputs */}
@@ -420,236 +508,25 @@ export const TakeoffInspectorTab: React.FC = () => {
           </div>
         </div>
 
-        {/* 5-Table Sub-Tab Selector */}
-        <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 pb-1 text-[11px] overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setActiveXmlTab('coordinates')}
-            className={`px-2 py-1 rounded-t whitespace-nowrap font-medium ${
-              activeXmlTab === 'coordinates'
-                ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-b-2 border-purple-600'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-            }`}
-          >
-            Coords ({fullModel.coordinateRows.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveXmlTab('branches')}
-            className={`px-2 py-1 rounded-t whitespace-nowrap font-medium ${
-              activeXmlTab === 'branches'
-                ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-b-2 border-purple-600'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-            }`}
-          >
-            Branches ({fullModel.branchRows.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveXmlTab('restraints')}
-            className={`px-2 py-1 rounded-t whitespace-nowrap font-medium ${
-              activeXmlTab === 'restraints'
-                ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-b-2 border-purple-600'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-            }`}
-          >
-            Supports ({fullModel.restraintRows.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveXmlTab('weights')}
-            className={`px-2 py-1 rounded-t whitespace-nowrap font-medium ${
-              activeXmlTab === 'weights'
-                ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-b-2 border-purple-600'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-            }`}
-          >
-            Valves ({fullModel.weightRows.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveXmlTab('dtxr')}
-            className={`px-2 py-1 rounded-t whitespace-nowrap font-medium ${
-              activeXmlTab === 'dtxr'
-                ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-b-2 border-purple-600'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-            }`}
-          >
-            Nozzles ({fullModel.dtxrRows.length})
-          </button>
-        </div>
-
-        {/* Tab Content Tables */}
-        <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-md bg-white dark:bg-slate-950 font-mono text-[10.5px]">
-          {activeXmlTab === 'coordinates' && (
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 sticky top-0">
-                <tr>
-                  <th className="px-2 py-1">Node</th>
-                  <th className="px-2 py-1">X (East)</th>
-                  <th className="px-2 py-1">Y (North)</th>
-                  <th className="px-2 py-1">Z (Elev)</th>
-                  <th className="px-2 py-1">Length</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                {fullModel.coordinateRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-3 text-center text-slate-400 italic">No coordinates drafted</td>
-                  </tr>
-                ) : (
-                  fullModel.coordinateRows.slice(0, 15).map((r, i) => {
-                    const isSelected = selectedNode === r.nodeNumber;
-                    return (
-                      <tr
-                        key={`${r.nodeNumber}-${i}`}
-                        onClick={() => setSelectedNode(r.nodeNumber)}
-                        className={`cursor-pointer transition-colors ${
-                          isSelected
-                            ? 'bg-cyan-100 dark:bg-cyan-950/70 font-semibold text-cyan-900 dark:text-cyan-200'
-                            : 'hover:bg-slate-50 dark:hover:bg-slate-900'
-                        }`}
-                        title="Click to inspect in 3D wireframe"
-                      >
-                        <td className="px-2 py-0.5 font-bold text-blue-600 dark:text-blue-400">{r.nodeNumber}</td>
-                        <td className="px-2 py-0.5">{r.x.toLocaleString()}</td>
-                        <td className="px-2 py-0.5">{r.y.toLocaleString()}</td>
-                        <td className="px-2 py-0.5 text-emerald-600 dark:text-emerald-400">{r.z.toLocaleString()}</td>
-                        <td className="px-2 py-0.5 text-slate-400">{r.lengthToNextMm ? `${r.lengthToNextMm.toLocaleString()} mm` : '-'}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          )}
-
-          {activeXmlTab === 'branches' && (
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 sticky top-0">
-                <tr>
-                  <th className="px-2 py-1">Branch</th>
-                  <th className="px-2 py-1">Node</th>
-                  <th className="px-2 py-1">Bore</th>
-                  <th className="px-2 py-1">Wall</th>
-                  <th className="px-2 py-1">P1 / T1</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                {fullModel.branchRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-3 text-center text-slate-400 italic">No branch data</td>
-                  </tr>
-                ) : (
-                  fullModel.branchRows.map((r, i) => (
-                    <tr key={`${r.branchName}-${i}`}>
-                      <td className="px-2 py-0.5 truncate max-w-[90px]" title={r.branchName}>{r.branchName}</td>
-                      <td className="px-2 py-0.5 font-bold text-blue-600">{r.nodeNumber}</td>
-                      <td className="px-2 py-0.5">{r.boreMm} mm</td>
-                      <td className="px-2 py-0.5">{r.wallThickness} mm</td>
-                      <td className="px-2 py-0.5">{r.p1} bar / {r.t1}°C</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
-
-          {activeXmlTab === 'restraints' && (
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 sticky top-0">
-                <tr>
-                  <th className="px-2 py-1">Node</th>
-                  <th className="px-2 py-1">Support Tag</th>
-                  <th className="px-2 py-1">Type</th>
-                  <th className="px-2 py-1">Friction</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                {fullModel.restraintRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="p-3 text-center text-slate-400 italic">No supports tagged</td>
-                  </tr>
-                ) : (
-                  fullModel.restraintRows.map((r, i) => (
-                    <tr key={`${r.nodeNumber}-${i}`}>
-                      <td className="px-2 py-0.5 font-bold text-blue-600">{r.nodeNumber}</td>
-                      <td className="px-2 py-0.5">{r.nodeName}</td>
-                      <td className="px-2 py-0.5 font-semibold text-emerald-600">{r.restraintType}</td>
-                      <td className="px-2 py-0.5 text-slate-400">{r.friction ?? '-'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
-
-          {activeXmlTab === 'weights' && (
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 sticky top-0">
-                <tr>
-                  <th className="px-2 py-1">Node</th>
-                  <th className="px-2 py-1">Valve Ref</th>
-                  <th className="px-2 py-1">Type</th>
-                  <th className="px-2 py-1">Weight</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                {fullModel.weightRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="p-3 text-center text-slate-400 italic">No valves or components tagged</td>
-                  </tr>
-                ) : (
-                  fullModel.weightRows.map((r, i) => (
-                    <tr key={`${r.nodeNumber}-${i}`}>
-                      <td className="px-2 py-0.5 font-bold text-blue-600">{r.nodeNumber}</td>
-                      <td className="px-2 py-0.5">{r.componentRefNo}</td>
-                      <td className="px-2 py-0.5 text-purple-600">{r.componentType}</td>
-                      <td className="px-2 py-0.5">{r.weight} kg</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
-
-          {activeXmlTab === 'dtxr' && (
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 sticky top-0">
-                <tr>
-                  <th className="px-2 py-1">Node</th>
-                  <th className="px-2 py-1">Thermal Growth / Displacements</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                {fullModel.dtxrRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={2} className="p-3 text-center text-slate-400 italic">No nozzle displacements tagged</td>
-                  </tr>
-                ) : (
-                  fullModel.dtxrRows.map((r, i) => (
-                    <tr key={`${r.nodeNumber}-${i}`}>
-                      <td className="px-2 py-0.5 font-bold text-blue-600">{r.nodeNumber}</td>
-                      <td className="px-2 py-0.5">{r.dtxr}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
+        {/* Bidirectional 5-Table Round-Trip Grid */}
+        <PipingTableGrid
+          onApplyToSheet={handleApplyTableToSheet}
+          onResetFromSheet={handleResetFromSheet}
+          selectedNode={selectedNode}
+          onSelectNode={setSelectedNode}
+        />
 
         {/* 1-Click Action Buttons */}
         <div className="grid grid-cols-2 gap-2">
           <Button
             type="button"
             variant="secondary"
-            onClick={() => handleCopyTableTsv(activeXmlTab)}
+            onClick={() => handleCopyTableTsv(activeTableTab)}
             className="flex items-center justify-center gap-1 text-xs py-1.5"
             title="Copies the active table TSV for XML Builder"
           >
-            {copiedKey === activeXmlTab ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copiedKey === activeXmlTab ? 'Copied TSV!' : `Copy ${activeXmlTab.slice(0, 5)} TSV`}</span>
+            {copiedKey === activeTableTab ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedKey === activeTableTab ? 'Copied TSV!' : `Copy ${activeTableTab.slice(0, 5)} TSV`}</span>
           </Button>
 
           <Button

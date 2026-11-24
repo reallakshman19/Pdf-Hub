@@ -93,6 +93,24 @@ export async function exportFlattenedWriterPdf(
 ): Promise<FlattenWriterExportResult> {
   const { PDFDocument } = await ensurePdfLibLoaded();
   const doc = await PDFDocument.load(input.pdfBytes);
+  const counts = await flattenWriterElementsIntoDocument(doc, input);
+
+  return {
+    bytes: await doc.save(),
+    ...counts,
+  };
+}
+
+/**
+ * Draws the Writer overlay into an already-loaded document in place. Used by
+ * the editable round-trip export, which appends the result as an incremental
+ * update instead of rewriting the whole source PDF.
+ */
+export async function flattenWriterElementsIntoDocument(
+  doc: PDFDocumentT,
+  input: Pick<FlattenWriterExportInput, 'elements' | 'assets'>,
+): Promise<Omit<FlattenWriterExportResult, 'bytes'>> {
+  await ensurePdfLibLoaded();
 
   // Shared font cache — variants are embedded on first use, reused after.
   const fontCache = new Map<StandardFontsT, PDFFontT>();
@@ -131,7 +149,6 @@ export async function exportFlattenedWriterPdf(
   }
 
   return {
-    bytes: await doc.save(),
     pageCount: pages.length,
     flattenedElementCount: elements.length,
     embeddedAssetCount: embeddedAssetIds.size,

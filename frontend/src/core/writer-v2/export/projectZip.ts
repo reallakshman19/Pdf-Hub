@@ -27,6 +27,12 @@ export interface PdfHubWriterProjectManifestV1 {
     hasOriginalPdf: boolean;
     /** SHA-256 of the exact packaged original.pdf bytes, distinct from documentFingerprint. */
     originalPdfSha256?: string;
+    /**
+     * Where original.pdf lives. Absent means a ZIP member. 'host-pdf-prefix'
+     * means the ZIP is embedded in an incrementally-updated editable PDF whose
+     * first `byteLength` bytes are the original, so it is not stored twice.
+     */
+    originalPdfStorage?: WriterProjectOriginalPdfStorage;
   };
   files: {
     originalPdf?: 'original.pdf';
@@ -46,8 +52,20 @@ export interface PdfHubWriterProjectManifestV1 {
   };
 }
 
+export interface WriterProjectOriginalPdfStorage {
+  kind: 'host-pdf-prefix';
+  byteLength: number;
+}
+
+export const ORIGINAL_PDF_MEMBER = 'original.pdf';
+
 export interface ExportPdfHubProjectInput {
   originalPdfBytes?: Uint8Array | null;
+  /**
+   * 'host-pdf-prefix': record the original's SHA-256 and length but omit the
+   * original.pdf member; the importer restores it from the host PDF prefix.
+   */
+  originalPdfPlacement?: 'member' | 'host-pdf-prefix';
   documentFingerprint: string;
   documentMeta?: WriterDocumentMetaV2 | null;
   elements: WriterElementV2[];
@@ -139,6 +157,9 @@ export async function exportPdfHubWriterProject(
       kind: documentMode,
       hasOriginalPdf,
       ...(originalPdfSha256 ? { originalPdfSha256 } : {}),
+      ...(hasOriginalPdf && input.originalPdfPlacement === 'host-pdf-prefix' && input.originalPdfBytes
+        ? { originalPdfStorage: { kind: 'host-pdf-prefix', byteLength: input.originalPdfBytes.byteLength } as const }
+        : {}),
     },
     files,
     counts: {
@@ -158,8 +179,8 @@ export async function exportPdfHubWriterProject(
 
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
-  if (hasOriginalPdf && input.originalPdfBytes) {
-    zip.file('original.pdf', input.originalPdfBytes);
+  if (hasOriginalPdf && input.originalPdfBytes && input.originalPdfPlacement !== 'host-pdf-prefix') {
+    zip.file(ORIGINAL_PDF_MEMBER, input.originalPdfBytes);
   }
 
   if (input.documentMeta) {
@@ -338,7 +359,7 @@ export async function importPdfHubWriterProjectFromReader(
   };
 }
 
-async function sourcePdfSha256(bytes: Uint8Array): Promise<string> {
+export async function sourcePdfSha256(bytes: Uint8Array): Promise<string> {
   if (!globalThis.crypto?.subtle) {
     throw new Error('Writer project source SHA-256 validation is unavailable.');
   }

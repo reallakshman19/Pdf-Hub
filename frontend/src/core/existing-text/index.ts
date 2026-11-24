@@ -77,4 +77,6 @@ export * from './ocrNativeReconciliationTypes';
 export * from './ocrToNativeBridge';
 export * from './crossPageFlowTypes';
 export * from './crossPageFlowEngine';
+export * from './frameManipulationTypes';
+export * from './frameGeometry';
 

@@ -4,10 +4,12 @@ import {
   validateReflowCrossPageTextCommandPayload,
   validateDeleteExistingTextCommandPayload,
   validateEditTableCellTextCommandPayload,
+  validateMoveExistingTextBlockCommandPayload,
   validateReconstructExistingTextCommandPayload,
   validateReplaceExistingParagraphCommandPayload,
   validateReplaceExistingTextCommandPayload,
   validateReplaceMultiColumnParagraphCommandPayload,
+  validateResizeExistingTextBlockCommandPayload,
 } from '@/core/existing-text/commandValidation';
 import {
   defaultRiskForCommand,
@@ -310,6 +312,22 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
     case 'REFLOW_CROSS_PAGE_TEXT':
       errors.push(
         ...validateReflowCrossPageTextCommandPayload(
+          command.payload,
+        ),
+      );
+      break;
+
+    case 'MOVE_EXISTING_TEXT_BLOCK':
+      errors.push(
+        ...validateMoveExistingTextBlockCommandPayload(
+          command.payload,
+        ),
+      );
+      break;
+
+    case 'RESIZE_EXISTING_TEXT_BLOCK':
+      errors.push(
+        ...validateResizeExistingTextBlockCommandPayload(
           command.payload,
         ),
       );
