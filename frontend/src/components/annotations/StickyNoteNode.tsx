@@ -2,6 +2,7 @@ import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { nativeTextDisplayRect } from './shared/nativeTextAnchor';
+import { PdfNoteIcon } from './shared/PdfNoteIcon';
 
 /** Returns a slightly darker shade of a hex color for the header strip */
 function darken(hex: string, amount = 0.18): string {
@@ -25,6 +26,38 @@ export const StickyNoteNode: React.FC<AnnotationNodeProps<'sticky-note'>> = ({
   const isLocked = annotation.data?.locked === true;
   const collapsed = annotation.data?.isCollapsed !== false;
   const displayRect = nativeTextDisplayRect(rect, pageRotation);
+
+  /* ── Collapsed native PDF note: its own /Name icon in its /C colour ── */
+  if (collapsed && annotation.data?.noteIcon) {
+    const size = Math.max(12, Math.min(displayRect.width, displayRect.height));
+    return (
+      <div
+        data-annotation-type="sticky-note"
+        data-native-annotation-id={annotation.data.nativeSourceRef ? annotation.id : undefined}
+        data-native-source-ref={annotation.data.nativeSourceRef}
+        data-native-selected={isSelected ? 'true' : 'false'}
+        className="absolute pointer-events-auto cursor-pointer select-none"
+        title={text ? `${author}: ${text}` : author}
+        style={{
+          left: displayRect.x,
+          top: displayRect.y,
+          zIndex: 10,
+          opacity: annotation.data?.opacity ?? 1,
+          outline: isSelected ? '2px solid #3b82f6' : 'none',
+          outlineOffset: 2,
+          borderRadius: 3,
+        }}
+        onPointerDown={e => { onSelect(e); if (!isLocked) onTransformStart(e, 'move'); }}
+        onDoubleClick={onDoubleClick}
+      >
+        <PdfNoteIcon
+          name={annotation.data.noteIcon}
+          color={annotation.data?.borderColor ?? annotation.data?.backgroundColor ?? '#fde047'}
+          size={size}
+        />
+      </div>
+    );
+  }
 
   /* ── Collapsed: post-it note shape ── */
   if (collapsed) {

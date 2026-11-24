@@ -136,6 +136,13 @@ export interface AnnotationData extends Record<string, unknown> {
   // ── sticky note ───────────────────────────────────────
   isCollapsed?: boolean;
   author?: string;
+  /**
+   * Native /Text annotation icon name (/Name: Comment, Note, Key, Help,
+   * NewParagraph, Paragraph, Insert, or a viewer-specific name). Set only for
+   * notes imported from a PDF; while collapsed they render as this icon in
+   * their /C colour, matching other PDF viewers.
+   */
+  noteIcon?: string;
 
   // ── meta ──────────────────────────────────────────────
   locked?: boolean;

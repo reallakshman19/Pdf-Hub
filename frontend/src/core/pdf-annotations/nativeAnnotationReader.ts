@@ -713,6 +713,12 @@ function nativeData(
     if (typeof open === 'boolean') {
       data.isCollapsed = !open;
     }
+    // Notes authored by other tools (no PDFHubType marker) render as their
+    // standard icon; PDF Hub's own notes keep their in-app appearance.
+    if (readName(dict, 'Subtype', lib) === 'Text' && !readText(dict, 'PDFHubType', lib)) {
+      // ISO 32000 12.5.6.4: /Name defaults to Note when absent.
+      data.noteIcon = readName(dict, 'Name', lib) ?? 'Note';
+    }
   }
 
   if (type === 'line' || type === 'arrow') {
