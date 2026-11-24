@@ -11,6 +11,11 @@ import type { ExistingTextTransform } from '@/core/existing-text/types';
 import { readExistingTextPageContentStreams } from './PdfLibExistingTextContentStreams';
 import { replaceSimpleExistingTextTj } from './PdfLibExistingTextReplacement';
 
+function toTransform(values: number[]): ExistingTextTransform {
+  const [a, b, c, d, e, f] = values;
+  return [a, b, c, d, e, f];
+}
+
 async function pageItems(bytes: Uint8Array) {
   const pdf = await getDocument({ data: bytes.slice() }).promise;
   try {
@@ -38,7 +43,7 @@ describe('existing-text page-space provenance on a real fixture', () => {
         {
           sourceIndex,
           text: item.str,
-          transform: item.transform as ExistingTextTransform,
+          transform: toTransform(item.transform as number[]),
           width: item.width,
           height: item.height,
           fontName: item.fontName,
