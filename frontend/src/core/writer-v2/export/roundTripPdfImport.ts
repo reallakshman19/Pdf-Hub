@@ -1,8 +1,13 @@
+import JSZip from 'jszip';
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
+import { warn as logWarn } from '@/core/logger/service';
 import { ROUND_TRIP_ATTACHMENT_NAME } from './roundTripPdfExport';
 import {
   importPdfHubWriterProject,
+  ORIGINAL_PDF_MEMBER,
+  sourcePdfSha256,
   type ImportPdfHubProjectResult,
+  type PdfHubWriterProjectManifestV1,
 } from './projectZip';
 
 type PdfLibNs = Awaited<ReturnType<typeof pdfLib>>;
@@ -29,7 +34,57 @@ export async function extractWriterProjectZipFromPdf(pdfBytes: Uint8Array): Prom
   const lib = await pdfLib();
   let doc: PDFDocumentT;
   try { doc = await lib.PDFDocument.load(pdfBytes, { throwOnInvalidObject: false }); } catch { return null; }
-  return findEmbeddedProjectZip(doc, lib);
+  const zip = findEmbeddedProjectZip(doc, lib);
+  return zip ? restoreHostPrefixOriginal(zip, pdfBytes) : null;
+}
+
+/**
+ * Incrementally-saved editable PDFs do not store original.pdf inside the
+ * project: the original is the exact byte prefix of the host PDF. Rebuild a
+ * self-contained project ZIP so ordinary bounded admission and SHA-256
+ * verification apply unchanged. ZIPs without that declaration pass through.
+ *
+ * Returns null (the file then opens as an ordinary flattened PDF) when the
+ * declared prefix no longer matches: another tool fully rewrote the file, so
+ * the untouched source cannot be recovered without guessing.
+ */
+export async function restoreHostPrefixOriginal(
+  zipBytes: Uint8Array,
+  hostPdfBytes: Uint8Array,
+): Promise<Uint8Array | null> {
+  const zip = await JSZip.loadAsync(zipBytes);
+  const manifestFile = zip.file('manifest.json');
+  if (!manifestFile) return zipBytes;
+  let manifest: PdfHubWriterProjectManifestV1;
+  try {
+    manifest = JSON.parse(await manifestFile.async('string')) as PdfHubWriterProjectManifestV1;
+  } catch {
+    return zipBytes; // Malformed manifests are rejected by normal admission.
+  }
+  const storage = manifest.source?.originalPdfStorage;
+  if (storage === undefined) return zipBytes;
+
+  if (storage.kind !== 'host-pdf-prefix'
+    || !Number.isSafeInteger(storage.byteLength)
+    || storage.byteLength <= 0
+    || storage.byteLength > hostPdfBytes.byteLength
+    || manifest.files?.originalPdf !== ORIGINAL_PDF_MEMBER
+    || !manifest.source?.originalPdfSha256) {
+    throw new Error('Editable PDF declares an invalid original PDF prefix.');
+  }
+  if (zip.file(ORIGINAL_PDF_MEMBER)) {
+    throw new Error('Editable PDF stores the original PDF twice with conflicting locations.');
+  }
+  const original = hostPdfBytes.subarray(0, storage.byteLength);
+  if (await sourcePdfSha256(original) !== manifest.source.originalPdfSha256) {
+    logWarn('writer', 'Editable PDF was rewritten after export; opening it as a flattened PDF', {
+      declaredByteLength: storage.byteLength,
+      hostByteLength: hostPdfBytes.byteLength,
+    });
+    return null;
+  }
+  zip.file(ORIGINAL_PDF_MEMBER, original);
+  return zip.generateAsync({ type: 'uint8array', compression: 'STORE' });
 }
 
 function findEmbeddedProjectZip(doc: PDFDocumentT, lib: PdfLibNs): Uint8Array | null {

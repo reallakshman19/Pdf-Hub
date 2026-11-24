@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { PDFDocument, PDFArray, PDFDict, PDFName, PDFString, PDFHexString } from 'pdf-lib';
 import { exportRoundTripWriterPdf, ROUND_TRIP_ATTACHMENT_NAME } from './roundTripPdfExport';
 import { extractWriterProjectFromPdf } from './roundTripPdfImport';
+import * as pdfLibNs from 'pdf-lib';
+import { captureIncrementalPdfBaseline, serializeIncrementalPdfUpdate } from '@/core/pdf/incrementalPdfUpdate';
 import type { WriterElementV2 } from '../types';
 
 // Synthetic test exercises actual pdf-lib serialization, not the private engineering drawing.
@@ -52,13 +54,24 @@ describe('Writer editable PDF native preservation', () => {
   it('does not mistake unrelated ZIP attachments for editable Writer data', async () => {
     const original = await nativeFixture();
     const editable = await exportRoundTripWriterPdf({ pdfBytes: original, documentFingerprint: fingerprint, elements: [element] });
-    const doc = await PDFDocument.load(editable.bytes);
-    const embedded = doc.catalog.lookup(PDFName.of('Names'), PDFDict).lookup(PDFName.of('EmbeddedFiles'), PDFDict);
-    const names = embedded.lookup(PDFName.of('Names'), PDFArray);
+    // Rename the attachment with an incremental save, which keeps the
+    // original-PDF prefix that the editable layer is anchored to.
+    const renamed = async (name: string) => {
+      const doc = await PDFDocument.load(editable.bytes, { updateMetadata: false });
+      const baseline = captureIncrementalPdfBaseline(doc, pdfLibNs, editable.bytes);
+      expect(baseline).not.toBeNull();
+      const embedded = doc.catalog.lookup(PDFName.of('Names'), PDFDict).lookup(PDFName.of('EmbeddedFiles'), PDFDict);
+      embedded.lookup(PDFName.of('Names'), PDFArray).set(0, PDFHexString.fromText(name));
+      return (await serializeIncrementalPdfUpdate(doc, pdfLibNs, baseline!)).bytes;
+    };
     // A valid ZIP payload under an unrelated filename must be ignored.
-    names.set(0, PDFHexString.fromText('unrelated.zip'));
-    expect(await extractWriterProjectFromPdf(await doc.save())).toBeNull();
-    names.set(0, PDFHexString.fromText(ROUND_TRIP_ATTACHMENT_NAME));
-    expect((await extractWriterProjectFromPdf(await doc.save()))?.elements[0].id).toBe(element.id);
+    expect(await extractWriterProjectFromPdf(await renamed('unrelated.zip'))).toBeNull();
+    expect((await extractWriterProjectFromPdf(await renamed(ROUND_TRIP_ATTACHMENT_NAME)))?.elements[0].id).toBe(element.id);
+  });
+  it('opens an editable PDF that another tool fully rewrote as a plain flattened PDF', async () => {
+    const original = await nativeFixture();
+    const editable = await exportRoundTripWriterPdf({ pdfBytes: original, documentFingerprint: fingerprint, elements: [element] });
+    const rewritten = await (await PDFDocument.load(editable.bytes)).save();
+    expect(await extractWriterProjectFromPdf(rewritten)).toBeNull();
   });
 });
