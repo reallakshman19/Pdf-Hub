@@ -227,6 +227,29 @@ export interface PdfMutationSession {
     },
   ): Promise<import('@/core/existing-text/erasureTypes').ExistingTextDeletionResult>;
 
+  replaceMultiColumnParagraph(
+    input: {
+      currentRevisionId: string;
+      pageIndex: number;
+      intent: import('@/core/existing-text/columnFlowTypes').MultiColumnParagraphIntent;
+    },
+  ): Promise<import('@/core/existing-text/columnFlowTypes').MultiColumnParagraphResult>;
+
+  convertOcrToNativeText(
+    input: {
+      currentRevisionId: string;
+      pageIndex: number;
+      intent: import('@/core/existing-text/ocrNativeReconciliationTypes').OcrTextReconciliationIntent;
+    },
+  ): Promise<import('@/core/existing-text/ocrNativeReconciliationTypes').OcrTextReconciliationResult>;
+
+  reflowCrossPageText(
+    input: {
+      currentRevisionId: string;
+      intent: import('@/core/existing-text/crossPageFlowTypes').CrossPageFlowIntent;
+    },
+  ): Promise<import('@/core/existing-text/crossPageFlowTypes').CrossPageFlowResult>;
+
   commit(): Promise<PdfMutationCommitResult>;
 
   dispose(): void;

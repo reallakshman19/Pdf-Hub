@@ -20,6 +20,15 @@ import {
 import {
   eraseExistingTextSpanFromDocument,
 } from '@/adapters/pdf-text/PdfLibExistingTextErasure';
+import {
+  applyMultiColumnParagraphReplacementToDocument,
+} from '@/adapters/pdf-text/PdfLibMultiColumnReconstruction';
+import {
+  reconcileOcrTextInDocument,
+} from '@/adapters/pdf-text/PdfLibOcrVectorReconciliation';
+import {
+  applyCrossPageFlowToDocument,
+} from '@/adapters/pdf-text/PdfLibCrossPageFlowReconstruction';
 import type { ExistingTextSimpleTextOperator } from '@/core/existing-text/provenanceTypes';
 import type {
   PdfMutationCommitResult,
@@ -668,6 +677,49 @@ class PdfLibMutationSession implements PdfMutationSession {
         strategy: input.strategy,
         signal: this.signal,
       },
+    );
+  }
+
+  async replaceMultiColumnParagraph(
+    input: Parameters<PdfMutationSession['replaceMultiColumnParagraph']>[0],
+  ): ReturnType<PdfMutationSession['replaceMultiColumnParagraph']> {
+    this.assertOpen('replace multi-column paragraph');
+    throwIfAborted(this.signal, 'replace multi-column paragraph');
+    this.assertPageIndex(input.pageIndex);
+
+    return applyMultiColumnParagraphReplacementToDocument(
+      this.document,
+      this.lib,
+      input,
+    );
+  }
+
+  async convertOcrToNativeText(
+    input: Parameters<PdfMutationSession['convertOcrToNativeText']>[0],
+  ): ReturnType<PdfMutationSession['convertOcrToNativeText']> {
+    this.assertOpen('convert OCR text to native PDF text');
+    throwIfAborted(this.signal, 'convert OCR text to native PDF text');
+    this.assertPageIndex(input.pageIndex);
+
+    return reconcileOcrTextInDocument(
+      this.document,
+      this.lib,
+      input,
+    );
+  }
+
+  async reflowCrossPageText(
+    input: Parameters<PdfMutationSession['reflowCrossPageText']>[0],
+  ): ReturnType<PdfMutationSession['reflowCrossPageText']> {
+    this.assertOpen('reflow cross-page text');
+    throwIfAborted(this.signal, 'reflow cross-page text');
+    this.assertPageIndex(input.intent.sourcePageIndex);
+    this.assertPageIndex(input.intent.targetPageIndex);
+
+    return applyCrossPageFlowToDocument(
+      this.document,
+      this.lib,
+      input,
     );
   }
 

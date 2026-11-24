@@ -19,6 +19,7 @@ export interface OcrConfidenceOverlayProps {
   selectedWordId?: string | null;
   minConfidenceBand?: OcrConfidenceBand;
   onWordClick?: (word: OcrWord) => void;
+  onWordDoubleClick?: (word: OcrWord) => void;
 }
 
 export const OcrConfidenceOverlay: React.FC<OcrConfidenceOverlayProps> = ({
@@ -33,6 +34,7 @@ export const OcrConfidenceOverlay: React.FC<OcrConfidenceOverlayProps> = ({
   selectedWordId,
   minConfidenceBand,
   onWordClick,
+  onWordDoubleClick,
 }) => {
   if (!visible) {
     return null;
@@ -88,6 +90,7 @@ export const OcrConfidenceOverlay: React.FC<OcrConfidenceOverlayProps> = ({
               color,
             }}
             onClick={() => onWordClick?.(word)}
+            onDoubleClick={() => onWordDoubleClick?.(word)}
           >
             {showLabels ? (
               <span className="sr-only">

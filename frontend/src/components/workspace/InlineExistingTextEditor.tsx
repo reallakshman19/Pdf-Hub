@@ -26,6 +26,9 @@ import type { ExistingTextParagraphBlock } from '@/core/existing-text/paragraphT
 import {
   snapRotationDegrees,
 } from '@/core/existing-text/rotatedTextGeometry';
+import { detectMultiColumnLayoutFromSpans } from '@/core/existing-text/columnFlowDetector';
+import { reflowTextAcrossColumns } from '@/core/existing-text/multiColumnReflowEngine';
+import type { MultiColumnLayout } from '@/core/existing-text/columnFlowTypes';
 import { commandBus } from '@/core/commands/bus';
 import { materializePdfCommand } from '@/core/commands/types';
 import { useToastStore } from '@/core/toast/store';
@@ -73,6 +76,7 @@ export const InlineExistingTextEditor: React.FC<InlineExistingTextEditorProps> =
   const [paragraph, setParagraph] = useState<ExistingTextParagraphBlock | null>(null);
   const [tableCell, setTableCell] = useState<DetectedTableCell | null>(null);
   const [tableGrids, setTableGrids] = useState<readonly DetectedTableGrid[]>([]);
+  const [multiColumnLayout, setMultiColumnLayout] = useState<MultiColumnLayout | null>(null);
   const [isParagraphMode, setIsParagraphMode] = useState<boolean>(false);
   const [capability, setCapability] = useState<ExistingTextUiCapability | null>(null);
   const [checking, setChecking] = useState(false);
@@ -81,6 +85,12 @@ export const InlineExistingTextEditor: React.FC<InlineExistingTextEditorProps> =
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const addToast = useToastStore((state) => state.addToast);
+
+  const isOvercapacity = useMemo(() => {
+    if (!multiColumnLayout) return false;
+    const reflow = reflowTextAcrossColumns(text, multiColumnLayout, { fontSizePt: fontSize });
+    return reflow.overflowsEntireLayout;
+  }, [text, multiColumnLayout, fontSize]);
 
   const hasStyleChange =
     Math.abs(fontSize - bounds.fontSize) > 0.1 ||
@@ -147,6 +157,9 @@ export const InlineExistingTextEditor: React.FC<InlineExistingTextEditorProps> =
                   setAlign(cell.suggestedAlignment);
                 }
               }
+
+              const mc = detectMultiColumnLayoutFromSpans(pageInspection.spans, pageNumber - 1, pageId);
+              setMultiColumnLayout(mc);
             }
           } finally {
             page.cleanup();
@@ -291,6 +304,74 @@ export const InlineExistingTextEditor: React.FC<InlineExistingTextEditorProps> =
     if (text.trim() === '' && !isParagraphMode && !tableCell) {
       await handleDeleteText();
       return;
+    }
+
+    // OCR-synthesized candidate path
+    if (span.id.startsWith('ocr-span-')) {
+      setCommitting(true);
+      try {
+        const result = await commandBus.execute({
+          workingBytes,
+          command: materializePdfCommand(
+            {
+              type: 'CONVERT_OCR_TO_NATIVE_TEXT',
+              payload: {
+                schemaVersion: 1,
+                pageIndex: span.pageIndex,
+                pageId,
+                intent: {
+                  schemaVersion: 1,
+                  sourceRevisionId: documentKey,
+                  pageIndex: span.pageIndex,
+                  pageId,
+                  ocrBlockId: span.id.replace('ocr-span-', ''),
+                  ocrLineIndices: [span.sourceIndex],
+                  originalOcrText: initialText,
+                  editedText: text,
+                  targetBoundsPt: {
+                    x: span.originPt.x,
+                    y: span.originPt.y,
+                    width: span.advanceWidthPt,
+                    height: span.sourceHeightPt,
+                  },
+                  fontSizePt: fontSize,
+                  fontFamily: 'Helvetica',
+                  colorHex: textColor ?? '#000000',
+                  backgroundColorHex: '#ffffff',
+                },
+              },
+            },
+            'toolbar',
+            documentKey,
+          ),
+        });
+
+        if (!result.success) {
+          addToast({
+            type: 'error',
+            title: 'OCR reconciliation failed',
+            message: result.error?.message ?? result.message,
+          });
+          return;
+        }
+
+        addToast({
+          type: 'success',
+          title: 'OCR text converted',
+          message: 'Converted OCR text to native vector PDF text.',
+        });
+        onCommitSuccess();
+        return;
+      } catch (err) {
+        addToast({
+          type: 'error',
+          title: 'OCR reconciliation failed',
+          message: err instanceof Error ? err.message : String(err),
+        });
+        return;
+      } finally {
+        setCommitting(false);
+      }
     }
 
     // Paragraph reflow mutation path
@@ -717,6 +798,18 @@ export const InlineExistingTextEditor: React.FC<InlineExistingTextEditorProps> =
               title={`Rotated Text: ${rotationDegrees}°`}
             >
               ⟳ {rotationDegrees}°
+            </span>
+          </>
+        )}
+        {isOvercapacity && (
+          <>
+            <span className="mx-0.5 h-3 w-px bg-slate-700" />
+            <span
+              data-testid="overcapacity-warning-badge"
+              className="h-5 px-1.5 rounded flex items-center justify-center font-sans text-[10px] bg-amber-500 text-amber-950 font-bold border border-amber-600 animate-pulse"
+              title="Text exceeds total column layout capacity"
+            >
+              ⚠️ Overcapacity
             </span>
           </>
         )}

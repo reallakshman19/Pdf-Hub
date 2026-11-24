@@ -34,7 +34,8 @@ export type ExistingTextEditabilityReason =
   | 'MISSING_FONT_IDENTITY'
   | 'VERTICAL_WRITING_MODE'
   | 'ROTATED_TEXT'
-  | 'SKEWED_TEXT';
+  | 'SKEWED_TEXT'
+  | 'OCR_DERIVED_TEXT';
 
 export interface ExistingTextPageContext {
   revisionId: string;

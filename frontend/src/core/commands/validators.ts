@@ -1,10 +1,13 @@
 import {
   validateBatchReplaceExistingTextCommandPayload,
+  validateConvertOcrToNativeTextCommandPayload,
+  validateReflowCrossPageTextCommandPayload,
   validateDeleteExistingTextCommandPayload,
   validateEditTableCellTextCommandPayload,
   validateReconstructExistingTextCommandPayload,
   validateReplaceExistingParagraphCommandPayload,
   validateReplaceExistingTextCommandPayload,
+  validateReplaceMultiColumnParagraphCommandPayload,
 } from '@/core/existing-text/commandValidation';
 import {
   defaultRiskForCommand,
@@ -283,6 +286,30 @@ export function validateCommand(command: PdfCommand): CommandValidationResult {
     case 'DELETE_EXISTING_TEXT':
       errors.push(
         ...validateDeleteExistingTextCommandPayload(
+          command.payload,
+        ),
+      );
+      break;
+
+    case 'REPLACE_MULTI_COLUMN_PARAGRAPH':
+      errors.push(
+        ...validateReplaceMultiColumnParagraphCommandPayload(
+          command.payload,
+        ),
+      );
+      break;
+
+    case 'CONVERT_OCR_TO_NATIVE_TEXT':
+      errors.push(
+        ...validateConvertOcrToNativeTextCommandPayload(
+          command.payload,
+        ),
+      );
+      break;
+
+    case 'REFLOW_CROSS_PAGE_TEXT':
+      errors.push(
+        ...validateReflowCrossPageTextCommandPayload(
           command.payload,
         ),
       );

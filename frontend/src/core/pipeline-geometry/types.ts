@@ -19,6 +19,8 @@ export interface PipelineCoordinateRow {
   lengthToNextMm?: number;
 }
 
+export type PipelineRoutingMode = 'plan' | 'isometric';
+
 export interface PipelineCoordinateExportOptions {
   branchName?: string;
   startNodeNumber?: number;
@@ -26,15 +28,21 @@ export interface PipelineCoordinateExportOptions {
   defaultElevationZ?: number;
   origin?: { x: number; y: number }; // custom datum offset in mm
   invertYAxis?: boolean; // match CAD North/South upward axis vs PDF top-down Y
+  routingMode?: PipelineRoutingMode; // 'plan' (2D layout with manual/badge elevations) or 'isometric' (30/150/90 axes)
+  nodeElevations?: Record<number, number>; // optional nodeNumber -> custom Z elevation in mm
 }
 
-export const DEFAULT_PIPELINE_EXPORT_OPTIONS: Required<PipelineCoordinateExportOptions> = {
+export const DEFAULT_PIPELINE_EXPORT_OPTIONS: Required<Omit<PipelineCoordinateExportOptions, 'nodeElevations'>> & {
+  nodeElevations?: Record<number, number>;
+} = {
   branchName: '/CUSTOM-4"-PIPE/B1',
   startNodeNumber: 100,
   nodeIncrement: 10,
   defaultElevationZ: 100000, // 100,000 mm (100 m standard plant elevation)
   origin: { x: 0, y: 0 },
   invertYAxis: false,
+  routingMode: 'plan',
+  nodeElevations: undefined,
 };
 
 export interface PipelineBranchRow {

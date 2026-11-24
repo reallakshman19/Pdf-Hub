@@ -70,3 +70,11 @@ export * from './fitPolicy';
 export * from './fitTypes';
 export * from './visualClearanceScanner';
 export * from './visualClearanceTypes';
+export * from './columnFlowTypes';
+export * from './columnFlowDetector';
+export * from './multiColumnReflowEngine';
+export * from './ocrNativeReconciliationTypes';
+export * from './ocrToNativeBridge';
+export * from './crossPageFlowTypes';
+export * from './crossPageFlowEngine';
+
