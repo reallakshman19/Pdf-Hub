@@ -252,6 +252,9 @@ export async function analyzeExistingTextVisualClearanceInDocument(
           fontSizePt:
             input.provenance
               .fontSizePt,
+          spacingPt:
+            input.provenance
+              .spacingPt,
           signal: input.signal,
         },
         lib,

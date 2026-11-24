@@ -278,6 +278,8 @@ export async function applySimpleExistingTextReplacementToDocument(
           input.span.advanceWidthPt,
         fontSizePt:
           input.provenance.fontSizePt,
+        spacingPt:
+          input.provenance.spacingPt,
         signal: input.signal,
       },
       lib,
