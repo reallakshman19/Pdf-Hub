@@ -235,6 +235,28 @@ export type ReflowCrossPageTextCommand = PdfCommandBase<
   'REFLOW_CROSS_PAGE_TEXT',
   ReflowCrossPageTextCommandPayload
 >;
+export interface MoveExistingTextBlockCommandPayload {
+  schemaVersion: 1;
+  sourcePageIndex: number;
+  sourcePageId: string;
+  sourceRevisionId?: string;
+  intent: import('@/core/existing-text/frameManipulationTypes').MoveTextFrameIntent;
+}
+export type MoveExistingTextBlockCommand = PdfCommandBase<
+  'MOVE_EXISTING_TEXT_BLOCK',
+  MoveExistingTextBlockCommandPayload
+>;
+export interface ResizeExistingTextBlockCommandPayload {
+  schemaVersion: 1;
+  sourcePageIndex: number;
+  sourcePageId: string;
+  sourceRevisionId?: string;
+  intent: import('@/core/existing-text/frameManipulationTypes').ResizeTextFrameIntent;
+}
+export type ResizeExistingTextBlockCommand = PdfCommandBase<
+  'RESIZE_EXISTING_TEXT_BLOCK',
+  ResizeExistingTextBlockCommandPayload
+>;
 export type AnnotationChangeCommand = PdfCommandBase<
   'ANNOTATION_CHANGE',
   { action: string; annotationIds: string[] }
@@ -284,6 +306,8 @@ export type PdfCommand =
   | ReplaceMultiColumnParagraphCommand
   | ConvertOcrToNativeTextCommand
   | ReflowCrossPageTextCommand
+  | MoveExistingTextBlockCommand
+  | ResizeExistingTextBlockCommand
   | AnnotationChangeCommand
   | WriterChangeCommand
   | ApplyWorkingCopyCommand;
@@ -404,6 +428,8 @@ const PREVIEW_REQUIRED_TYPES = new Set<PdfCommandType>([
   'REPLACE_MULTI_COLUMN_PARAGRAPH',
   'CONVERT_OCR_TO_NATIVE_TEXT',
   'REFLOW_CROSS_PAGE_TEXT',
+  'MOVE_EXISTING_TEXT_BLOCK',
+  'RESIZE_EXISTING_TEXT_BLOCK',
 ]);
 
 export function defaultRiskForCommand(type: PdfCommandType): PdfCommandRisk {

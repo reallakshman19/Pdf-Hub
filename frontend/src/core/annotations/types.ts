@@ -4,6 +4,7 @@ export type { ReviewStatus } from '../review/types';
 
 import type { AnnotationType } from './annotationTypes';
 export type { AnnotationType } from './annotationTypes';
+export type { ScaleCalibration, DimensionUnit } from './calibration';
 
 
 export interface AnnotationStyle {

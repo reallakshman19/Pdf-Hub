@@ -9,6 +9,7 @@ interface CalloutExtras {
   anchorPoint?: Point2D | null;
   kneePoint?: Point2D | null;
   onAnchorDragStart?: (e: React.PointerEvent<SVGElement>) => void;
+  onKneeDragStart?: (e: React.PointerEvent<SVGElement>) => void;
 }
 
 export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtras> = ({
@@ -25,6 +26,7 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
   anchorPoint,
   kneePoint,
   onAnchorDragStart,
+  onKneeDragStart,
   pageRotation = 0,
 }) => {
   const rawBorderColor = annotation.data?.borderColor;
@@ -39,7 +41,7 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
   const effectiveKnee = kneePoint !== undefined ? kneePoint : (annotation.data?.knee as Point2D | undefined);
   const leaderStyle = annotation.data?.leaderStyle
     ? (annotation.data.leaderStyle === 'straight' ? 'straight' : 'elbow')
-    : (effectiveKnee ? 'elbow' : 'straight');
+    : 'elbow';
   const arrowHead = annotation.data?.arrowHead === 'filled'
     ? 'filled'
     : annotation.data?.arrowHead === 'none'
@@ -149,8 +151,23 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
                     r={Math.max(5 * scale, 3)}
                     fill={borderColor}
                     cursor="crosshair"
+                    data-testid="callout-anchor-handle"
                     style={{ pointerEvents: 'all', touchAction: 'none' }}
                     onPointerDown={onAnchorDragStart}
+                  />
+                )}
+                {onKneeDragStart && p.kneePoint && (
+                  <circle
+                    cx={p.kneePoint.x}
+                    cy={p.kneePoint.y}
+                    r={Math.max(5 * scale, 3)}
+                    fill="#3b82f6"
+                    stroke="#ffffff"
+                    strokeWidth={Math.max(1.5 * scale, 1)}
+                    cursor="move"
+                    data-testid="callout-knee-handle"
+                    style={{ pointerEvents: 'all', touchAction: 'none' }}
+                    onPointerDown={onKneeDragStart}
                   />
                 )}
               </React.Fragment>

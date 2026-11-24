@@ -7,6 +7,7 @@ export interface Piping3DViewerProps {
   selectedNode?: number | null;
   onSelectNode?: (nodeNumber: number) => void;
   className?: string;
+  isMainCanvas?: boolean;
 }
 
 interface Point3D {
@@ -31,6 +32,7 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
   selectedNode,
   onSelectNode,
   className = '',
+  isMainCanvas = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -91,6 +93,33 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
     };
   }, [coordinateRows]);
 
+  // Viewport dimensions (800x500 for main canvas, 360x220 for side panel)
+  const viewWidth = isMainCanvas ? 800 : 360;
+  const viewHeight = isMainCanvas ? 500 : 220;
+
+  // Camera auto-focus: while a node is selected the view stays centred on it
+  // through rotate/zoom/reset; otherwise the free pan state applies.
+  const focusPan = useMemo<{ x: number; y: number } | null>(() => {
+    if (selectedNode == null) return null;
+    const node = coordinateRows.find((r) => r.nodeNumber === selectedNode);
+    if (!node) return null;
+    const rx = node.x - bounds.center.x;
+    const ry = node.y - bounds.center.y;
+    const rz = node.z - bounds.center.z;
+    const cosA = Math.cos(azimuth);
+    const sinA = Math.sin(azimuth);
+    const x1 = rx * cosA - ry * sinA;
+    const y1 = rx * sinA + ry * cosA;
+    const cosE = Math.cos(elevation);
+    const sinE = Math.sin(elevation);
+    const baseScale = ((Math.min(viewWidth, viewHeight) * 0.65) / bounds.span) * zoom;
+    return {
+      x: -x1 * baseScale,
+      y: (rz * cosE + y1 * sinE) * baseScale,
+    };
+  }, [selectedNode, coordinateRows, bounds, azimuth, elevation, zoom, viewWidth, viewHeight]);
+  const effectivePan = focusPan ?? pan;
+
   // Project a 3D world coordinate (X East, Y North, Z Elevation) to 2D screen coordinate
   const project3D = useCallback(
     (pt: Point3D, width: number, height: number): { x: number; y: number; depth: number } => {
@@ -115,17 +144,14 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
 
       // Screen projection: X is horizontal, Z and Y tilt into vertical
       const baseScale = (Math.min(width, height) * 0.65 / bounds.span) * zoom;
-      const screenX = width / 2 + pan.x + x1 * baseScale;
-      const screenY = height / 2 + pan.y - (z1 * cosE + y1 * sinE) * baseScale;
+      const screenX = width / 2 + effectivePan.x + x1 * baseScale;
+      const screenY = height / 2 + effectivePan.y - (z1 * cosE + y1 * sinE) * baseScale;
 
       return { x: screenX, y: screenY, depth };
     },
-    [bounds, azimuth, elevation, zoom, pan],
+    [bounds, azimuth, elevation, zoom, effectivePan],
   );
 
-  // Viewport dimensions (fixed or responsive)
-  const viewWidth = 360;
-  const viewHeight = 220;
 
   // Project all coordinate nodes
   const projectedNodes = useMemo<ProjectedPoint[]>(() => {
@@ -193,8 +219,8 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
 
   // Triad Axes projection for bottom-left orientation compass
   const triad = useMemo(() => {
-    const triadLen = 28;
-    const origin = { x: 38, y: viewHeight - 34 };
+    const triadLen = isMainCanvas ? 38 : 28;
+    const origin = { x: isMainCanvas ? 48 : 38, y: viewHeight - (isMainCanvas ? 44 : 34) };
 
     const cosA = Math.cos(azimuth);
     const sinA = Math.sin(azimuth);
@@ -220,7 +246,7 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
     };
 
     return { origin, xEnd, yEnd, zEnd };
-  }, [azimuth, elevation, viewHeight]);
+  }, [azimuth, elevation, viewHeight, isMainCanvas]);
 
   // Mouse drag handlers for real-time 3D rotation
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -282,6 +308,7 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
     }
   };
 
+
   const activeHoverOrSelectedNode = hoveredNode ?? selectedNode;
   const activeNodeData = activeHoverOrSelectedNode ? nodeMap.get(activeHoverOrSelectedNode)?.node : null;
 
@@ -297,7 +324,7 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
         <div className="flex items-center gap-1.5">
           <Rotate3d className="w-3.5 h-3.5 text-cyan-400" />
           <span className="font-semibold text-slate-200 uppercase tracking-wider text-[10px]">
-            3D Piping Wireframe
+            {isMainCanvas ? '3D Piping Space (Main Canvas)' : '3D Piping Wireframe'}
           </span>
           <span className="text-[9px] text-slate-400 font-mono">
             ({coordinateRows.length} nodes)
@@ -342,7 +369,11 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
       </div>
 
       {/* Main 3D Wireframe SVG Canvas */}
-      <div className="relative w-full h-[220px] bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 cursor-grab active:cursor-grabbing">
+      <div
+        className={`relative w-full ${
+          isMainCanvas ? 'flex-1 h-full min-h-[440px]' : 'h-[220px]'
+        } bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 cursor-grab active:cursor-grabbing`}
+      >
         {coordinateRows.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-500 text-xs gap-1">
             <Compass className="w-6 h-6 stroke-1 text-slate-600" />
@@ -456,7 +487,26 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
                     />
                   )}
 
-                  {/* Node Circle */}
+                  {/* Node Circle & Selection Target Rings */}
+                  {isSelected && (
+                    <>
+                      <circle
+                        r={13}
+                        className="animate-ping"
+                        stroke="#06b6d4"
+                        strokeWidth={1.5}
+                        fill="none"
+                        opacity={0.8}
+                      />
+                      <circle
+                        r={8.5}
+                        stroke="#22d3ee"
+                        strokeWidth={1.5}
+                        strokeDasharray="3 2"
+                        fill="none"
+                      />
+                    </>
+                  )}
                   <circle
                     r={isSelected || isHovered ? 5.5 : 3.5}
                     fill={isSelected ? '#06b6d4' : isHovered ? '#38bdf8' : '#ffffff'}

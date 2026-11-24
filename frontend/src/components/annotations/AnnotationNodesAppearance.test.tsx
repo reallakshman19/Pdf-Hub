@@ -249,4 +249,49 @@ describe('AnnotationNodes translucency and transparent background', () => {
     expect(parsedHeight).toBeGreaterThanOrEqual(32);
     expect(textarea.value).toBe('Rest\nAxial Stop- Normal');
   });
+
+  it('CalloutNode renders draggable knee handle and triggers onKneeDragStart', () => {
+    const handlers = callbacks();
+    const onKneeDragStart = vi.fn();
+    const onAnchorDragStart = vi.fn();
+    const annotation: PdfAnnotation & { type: 'callout' } = {
+      id: 'callout-knee-test',
+      type: 'callout',
+      pageNumber: 1,
+      rect: { x: 50, y: 50, width: 100, height: 40 },
+      data: {
+        text: 'Ortho Callout',
+        anchor: { x: 250, y: 150 },
+        knee: { x: 250, y: 70 },
+        leaderStyle: 'elbow',
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+
+    render(
+      <CalloutNode
+        annotation={annotation}
+        rect={annotation.rect}
+        scale={1}
+        isSelected
+        anchorPoint={annotation.data.anchor}
+        kneePoint={annotation.data.knee}
+        onAnchorDragStart={onAnchorDragStart}
+        onKneeDragStart={onKneeDragStart}
+        {...handlers}
+      />,
+    );
+
+    const kneeHandle = screen.getByTestId('callout-knee-handle');
+    expect(kneeHandle).toBeInTheDocument();
+    expect(kneeHandle.getAttribute('cx')).toBe('250');
+    expect(kneeHandle.getAttribute('cy')).toBe('70');
+
+    fireEvent.pointerDown(kneeHandle);
+    expect(onKneeDragStart).toHaveBeenCalledTimes(1);
+
+    const anchorHandle = screen.getByTestId('callout-anchor-handle');
+    expect(anchorHandle).toBeInTheDocument();
+  });
 });

@@ -1,6 +1,6 @@
 import { selectedMarkupTextRects } from './textSelectionGeometry';
-import React from 'react';
-import { UploadCloud } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { UploadCloud, Rotate3d, FileText } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { VList, type VListHandle } from 'virtua';
@@ -29,7 +29,7 @@ import {
 } from '@/core/session/activePdfRendererInput';
 import { useReviewStore } from '@/core/review/store';
 import { annotationRegistry } from '../../core/annotations/registry';
-import { computeCalloutPath } from '@/core/annotations/callout-geometry';
+import { computeCalloutPath, findNearestEdge, snapKneeToOrtho } from '@/core/annotations/callout-geometry';
 import { useAnnotationPersistence } from './useAnnotationPersistence';
 import { useWriterPersistence } from './useWriterPersistence';
 import { useShallow } from 'zustand/react/shallow';
@@ -48,6 +48,7 @@ import {
 } from '@/core/admission/donorPdf';
 import { isOperationCancelledError } from '@/core/cancellation/operationCancellation';
 import { InlineExistingTextEditor } from './InlineExistingTextEditor';
+import { ExistingTextFrameOverlay } from './ExistingTextFrameOverlay';
 import { commandBus } from '@/core/commands/bus';
 import { materializePdfCommand } from '@/core/commands/types';
 import { useToastStore } from '@/core/toast/store';
@@ -73,6 +74,16 @@ import {
 } from '@/core/annotations/cadSnapping';
 import { DrawingScaleBar } from '../annotations/DrawingScaleBar';
 import { ScaleCalibrationDialog } from '../dialogs/ScaleCalibrationDialog';
+import { Piping3DViewer } from '../inspector/Piping3DViewer';
+import { extractFullXmlBuilderModel } from '@/core/pipeline-geometry/pipelineModelAggregator';
+import { CadGridOverlay } from '../cad/CadGridOverlay';
+import { CursorPolarTrackingHud } from '../cad/CursorPolarTrackingHud';
+import { CadDraftingToolbar } from '../cad/CadDraftingToolbar';
+import { CrossProbeNodeBeacon } from '../cad/CrossProbeNodeBeacon';
+import { usePipingTableStore } from '@/core/pipeline-geometry/table-store/pipingTableStore';
+import { snapToIsometricGrid, snapToOrthogonalGrid } from '@/core/cad-grid/gridMath';
+import type { CadGridMode, IsoplaneMode } from '@/core/cad-grid/types';
+import type { ScaleCalibration } from '@/core/annotations/types';
 
 type TransformState =
   | {
@@ -112,6 +123,7 @@ type AnnotationRendererProps = AnnotationNodeProps<AnnotationType> & {
   anchorPoint?: Point2D | null;
   kneePoint?: Point2D | null;
   onAnchorDragStart?: (event: React.PointerEvent<SVGCircleElement>) => void;
+  onKneeDragStart?: (event: React.PointerEvent<SVGElement>) => void;
 };
 
 export const DocumentWorkspace: React.FC = () => {
@@ -175,6 +187,12 @@ export const DocumentWorkspace: React.FC = () => {
     setInspectorTab,
     setRightPanelWidth,
     setMobileSheetOpen,
+    workspaceViewMode,
+    setWorkspaceViewMode,
+    cadGridMode,
+    cadIsoplane,
+    cadGridSnap,
+    cadGridSpacing,
   } = useEditorStore(useShallow((state) => ({
     activeTool: state.activeTool,
     existingTextSelection:
@@ -187,7 +205,28 @@ export const DocumentWorkspace: React.FC = () => {
       state.setRightPanelWidth,
     setMobileSheetOpen:
       state.setMobileSheetOpen,
+    workspaceViewMode:
+      state.workspaceViewMode ?? '2d',
+    setWorkspaceViewMode:
+      state.setWorkspaceViewMode,
+    cadGridMode:
+      state.cadGridMode ?? 'none',
+    cadIsoplane:
+      state.cadIsoplane ?? 'all',
+    cadGridSnap:
+      state.cadGridSnap ?? false,
+    cadGridSpacing:
+      state.cadGridSpacing ?? 20,
   })));
+
+  const [selectedPipingNode, setSelectedPipingNode] = useState<number | null>(null);
+
+  const fullPipingModel = useMemo(() => {
+    return extractFullXmlBuilderModel(annotations, getPageCalibration, {
+      routingMode: 'isometric',
+    });
+  }, [annotations, getPageCalibration]);
+
   const { hideResolved } = useReviewStore(useShallow((state) => ({
     hideResolved: state.hideResolved,
   })));
@@ -278,6 +317,48 @@ export const DocumentWorkspace: React.FC = () => {
   const [activeSnapResult, setActiveSnapResult] = React.useState<SnapResult | null>(null);
   const [isAngleConstrained, setIsAngleConstrained] = React.useState(false);
   const [showScaleDialog, setShowScaleDialog] = React.useState(false);
+
+  const { selectedNodeNumber, coordinateRows } = usePipingTableStore(
+    useShallow((state) => ({
+      selectedNodeNumber: state.selectedNodeNumber,
+      coordinateRows: state.coordinateRows,
+    })),
+  );
+
+  // 3-Way Cross-Probe Auto-Scroll: when selectedNodeNumber changes, smoothly pan view to center the node
+  React.useEffect(() => {
+    if (selectedNodeNumber != null && containerRef.current) {
+      const targetNode = coordinateRows.find((r) => r.nodeNumber === selectedNodeNumber);
+      if (targetNode?.pdfPoint && targetNode.pageNumber) {
+        if (viewState.currentPage !== targetNode.pageNumber) {
+          setPage(targetNode.pageNumber);
+        }
+        const pageEl = containerRef.current.querySelector<HTMLElement>(`[data-page="${targetNode.pageNumber}"]`);
+        if (pageEl) {
+          const scrollRoot = (containerRef.current.querySelector('[data-vlist-wrapper]')?.firstElementChild as HTMLElement) ?? containerRef.current;
+          const scale = (viewState.zoom / 100) || 1;
+          const targetScrollX = pageEl.offsetLeft + (targetNode.pdfPoint.x * scale) - (scrollRoot.clientWidth / 2);
+          const targetScrollY = pageEl.offsetTop + (targetNode.pdfPoint.y * scale) - (scrollRoot.clientHeight / 2);
+          scrollRoot.scrollTo({
+            left: Math.max(0, targetScrollX),
+            top: Math.max(0, targetScrollY),
+            behavior: 'smooth',
+          });
+        }
+      }
+    }
+  }, [selectedNodeNumber, coordinateRows, viewState.zoom, viewState.currentPage, setPage]);
+
+  // Cross-probe: select corresponding piping node when an annotation is selected on 2D sheet
+  React.useEffect(() => {
+    if (selectedAnnotationIds.length === 1) {
+      const annId = selectedAnnotationIds[0];
+      const matchingNode = coordinateRows.find((r) => r.annotationId === annId);
+      if (matchingNode && matchingNode.nodeNumber !== selectedNodeNumber) {
+        usePipingTableStore.getState().setSelectedNodeNumber(matchingNode.nodeNumber);
+      }
+    }
+  }, [selectedAnnotationIds, coordinateRows, selectedNodeNumber]);
 
   const addToast = useToastStore((state) => state.addToast);
   const [stagedInsert, setStagedInsert] = React.useState<{
@@ -680,7 +761,18 @@ export const DocumentWorkspace: React.FC = () => {
       const currentY = (e.clientY - rect.top) / scale;
 
       const snapPoints = collectPageSnapPoints(annotations, drawingLineStart.pageNumber);
-      const resolved = resolveLineEndpoint(drawingLineStart, { x: currentX, y: currentY }, snapPoints, e.shiftKey);
+      const resolved = resolveLineEndpoint(
+        drawingLineStart,
+        { x: currentX, y: currentY },
+        snapPoints,
+        e.shiftKey,
+        {
+          gridMode: cadGridMode,
+          gridSpacing: cadGridSpacing,
+          isoplane: cadIsoplane,
+          snapEnabled: cadGridSnap,
+        },
+      );
       const finalPoint = resolved.point;
       setActiveSnapResult(resolved.snapResult);
       setIsAngleConstrained(resolved.angleConstrained);
@@ -704,7 +796,15 @@ export const DocumentWorkspace: React.FC = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [drawingLineStart, viewState.zoom, annotations]);
+  }, [
+    drawingLineStart,
+    viewState.zoom,
+    annotations,
+    cadGridMode,
+    cadGridSpacing,
+    cadIsoplane,
+    cadGridSnap,
+  ]);
 
   useAnnotationPersistence({
     documentKey,
@@ -1051,6 +1151,11 @@ export const DocumentWorkspace: React.FC = () => {
           setDrawingLineCurrent={setDrawingLineCurrent}
           activeSnapResult={drawingLineStart?.pageNumber === pageNumber ? activeSnapResult : null}
           isAngleConstrained={drawingLineStart?.pageNumber === pageNumber ? isAngleConstrained : false}
+          cadGridMode={cadGridMode}
+          cadIsoplane={cadIsoplane}
+          cadGridSpacing={cadGridSpacing}
+          cadGridSnap={cadGridSnap}
+          calibration={getPageCalibration(pageNumber)}
           onActivate={() => setPage(pageNumber)}
           existingTextPageId={
             pageNode?.pageId
@@ -1062,6 +1167,7 @@ export const DocumentWorkspace: React.FC = () => {
           onSelectExistingText={
             selectExistingText
           }
+          onDeselectExistingText={() => setExistingTextSelection(null)}
           onCreateAnnotation={(annotation) => {
             addAnnotation(annotation);
             setSelection([annotation.id]);
@@ -1250,46 +1356,114 @@ export const DocumentWorkspace: React.FC = () => {
           </button>
         </div>
       )}
-      {/* Outer wrapper: overflow-x:auto activates when minWidth > container width (wide CAD drawings) */}
+
+      {/* Workspace Tabs: 2D Document Canvas vs 3D Piping Space Canvas */}
       <div
-        data-vlist-wrapper="true"
-        className="flex-1"
-        style={{
-          overflowX: 'auto',
-          overflowY: viewState.viewMode === 'continuous' ? 'hidden' : 'auto',
-          minWidth: 0,
-        }}
+        data-testid="workspace-view-tabs"
+        className="sticky top-0 z-40 flex items-center justify-between px-3 py-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 shadow-xs select-none shrink-0"
       >
-        {viewState.viewMode === 'continuous' ? (
-          <VList
-            ref={vlistRef}
-            style={{
-              height: '100%',
-              // Explicit width drives the outer overflow-x scrollbar for wide drawings
-              width: pagePixelWidth > 0 ? Math.max(pagePixelWidth + 64, 0) : '100%',
-              minWidth: '100%',
-            }}
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+          <button
+            type="button"
+            data-testid="tab-view-2d"
+            onClick={() => setWorkspaceViewMode('2d')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+              workspaceViewMode === '2d'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
           >
-            {Array.from({ length: pdfDoc.numPages }, (_, index) => renderPage(index))}
-          </VList>
-        ) : viewState.viewMode === 'single' ? (
-          renderSingle()
-        ) : (
-          renderTwoPage()
+            <FileText className="w-3.5 h-3.5" />
+            <span>2D Document</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="tab-view-3d"
+            onClick={() => {
+              setWorkspaceViewMode('3d');
+              setInspectorTab('takeoff');
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+              workspaceViewMode === '3d'
+                ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-xs font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <Rotate3d className="w-3.5 h-3.5" />
+            <span>3D Canvas</span>
+            {fullPipingModel.coordinateRows.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 font-mono">
+                {fullPipingModel.coordinateRows.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {workspaceViewMode === '3d' && (
+          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+            <span>
+              Piping Space: <strong className="text-slate-700 dark:text-slate-200">{fullPipingModel.coordinateRows.length} nodes</strong> |{' '}
+              <strong className="text-slate-700 dark:text-slate-200">{fullPipingModel.branchRows.length} branches</strong>
+            </span>
+          </div>
         )}
       </div>
 
-      {pdfDoc && (
-        <div className="absolute bottom-4 left-4 z-40">
+      {workspaceViewMode === '3d' ? (
+        <div data-testid="workspace-3d-canvas-container" className="flex-1 flex flex-col p-4 bg-slate-950 overflow-hidden">
+          <div className="w-full h-full flex flex-col rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
+            <Piping3DViewer
+              model={fullPipingModel}
+              isMainCanvas={true}
+              selectedNode={selectedPipingNode}
+              onSelectNode={setSelectedPipingNode}
+            />
+          </div>
+        </div>
+      ) : (
+        /* Outer wrapper: overflow-x:auto activates when minWidth > container width (wide CAD drawings) */
+        <div
+          data-vlist-wrapper="true"
+          className="flex-1"
+          style={{
+            overflowX: 'auto',
+            overflowY: viewState.viewMode === 'continuous' ? 'hidden' : 'auto',
+            minWidth: 0,
+          }}
+        >
+          {viewState.viewMode === 'continuous' ? (
+            <VList
+              ref={vlistRef}
+              style={{
+                height: '100%',
+                // Explicit width drives the outer overflow-x scrollbar for wide drawings
+                width: pagePixelWidth > 0 ? Math.max(pagePixelWidth + 64, 0) : '100%',
+                minWidth: '100%',
+              }}
+            >
+              {Array.from({ length: pdfDoc.numPages }, (_, index) => renderPage(index))}
+            </VList>
+          ) : viewState.viewMode === 'single' ? (
+            renderSingle()
+          ) : (
+            renderTwoPage()
+          )}
+        </div>
+      )}
+
+      {pdfDoc && workspaceViewMode === '2d' && (
+        <div className="absolute bottom-4 left-4 z-40 flex items-center gap-2">
           <DrawingScaleBar
             calibration={getPageCalibration(viewState.currentPage)}
             scale={viewState.zoom / 100}
             onOpenCalibration={() => setShowScaleDialog(true)}
           />
+          <CadDraftingToolbar />
         </div>
       )}
 
-      {pdfDoc && <SearchFloatingHud />}
+      {pdfDoc && workspaceViewMode === '2d' && <SearchFloatingHud />}
 
       {showScaleDialog && pdfDoc && (
         <ScaleCalibrationDialog
@@ -1348,6 +1522,7 @@ interface PageSurfaceProps {
     pageId: string,
     sourceIndex: number,
   ) => void;
+  onDeselectExistingText?: () => void;
   onCreateAnnotation: (annotation: PdfAnnotation) => void;
   onCreateManyAnnotations: (annotations: PdfAnnotation[]) => void;
   onSetSingleSelection: (id: string) => void;
@@ -1362,6 +1537,11 @@ interface PageSurfaceProps {
   setDrawingLineCurrent: (val: { x: number; y: number } | null) => void;
   activeSnapResult?: SnapResult | null;
   isAngleConstrained?: boolean;
+  cadGridMode?: CadGridMode;
+  cadIsoplane?: IsoplaneMode;
+  cadGridSpacing?: number;
+  cadGridSnap?: boolean;
+  calibration?: ScaleCalibration;
 }
 
 export const PageSurface: React.FC<PageSurfaceProps> = ({
@@ -1376,6 +1556,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   selectedExistingTextSourceIndex,
   onActivate,
   onSelectExistingText,
+  onDeselectExistingText,
   onCreateAnnotation: createAnnotation,
   onCreateManyAnnotations: createManyAnnotations,
   onSetSingleSelection,
@@ -1390,10 +1571,30 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   setDrawingLineCurrent,
   activeSnapResult,
   isAngleConstrained,
+  cadGridMode = 'none',
+  cadIsoplane = 'all',
+  cadGridSpacing = 20,
+  cadGridSnap = false,
+  calibration,
 }) => {
   const sessionDocumentKey = useSessionStore((state) => state.documentKey) ?? '';
   const resolvedDocumentKey = documentKey ?? sessionDocumentKey;
   const workingBytes = useSessionStore((state) => state.workingBytes) ?? null;
+
+  const { selectedNodeNumber, setSelectedNodeNumber, coordinateRows } = usePipingTableStore(
+    useShallow((state) => ({
+      selectedNodeNumber: state.selectedNodeNumber,
+      setSelectedNodeNumber: state.setSelectedNodeNumber,
+      coordinateRows: state.coordinateRows,
+    })),
+  );
+
+  const activeBeaconNode = React.useMemo(() => {
+    if (selectedNodeNumber == null) return null;
+    return coordinateRows.find(
+      (r) => r.nodeNumber === selectedNodeNumber && r.pageNumber === pageNumber && r.pdfPoint != null,
+    );
+  }, [selectedNodeNumber, coordinateRows, pageNumber]);
   const [inlineEditingTarget, setInlineEditingTarget] = React.useState<{
     pageNumber: number;
     pageId: string;
@@ -2010,6 +2211,17 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     });
   };
 
+  const kneeDragRef = React.useRef<{
+    id: string;
+    startClientX: number;
+    startClientY: number;
+    startKnee: Point2D;
+    anchor: Point2D;
+    rect: Rect;
+    pageWidth: number;
+    pageHeight: number;
+  } | null>(null);
+
   const startAnchorDrag = (
     event: React.PointerEvent<SVGCircleElement>,
     annotation: PdfAnnotation,
@@ -2079,7 +2291,20 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       if (source && sourceRect && source.type === 'callout') {
         const style = source.data.leaderStyle === 'straight' ? 'straight' : 'elbow';
         if (style === 'elbow') {
-          const nextKnee = computeDefaultCalloutKnee(sourceRect, nextAnchor);
+          const currentKnee = draftKneesRef.current[current.id] ?? current.startKnee;
+          let nextKnee: Point2D;
+          if (currentKnee) {
+            const nearest = findNearestEdge(currentKnee, sourceRect);
+            nextKnee = snapKneeToOrtho(
+              { x: currentKnee.x, y: nearest.point.y },
+              nearest.point,
+              nextAnchor,
+              nearest.side,
+              12,
+            );
+          } else {
+            nextKnee = computeDefaultCalloutKnee(sourceRect, nextAnchor);
+          }
           updateDraftKnees((state) => ({
             ...state,
             [current.id]: nextKnee,
@@ -2131,6 +2356,108 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     listenForGesture(onMove, onUp, () => {
       anchorDragRef.current = null;
       updateDraftAnchors(() => ({}));
+      updateDraftKnees(() => ({}));
+    });
+  };
+
+  const startKneeDrag = (
+    event: React.PointerEvent<SVGElement | SVGCircleElement>,
+    annotation: PdfAnnotation,
+  ) => {
+    if (annotation.data.locked === true) return;
+    cancelGestureRef.current?.();
+
+    const anchor = readAnchor(annotation, draftAnchorsRef.current[annotation.id] ?? null);
+    if (!anchor) return;
+    const rect = draftRectsRef.current[annotation.id] ?? annotation.rect;
+    const knee = readKnee(
+      annotation,
+      draftKneesRef.current[annotation.id] ?? null,
+      anchor,
+      rect,
+    );
+    if (!knee) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    clearTextSelectionDraft();
+    onSetSingleSelection(annotation.id);
+
+    kneeDragRef.current = {
+      id: annotation.id,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startKnee: knee,
+      anchor,
+      rect,
+      pageWidth,
+      pageHeight,
+    };
+
+    let moved = false;
+    const onMove = (moveEvent: MouseEvent | PointerEvent) => {
+      const current = kneeDragRef.current;
+      if (!current) return;
+      if (!moved && Math.hypot(moveEvent.clientX - current.startClientX, moveEvent.clientY - current.startClientY) < 1) return;
+      moved = true;
+
+      const screenDx = (moveEvent.clientX - current.startClientX) / scale;
+      const screenDy = (moveEvent.clientY - current.startClientY) / scale;
+      const radians = ((annotation.data.rotation ?? 0) * Math.PI) / 180;
+      const dx = screenDx * Math.cos(radians) + screenDy * Math.sin(radians);
+      const dy = -screenDx * Math.sin(radians) + screenDy * Math.cos(radians);
+
+      let nextKnee: Point2D = {
+        x: clamp(current.startKnee.x + dx, 0, current.pageWidth),
+        y: clamp(current.startKnee.y + dy, 0, current.pageHeight),
+      };
+
+      const nearest = findNearestEdge(nextKnee, current.rect);
+      // Snap knee to orthogonal lines relative to edge and anchor
+      nextKnee = snapKneeToOrtho(
+        nextKnee,
+        nearest.point,
+        current.anchor,
+        nearest.side,
+        moveEvent.shiftKey ? 24 : 10,
+      );
+
+      updateDraftKnees((state) => ({
+        ...state,
+        [current.id]: nextKnee,
+      }));
+    };
+
+    const onUp = (upEvent: MouseEvent | PointerEvent) => {
+      const gesture = kneeDragRef.current;
+      if (gesture && (moved || Math.hypot(upEvent.clientX - gesture.startClientX, upEvent.clientY - gesture.startClientY) >= 1)) onMove(upEvent);
+      const current = kneeDragRef.current;
+      if (!current) return;
+
+      const item = pageAnnotations.find((value) => value.id === current.id);
+      if (item && moved) {
+        const liveKnees = draftKneesRef.current;
+        const committedKnee = liveKnees[current.id] ?? current.startKnee;
+        onCommitAnnotation(current.id, {
+          data: {
+            ...item.data,
+            knee: committedKnee,
+            leaderStyle: 'elbow',
+          },
+        });
+      }
+
+      updateDraftKnees((state) => {
+        const next = { ...state };
+        delete next[current.id];
+        return next;
+      });
+
+      kneeDragRef.current = null;
+    };
+
+    listenForGesture(onMove, onUp, () => {
+      kneeDragRef.current = null;
       updateDraftKnees(() => ({}));
     });
   };
@@ -2376,6 +2703,20 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
         onSetSelection(hitIds);
       } else {
         onClearSelection();
+        if ((currentMarquee.width > 5 || currentMarquee.height > 5) && existingTextPageId) {
+          const hitItem = textItems.find((item) => {
+            const itemRect: Rect = {
+              x: item.x / scale,
+              y: item.y / scale,
+              width: item.width / scale,
+              height: item.height / scale,
+            };
+            return intersects(itemRect, currentMarquee);
+          });
+          if (hitItem && typeof hitItem.sourceIndex === 'number') {
+            onSelectExistingText(pageNumber, existingTextPageId, hitItem.sourceIndex);
+          }
+        }
       }
       setMarquee(null);
     };
@@ -2427,8 +2768,17 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     // Line and arrow are placed via exactly two clicks.
     if (tool === 'line' || tool === 'arrow') {
       if (!drawingLineStart || drawingLineStart.pageNumber !== pageNumber) {
-        setDrawingLineStart({ pageNumber, x: startX, y: startY });
-        setDrawingLineCurrent({ x: startX, y: startY });
+        let firstX = startX;
+        let firstY = startY;
+        if (cadGridSnap && cadGridMode !== 'none') {
+          const snapped = cadGridMode === 'isometric'
+            ? snapToIsometricGrid({ x: startX, y: startY }, cadGridSpacing)
+            : snapToOrthogonalGrid({ x: startX, y: startY }, cadGridSpacing);
+          firstX = snapped.x;
+          firstY = snapped.y;
+        }
+        setDrawingLineStart({ pageNumber, x: firstX, y: firstY });
+        setDrawingLineCurrent({ x: firstX, y: firstY });
       } else {
         const x1 = drawingLineStart.x;
         const y1 = drawingLineStart.y;
@@ -2439,6 +2789,12 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
           { x: startX, y: startY },
           collectPageSnapPoints(pageAnnotations, pageNumber),
           event.shiftKey,
+          {
+            gridMode: cadGridMode,
+            gridSpacing: cadGridSpacing,
+            isoplane: cadIsoplane,
+            snapEnabled: cadGridSnap,
+          },
         ).point;
         const x2 = endpoint.x;
         const y2 = endpoint.y;
@@ -2552,6 +2908,27 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       onClick={onActivate}
     >
       <canvas ref={canvasRef} className="block" />
+
+      {/* CAD Grid Overlay (Orthogonal / Isometric) */}
+      {cadGridMode !== 'none' && (
+        <CadGridOverlay
+          gridMode={cadGridMode}
+          isoplane={cadIsoplane}
+          spacing={cadGridSpacing}
+          scale={scale}
+          width={renderSize?.width || size.width}
+          height={renderSize?.height || size.height}
+        />
+      )}
+
+      {/* 3-Way Cross-Probe Node Beacon */}
+      {activeBeaconNode && (
+        <CrossProbeNodeBeacon
+          node={activeBeaconNode}
+          scale={scale}
+          onDismiss={() => setSelectedNodeNumber(null)}
+        />
+      )}
 
       {pageOcrResult && textItems.length === 0 && (
         <OcrCanvasTextLayer
@@ -2784,6 +3161,45 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             onCancel={() => setInlineEditingTarget(null)}
           />
         )}
+
+        {selectedExistingTextSourceIndex !== null &&
+          (!inlineEditingTarget || inlineEditingTarget.pageNumber !== pageNumber) && (
+            <ExistingTextFrameOverlay
+              pageNumber={pageNumber}
+              pageId={existingTextPageId ?? ''}
+              scale={scale}
+              viewportWidth={size.width}
+              viewportHeight={size.height}
+              workingBytes={workingBytes}
+              documentKey={resolvedDocumentKey}
+              selectedSourceIndex={selectedExistingTextSourceIndex}
+              textItem={
+                textItems.find(
+                  (item) => item.sourceIndex === selectedExistingTextSourceIndex,
+                ) ?? null
+              }
+              onDeselect={() => onDeselectExistingText?.()}
+              onOpenEditor={() => {
+                const targetItem = textItems.find(
+                  (item) => item.sourceIndex === selectedExistingTextSourceIndex,
+                );
+                if (!existingTextPageId || !targetItem) return;
+                setInlineEditingTarget({
+                  pageNumber,
+                  pageId: existingTextPageId,
+                  sourceIndex: selectedExistingTextSourceIndex,
+                  initialText: targetItem.text,
+                  bounds: {
+                    left: targetItem.x,
+                    top: targetItem.y,
+                    width: targetItem.width,
+                    height: targetItem.height,
+                    fontSize: targetItem.fontSize,
+                  },
+                });
+              }}
+            />
+          )}
       </div>
 
       {textSelectionDraft && (
@@ -2876,6 +3292,17 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             originPoint={drawingLineStart ? { x: drawingLineStart.x, y: drawingLineStart.y } : undefined}
             isAngleConstrained={isAngleConstrained}
             scale={scale}
+          />
+        )}
+        {/* Real-time Cursor Polar Tracking HUD */}
+        {drawingLineStart && drawingLineStart.pageNumber === pageNumber && drawingLineCurrent && (
+          <CursorPolarTrackingHud
+            origin={{ x: drawingLineStart.x, y: drawingLineStart.y }}
+            current={drawingLineCurrent}
+            scale={scale}
+            calibration={calibration}
+            isAngleConstrained={isAngleConstrained}
+            isoplane={cadIsoplane}
           />
         )}
         {pageAnnotations
@@ -2981,6 +3408,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
                 anchorPoint: anchor,
                 kneePoint: knee,
                 onAnchorDragStart: (event: React.PointerEvent<SVGCircleElement>) => startAnchorDrag(event, annotation),
+                onKneeDragStart: (event: React.PointerEvent<SVGElement>) => startKneeDrag(event, annotation),
               } : {})}
             />
           );
@@ -3064,10 +3492,16 @@ const PageSurfaceMemo = React.memo(
     prev.existingTextPageId === next.existingTextPageId &&
     prev.selectedExistingTextSourceIndex === next.selectedExistingTextSourceIndex &&
     prev.onSelectExistingText === next.onSelectExistingText &&
+    prev.onDeselectExistingText === next.onDeselectExistingText &&
     prev.drawingLineStart === next.drawingLineStart &&
     prev.drawingLineCurrent === next.drawingLineCurrent &&
     prev.activeSnapResult === next.activeSnapResult &&
-    prev.isAngleConstrained === next.isAngleConstrained,
+    prev.isAngleConstrained === next.isAngleConstrained &&
+    prev.cadGridMode === next.cadGridMode &&
+    prev.cadIsoplane === next.cadIsoplane &&
+    prev.cadGridSpacing === next.cadGridSpacing &&
+    prev.cadGridSnap === next.cadGridSnap &&
+    prev.calibration === next.calibration,
 );
 
 

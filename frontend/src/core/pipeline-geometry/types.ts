@@ -17,6 +17,7 @@ export interface PipelineCoordinateRow {
   annotationId: string;
   segmentIndex?: number;
   lengthToNextMm?: number;
+  pdfPoint?: { x: number; y: number };
 }
 
 export type PipelineRoutingMode = 'plan' | 'isometric';

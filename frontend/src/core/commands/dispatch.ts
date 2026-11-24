@@ -684,6 +684,8 @@ function usesPersistentMutationSession(
     || type === 'REPLACE_MULTI_COLUMN_PARAGRAPH'
     || type === 'CONVERT_OCR_TO_NATIVE_TEXT'
     || type === 'REFLOW_CROSS_PAGE_TEXT'
+    || type === 'MOVE_EXISTING_TEXT_BLOCK'
+    || type === 'RESIZE_EXISTING_TEXT_BLOCK'
     || type === 'DRAW_REDACTION_BOX'
     || type === 'APPLY_HEADER_FOOTER_TEMPLATE'
   );
@@ -2212,6 +2214,124 @@ export async function dispatchPdfCommand(
           command,
           true,
           `Reflowed cross-page text: ${reflowResult.sourceLinesEmitted} lines on page ${sourcePageIndex + 1}, ${reflowResult.targetLinesEmitted} lines on page ${targetPageIndex + 1}`,
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'MOVE_EXISTING_TEXT_BLOCK': {
+        const { sourcePageIndex, sourcePageId, intent } = command.payload;
+        if (!Number.isInteger(sourcePageIndex) || sourcePageIndex < 0 || sourcePageIndex >= pageCount) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Invalid sourcePageIndex ${sourcePageIndex} for document with ${pageCount} pages.`,
+          );
+        }
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const sourcePage = pageGraph.pages[sourcePageIndex];
+        if (!sourcePage || sourcePage.pageId !== sourcePageId) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Move text block source pageId '${sourcePageId}' does not match PageGraph '${sourcePage?.pageId ?? 'missing'}'`,
+          );
+        }
+
+        const mutationSession = requirePersistentMutationSession(commandMutationSession);
+        const moveResult = await mutationSession.moveExistingTextBlock({
+          currentRevisionId: context.documentKey,
+          pageIndex: sourcePageIndex,
+          intent,
+        });
+
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Move text block unexpectedly modified page count from ${pageCount} to ${committed.pageCount}`,
+          );
+        }
+
+        const result = await applyCommittedSessionMutation(
+          input,
+          context.workingBytes,
+          pageCount,
+          committed,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          pageGraph,
+          {
+            ocrPagePolicy: {
+              invalidatePageIds: [sourcePageId],
+            },
+          },
+        );
+
+        return commandSuccess(
+          command,
+          true,
+          `Moved text frame to (${intent.targetPosition.x}, ${intent.targetPosition.y}) [bounds: ${moveResult.newBounds.width}x${moveResult.newBounds.height}]`,
+          result.nextBytes,
+          result.nextPageCount,
+        );
+      }
+
+      case 'RESIZE_EXISTING_TEXT_BLOCK': {
+        const { sourcePageIndex, sourcePageId, intent } = command.payload;
+        if (!Number.isInteger(sourcePageIndex) || sourcePageIndex < 0 || sourcePageIndex >= pageCount) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Invalid sourcePageIndex ${sourcePageIndex} for document with ${pageCount} pages.`,
+          );
+        }
+        const pageGraph = await resolveStructuralPageGraph(context, input, pageCount);
+        const sourcePage = pageGraph.pages[sourcePageIndex];
+        if (!sourcePage || sourcePage.pageId !== sourcePageId) {
+          return commandError(
+            command,
+            'VALIDATION_FAILED',
+            `Resize text block source pageId '${sourcePageId}' does not match PageGraph '${sourcePage?.pageId ?? 'missing'}'`,
+          );
+        }
+
+        const mutationSession = requirePersistentMutationSession(commandMutationSession);
+        const resizeResult = await mutationSession.resizeExistingTextBlock({
+          currentRevisionId: context.documentKey,
+          pageIndex: sourcePageIndex,
+          intent,
+        });
+
+        const committed = await mutationSession.commit();
+        if (committed.pageCount !== pageCount) {
+          throw new Error(
+            `Resize text block unexpectedly modified page count from ${pageCount} to ${committed.pageCount}`,
+          );
+        }
+
+        const result = await applyCommittedSessionMutation(
+          input,
+          context.workingBytes,
+          pageCount,
+          committed,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          pageGraph,
+          {
+            ocrPagePolicy: {
+              invalidatePageIds: [sourcePageId],
+            },
+          },
+        );
+
+        return commandSuccess(
+          command,
+          true,
+          `Resized text frame: reflowed ${resizeResult.lines?.length ?? 0} lines to width ${intent.newWidthPt}pt`,
           result.nextBytes,
           result.nextPageCount,
         );

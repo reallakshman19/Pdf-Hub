@@ -1,14 +1,14 @@
 import type { CalloutLeaderBranch, Point2D, Rect } from './types';
 
 export type CalloutLeaderStyle = 'straight' | 'elbow';
-type EdgeSide = 'top' | 'bottom' | 'left' | 'right';
+export type EdgeSide = 'top' | 'bottom' | 'left' | 'right';
 
 interface CalloutPathOptions {
   kneePoint?: Point2D | null;
   leaderStyle?: CalloutLeaderStyle;
 }
 
-interface NearestEdge {
+export interface NearestEdge {
   side: EdgeSide;
   point: Point2D;
 }
@@ -75,33 +75,36 @@ export function computeCalloutPath(
   };
 }
 
-function findNearestEdge(anchorPoint: Point2D, boxRect: Rect): NearestEdge {
+/**
+ * Finds the nearest attachment edge on the callout bounding box.
+ * Prioritizes left/right side edges to preserve horizontal reading flow in CAD drafting.
+ */
+export function findNearestEdge(anchorPoint: Point2D, boxRect: Rect): NearestEdge {
   const { x, y, width, height } = boxRect;
-  const candidates: NearestEdge[] = [
-    { side: 'top', point: { x: x + width / 2, y } },
-    { side: 'bottom', point: { x: x + width / 2, y: y + height } },
-    { side: 'left', point: { x, y: y + height / 2 } },
-    { side: 'right', point: { x: x + width, y: y + height / 2 } },
-  ];
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
 
-  let nearest = candidates[0];
-  let minDistance = Infinity;
-
-  for (const candidate of candidates) {
-    const distance = Math.hypot(
-      candidate.point.x - anchorPoint.x,
-      candidate.point.y - anchorPoint.y,
-    );
-    if (distance < minDistance) {
-      minDistance = distance;
-      nearest = candidate;
-    }
+  // Standard CAD convention: If target is outside the box horizontally, exit left or right side
+  if (anchorPoint.x < x) {
+    return { side: 'left', point: { x, y: centerY } };
+  }
+  if (anchorPoint.x > x + width) {
+    return { side: 'right', point: { x: x + width, y: centerY } };
   }
 
-  return nearest;
+  // Target is horizontally within the box span: exit top or bottom
+  if (anchorPoint.y < centerY) {
+    return { side: 'top', point: { x: centerX, y } };
+  }
+  return { side: 'bottom', point: { x: centerX, y: y + height } };
 }
 
-function computeDefaultKnee(anchorPoint: Point2D, nearest: NearestEdge): Point2D {
+/**
+ * Computes a strictly orthogonal knee (elbow) point.
+ * For left/right edges, produces a horizontal landing shelf followed by a vertical drop/rise.
+ * For top/bottom edges, produces a vertical stem followed by a horizontal run.
+ */
+export function computeDefaultKnee(anchorPoint: Point2D, nearest: NearestEdge): Point2D {
   if (nearest.side === 'left' || nearest.side === 'right') {
     return {
       x: anchorPoint.x,
@@ -113,6 +116,42 @@ function computeDefaultKnee(anchorPoint: Point2D, nearest: NearestEdge): Point2D
     x: nearest.point.x,
     y: anchorPoint.y,
   };
+}
+
+/**
+ * Magnetically snaps a candidate knee point to orthogonal lines relative to
+ * the callout edge point and the anchor point.
+ */
+export function snapKneeToOrtho(
+  candidateKnee: Point2D,
+  edgePoint: Point2D,
+  anchorPoint: Point2D,
+  edgeSide: EdgeSide,
+  snapThreshold = 10,
+): Point2D {
+  const snapped = { ...candidateKnee };
+
+  if (edgeSide === 'left' || edgeSide === 'right') {
+    // Snap to horizontal shelf from edgePoint (Δy = 0)
+    if (Math.abs(candidateKnee.y - edgePoint.y) <= snapThreshold) {
+      snapped.y = edgePoint.y;
+    }
+    // Snap to vertical drop aligned with anchorPoint (Δx = 0)
+    if (Math.abs(candidateKnee.x - anchorPoint.x) <= snapThreshold) {
+      snapped.x = anchorPoint.x;
+    }
+  } else {
+    // Snap to vertical stem from edgePoint (Δx = 0)
+    if (Math.abs(candidateKnee.x - edgePoint.x) <= snapThreshold) {
+      snapped.x = edgePoint.x;
+    }
+    // Snap to horizontal run aligned with anchorPoint (Δy = 0)
+    if (Math.abs(candidateKnee.y - anchorPoint.y) <= snapThreshold) {
+      snapped.y = anchorPoint.y;
+    }
+  }
+
+  return snapped;
 }
 
 function clampOutsideRect(point: Point2D, rect: Rect): Point2D {

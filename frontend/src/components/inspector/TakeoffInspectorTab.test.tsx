@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TakeoffInspectorTab } from './TakeoffInspectorTab';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
+import { useEditorStore } from '@/core/editor/store';
 
 describe('TakeoffInspectorTab', () => {
   beforeEach(() => {
@@ -235,22 +236,26 @@ describe('TakeoffInspectorTab', () => {
     expect(tableAnnot?.data?.fontFamily).toBe('monospace');
   });
 
-  it('renders 3D Wireframe viewer and toggles visibility', () => {
+  it('toggles workspace 3D Canvas tab and displays active status banner', () => {
+    useEditorStore.setState({ workspaceViewMode: '2d' });
     render(<TakeoffInspectorTab />);
 
-    // 3D viewer is rendered by default
+    // 3D viewer is rendered by default in 2D mode
     expect(screen.getByTestId('piping-3d-viewer')).toBeInTheDocument();
 
-    // Toggle 3D View button
-    const toggle3dBtn = screen.getByRole('button', { name: /3D View/i });
-    fireEvent.click(toggle3dBtn);
+    // Click "Open in Tab" button
+    const open3dTabBtn = screen.getByTestId('takeoff-open-3d-tab-btn');
+    fireEvent.click(open3dTabBtn);
 
-    // Should now be hidden
-    expect(screen.queryByTestId('piping-3d-viewer')).toBeNull();
+    // workspaceViewMode in editor store is now '3d'
+    expect(useEditorStore.getState().workspaceViewMode).toBe('3d');
+    expect(screen.getByTestId('takeoff-3d-active-banner')).toBeInTheDocument();
+    expect(screen.getByText('Viewing in Main 3D Canvas Tab')).toBeInTheDocument();
 
-    // Toggle back on
-    fireEvent.click(toggle3dBtn);
-    expect(screen.getByTestId('piping-3d-viewer')).toBeInTheDocument();
+    // Toggle back to 2D
+    fireEvent.click(screen.getByRole('button', { name: /return to 2d/i }));
+    expect(useEditorStore.getState().workspaceViewMode).toBe('2d');
+    expect(screen.queryByTestId('takeoff-3d-active-banner')).toBeNull();
   });
 
   it('allows switching 3D routing mode between Plan and ISO', () => {

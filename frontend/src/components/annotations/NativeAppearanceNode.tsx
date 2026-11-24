@@ -8,6 +8,7 @@ type Props = AnnotationNodeProps & {
   anchorPoint?: Point2D | null;
   kneePoint?: Point2D | null;
   onAnchorDragStart?: (event: React.PointerEvent<SVGCircleElement>) => void;
+  onKneeDragStart?: (event: React.PointerEvent<SVGElement | SVGCircleElement>) => void;
 };
 
 /**
@@ -34,6 +35,7 @@ export const NativeAppearanceNode: React.FC<Props> = ({
   anchorPoint,
   kneePoint,
   onAnchorDragStart,
+  onKneeDragStart,
 }) => {
   const full = annotation.data.nativeAppearanceRect;
   const originalBody = annotation.data.nativeAppearanceBodyRect;
@@ -150,6 +152,19 @@ export const NativeAppearanceNode: React.FC<Props> = ({
               fill="#2563eb"
               style={{ pointerEvents: 'all', cursor: 'crosshair', touchAction: 'none' }}
               onPointerDown={onAnchorDragStart}
+            />
+          )}
+          {isSelected && line.kneePoint && onKneeDragStart && (
+            <circle
+              cx={line.kneePoint.x - appearance.x}
+              cy={line.kneePoint.y - appearance.y}
+              r={Math.max(5, 3 * scale)}
+              fill="#3b82f6"
+              stroke="#ffffff"
+              strokeWidth={Math.max(1.5 * scale, 1)}
+              data-testid="native-callout-knee-handle"
+              style={{ pointerEvents: 'all', cursor: 'move', touchAction: 'none' }}
+              onPointerDown={onKneeDragStart}
             />
           )}
         </svg>

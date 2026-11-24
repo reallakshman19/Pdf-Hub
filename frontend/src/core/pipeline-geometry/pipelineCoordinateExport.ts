@@ -134,6 +134,7 @@ export function extractPipelineCoordinates(
             annotationId: ann.id,
             segmentIndex: i,
             lengthToNextMm,
+            pdfPoint: vertices[i] ? { x: Math.round(vertices[i].x * 10) / 10, y: Math.round(vertices[i].y * 10) / 10 } : undefined,
           });
 
           currentNode += opts.nodeIncrement;
@@ -175,6 +176,7 @@ export function extractPipelineCoordinates(
             annotationId: ann.id,
             segmentIndex: i,
             lengthToNextMm,
+            pdfPoint: vertices[i] ? { x: Math.round(vertices[i].x * 10) / 10, y: Math.round(vertices[i].y * 10) / 10 } : undefined,
           });
 
           currentNode += opts.nodeIncrement;
@@ -211,6 +213,7 @@ export function extractPipelineCoordinates(
         annotationId: ann.id,
         segmentIndex: 0,
         lengthToNextMm: lengthMm,
+        pdfPoint: { x: Math.round(rect.x * 10) / 10, y: Math.round(rect.y * 10) / 10 },
       });
       currentNode += opts.nodeIncrement;
 
@@ -224,6 +227,7 @@ export function extractPipelineCoordinates(
         pageNumber: ann.pageNumber,
         annotationId: ann.id,
         segmentIndex: 1,
+        pdfPoint: { x: Math.round((rect.x + rect.width) * 10) / 10, y: Math.round((rect.y + rect.height) * 10) / 10 },
       });
       currentNode += opts.nodeIncrement;
     }

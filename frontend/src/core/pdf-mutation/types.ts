@@ -250,6 +250,22 @@ export interface PdfMutationSession {
     },
   ): Promise<import('@/core/existing-text/crossPageFlowTypes').CrossPageFlowResult>;
 
+  moveExistingTextBlock(
+    input: {
+      currentRevisionId: string;
+      pageIndex: number;
+      intent: import('@/core/existing-text/frameManipulationTypes').MoveTextFrameIntent;
+    },
+  ): Promise<import('@/core/existing-text/frameManipulationTypes').MoveTextFrameResult>;
+
+  resizeExistingTextBlock(
+    input: {
+      currentRevisionId: string;
+      pageIndex: number;
+      intent: import('@/core/existing-text/frameManipulationTypes').ResizeTextFrameIntent;
+    },
+  ): Promise<import('@/core/existing-text/frameManipulationTypes').ResizeTextFrameResult>;
+
   commit(): Promise<PdfMutationCommitResult>;
 
   dispose(): void;
