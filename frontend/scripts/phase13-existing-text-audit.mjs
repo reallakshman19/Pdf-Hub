@@ -165,19 +165,17 @@ requireTokens(
 );
 
 forbidTokens(
-  'no premature canonical command',
+  'no unapproved legacy text commands',
   commands,
   [
-    'REPLACE_EXISTING_TEXT',
     'EDIT_EXISTING_TEXT',
   ],
 );
 
 forbidTokens(
-  'no premature mutation method',
+  'no unapproved legacy mutation methods',
   mutations,
   [
-    'replaceExistingText',
     'editExistingText',
   ],
 );

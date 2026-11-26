@@ -56,7 +56,6 @@ requireMarkers('src/components/sidebar/AutomateSidebar.tsx', [
   'Generate Document',
   'MacroGenerateDocumentPanel',
   'MacroBatchRunPanel',
-  'Batch Process PDFs',
   'MacroOutputQueue',
   'Specialized workflows',
   'setMacroBuilderSource',
@@ -84,8 +83,8 @@ requireMarkers('src/components/macro/advanced/MacroBatchRunPanel.tsx', [
   'Batch Process PDFs',
   'FileAdapter.pickPdfFileSources(true)',
   'runMacroBatch({',
-  'onOutput:',
-  'FileAdapter.downloadBytes',
+  'onOutputs:',
+  'downloadBlob',
   'onBusyChange',
 ]);
 

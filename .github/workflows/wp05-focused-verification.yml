@@ -25,8 +25,8 @@ on:
       - "frontend/src/core/ocr/**"
       - "frontend/src/core/pages/**"
       - "frontend/src/components/ocr/**"
-      - "frontend/src/components/writer/WriterOverlay.tsx"
-      - "frontend/src/components/writer/__tests__/WriterOverlayOcrRegion.test.tsx"
+      - "frontend/src/components/callout/CalloutOverlay.tsx"
+      - "frontend/src/components/callout/__tests__/CalloutOverlayOcrRegion.test.tsx"
       - "frontend/src/core/renderer/usePageRenderer.ts"
       - "frontend/src/components/workspace/DocumentWorkspace.tsx"
       - ".github/workflows/wp05-focused-verification.yml"
@@ -76,7 +76,7 @@ jobs:
             src/core/ocr/__tests__/ocrRegionRunner.test.ts \
             src/components/ocr/workflow/useOcrRunWorkflow.test.tsx \
             src/components/ocr/__tests__/OcrRegionTool.test.tsx \
-            src/components/writer/__tests__/WriterOverlayOcrRegion.test.tsx \
+            src/components/callout/__tests__/CalloutOverlayOcrRegion.test.tsx \
             src/components/ocr/__tests__/OcrRegionActionPanel.test.tsx \
             src/components/annotations/TextMarkupQuads.test.tsx \
             src/core/pdf-annotations/nativeMarkupCustomAppearance.test.ts \

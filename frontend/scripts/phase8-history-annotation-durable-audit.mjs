@@ -118,7 +118,7 @@ requireContains(
     "setSelection: (ids) =>\n    set(",
     "toggleSelection: (id) =>\n    set(",
     "clearSelection: () =>\n    set({",
-    "setAnnotations: (annotations) =>\n    set({",
+    "setAnnotations: (annotations) =>\n    set(",
     "copySelection: () =>\n    set(",
   ],
 );

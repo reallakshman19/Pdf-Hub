@@ -10,7 +10,24 @@ const toolbarPath = path.join(root, 'src/components/toolbar/ToolbarComment.tsx')
 const disabledToolsText = fs.readFileSync(disabledToolsPath, 'utf8');
 const toolbarText = fs.readFileSync(toolbarPath, 'utf8');
 
-const unsafeTools = [
+const writeBlockedTools = [
+  'ink',
+  'comment',
+  'sticky-note',
+  'callout',
+  'shape-rect',
+  'shape-ellipse',
+  'shape-cloud',
+  'shape-polygon',
+  'line',
+  'arrow',
+  'perimeter-takeoff',
+  'area-takeoff',
+  'redaction',
+  'squiggly',
+];
+
+const guardedToolbarTools = [
   'textbox',
   'ink',
   'comment',
@@ -29,14 +46,16 @@ const unsafeTools = [
 
 const findings = [];
 
-for (const tool of unsafeTools) {
+for (const tool of writeBlockedTools) {
   if (!disabledToolsText.includes(`${tool}:`) && !disabledToolsText.includes(`'${tool}':`)) {
     findings.push({
       tool,
-      issue: 'missing from DISABLED_TOOLS',
+      issue: 'missing from WRITE_MODE_BLOCKED_TOOLS',
     });
   }
+}
 
+for (const tool of guardedToolbarTools) {
   if (!toolbarText.includes(`isToolDisabled('${tool}')`)) {
     findings.push({
       tool,

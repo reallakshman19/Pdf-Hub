@@ -53,6 +53,33 @@ if (typeof (Uint8Array.prototype as unknown as { toBase64?: unknown }).toBase64 
   };
 }
 
+// Polyfill Map/WeakMap.prototype.getOrInsertComputed for Node 22 (required for pdfjs-dist@5.6.205)
+if (typeof (Map.prototype as unknown as { getOrInsertComputed?: unknown }).getOrInsertComputed !== 'function') {
+  (Map.prototype as unknown as {
+    getOrInsertComputed: <K, V>(this: Map<K, V>, key: K, callbackfn: (key: K) => V) => V;
+  }).getOrInsertComputed = function <K, V>(this: Map<K, V>, key: K, callbackfn: (key: K) => V): V {
+    if (this.has(key)) {
+      return this.get(key) as V;
+    }
+    const value = callbackfn(key);
+    this.set(key, value);
+    return value;
+  };
+}
+
+if (typeof (WeakMap.prototype as unknown as { getOrInsertComputed?: unknown }).getOrInsertComputed !== 'function') {
+  (WeakMap.prototype as unknown as {
+    getOrInsertComputed: <K extends object, V>(this: WeakMap<K, V>, key: K, callbackfn: (key: K) => V) => V;
+  }).getOrInsertComputed = function <K extends object, V>(this: WeakMap<K, V>, key: K, callbackfn: (key: K) => V): V {
+    if (this.has(key)) {
+      return this.get(key) as V;
+    }
+    const value = callbackfn(key);
+    this.set(key, value);
+    return value;
+  };
+}
+
 // Polyfill localStorage/sessionStorage for jsdom in environments where globalThis.localStorage is restricted
 if (typeof window !== 'undefined') {
   const mockStorage = () => {

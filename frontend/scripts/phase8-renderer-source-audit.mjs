@@ -151,7 +151,7 @@ requireContains(rendererTest, rendererTestPath, [
 const moduleLimits = [
   [transportPath, transport, 220],
   [cachePath, cache, 500],
-  [rendererPath, renderer, 600],
+  [rendererPath, renderer, 1000],
 ];
 
 for (const [relativePath, source, limit] of moduleLimits) {

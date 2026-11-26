@@ -159,7 +159,7 @@ requireContains(
     'process-death reconstruction',
     'safe revision GC',
     'damaged recovery graph',
-    'WP-8F',
+    'Phase 8F',
   ],
 );
 

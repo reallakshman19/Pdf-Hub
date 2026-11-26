@@ -34,15 +34,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Baseline lint diagnostics
-        continue-on-error: true
+      - name: Lint
         run: pnpm run lint
 
       - name: Type check
         run: pnpm run typecheck
 
       - name: Run portable tests
-        run: pnpm exec vitest run --exclude src/core/macro/psIsonote/rca.test.ts
+        run: pnpm exec vitest run
 
       - name: Phase 8 static audit
         run: pnpm run audit:phase8

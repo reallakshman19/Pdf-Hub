@@ -76,7 +76,8 @@ const historyStatePath =
   'src/core/document-history/stateTransaction.ts';
 const historyState = read(historyStatePath);
 requireContains(historyState, historyStatePath, [
-  'activeRevisionId: session.activeRevisionId',
+  'activeRevisionId:',
+  'session.activeRevisionId',
 ]);
 
 const historyRestorePath =
@@ -110,7 +111,7 @@ const annotationPersistIndex = transaction.indexOf(
   publishIndex,
 );
 const sessionCommitIndex = transaction.indexOf(
-  'useSessionStore.getState().replaceWorkingCopy',
+  'useSessionStore.getState().commitMutation',
 );
 if (
   publishIndex < 0

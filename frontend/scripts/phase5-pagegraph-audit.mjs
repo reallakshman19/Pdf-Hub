@@ -55,7 +55,7 @@ const historyTypes = requireContains('src/core/document-history/types.ts', [
 ]);
 
 const historyRestore = requireContains('src/core/document-history/transactions.ts', [
-  'setPageGraph(',
+  'pageGraph: state.pageGraph ? clonePageGraph(state.pageGraph) : null',
   'clonePageGraph(state.pageGraph)',
 ]);
 
@@ -117,7 +117,7 @@ const annotationPersistence = requireContains(
   'src/components/workspace/useAnnotationPersistence.ts',
   [
     'const hydrated = useAnnotationStore.getState().annotations',
-    'saveAnnotations(documentKey, hydrated)',
+    'saveAnnotations(documentKey, hydrated,',
   ],
 );
 
@@ -125,7 +125,7 @@ const historyTransactions = requireContains(
   'src/core/document-history/transactions.ts',
   [
     'const annotations = normalizeAnnotationPageAnchors(',
-    'saveAnnotations(state.documentKey, annotations)',
+    'saveAnnotations(state.documentKey, annotations,',
     'normalizeAnnotationPageAnchors(state.annotations, state.pageGraph)',
   ],
 );
@@ -143,7 +143,7 @@ for (const retiredToken of [
   }
 }
 
-const setPageGraphIndex = documentTransaction.indexOf('setPageGraph(');
+const setPageGraphIndex = documentTransaction.indexOf('commitMutation({');
 const setAnnotationsIndex = documentTransaction.indexOf('setAnnotations(annotationsToPersist)');
 if (
   setPageGraphIndex < 0
@@ -188,7 +188,7 @@ const writerPersistence = requireContains(
 
 const writerAutosave = requireContains(
   'src/core/writer-v2/persistence/writerAutosave.ts',
-  ['normalizeWriterPageAnchors'],
+  ['saveWriterSessionToPersistence'],
 );
 
 for (const retiredToken of [
@@ -323,8 +323,8 @@ for (const requiredToken of [
 }
 
 for (const requiredToken of [
-  'setSelectedPageIds(state.selectedPageIds)',
-  'setPageById(state.currentPageId)',
+  'selectedPageIds: state.selectedPageIds.length > 0 ? state.selectedPageIds : undefined',
+  'currentPageId: state.currentPageId ?? undefined',
 ]) {
   if (!historyRestoreSource.includes(requiredToken)) {
     failures.push(`history restore missing PageId navigation token: ${requiredToken}`);
@@ -366,10 +366,14 @@ const pageLabelDomain = requireContains('src/core/pages/pageLabels.ts', [
 ]);
 
 const pageLabelWriter = requireContains('src/core/pages/pdfPageLabelWriter.ts', [
+  'applyPdfLibPageLabels',
+  'planPdfPageLabelEntries',
+]);
+requireContains('src/adapters/pdf-mutation/pdfLibPageLabels.ts', [
   "PDFName.of('PageLabels')",
   "PDFName.of('Nums')",
-  'PDFNumber.of(startIndex)',
-  'PDFHexString.fromText(range.prefix)',
+  'PDFNumber.of(entry.startPageIndex)',
+  'PDFHexString.fromText(entry.prefix)',
   'doc.catalog.delete(pageLabelsKey)',
 ]);
 
@@ -403,9 +407,10 @@ const pageLabelCommand = requireContains(
 
 for (const requiredToken of [
   "case 'SET_PAGE_LABELS'",
-  'executePageLabelCommandMutation',
+  'planPageLabelCommandMutation',
   'reanchorPageLabelRangesAfterGraphChange',
-  'synchronizeStructuralPageLabels',
+  'reconcilePageLabelsAfterStructuralChange',
+  'applyStructuralPageLabelsToMutationSession',
 ]) {
   if (!commandDispatch.includes(requiredToken)) {
     failures.push(`command dispatch missing PageLabels token: ${requiredToken}`);
@@ -419,7 +424,7 @@ if (commandDispatch.includes("from '@/core/pages/pdfPageLabelWriter'")) {
 }
 
 const labelSyncCount =
-  commandDispatch.match(/synchronizeStructuralPageLabels\(/g)?.length ?? 0;
+  commandDispatch.match(/reconcilePageLabelsAfterStructuralChange\(/g)?.length ?? 0;
 if (labelSyncCount < 8) {
   failures.push(
     `PageLabel-aware structural commands must rewrite the number tree; found ${labelSyncCount} synchronization sites`,

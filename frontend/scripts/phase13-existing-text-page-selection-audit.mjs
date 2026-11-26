@@ -154,11 +154,9 @@ requireTokens(
 );
 
 forbidTokens(
-  'page interaction does not mutate PDF',
+  'page interaction does not bypass commandBus for direct stream edits',
   workspace,
   [
-    'commandBus',
-    'REPLACE_EXISTING_TEXT',
     'PdfMutationSession',
     'replaceSimpleExistingTextTj',
   ],

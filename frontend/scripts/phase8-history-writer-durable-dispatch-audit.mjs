@@ -111,18 +111,15 @@ requireContains(tests, testsPath, [
 ]);
 
 const approvedDurableCallers = new Set([
-  'src/core/writer-v2/ensureRichTextEditing.ts',
-  'src/core/writer-v2/writerRichBoxStyleActions.ts',
-  'src/core/writer-v2/writerRichBoxFitActions.ts',
-  'src/core/writer-v2/writerImageBoxActions.ts',
   'src/core/writer-v2/durableWriterUiDispatch.ts',
+  'src/core/ocr/ocrWriterBridge.ts',
 ]);
 
 const observedDurableCallers = new Set();
 
 const srcRoot = path.join(root, 'src');
 for (const absolute of collectSourceFiles(srcRoot)) {
-  const relative = path.relative(root, absolute);
+  const relative = path.relative(root, absolute).replaceAll(path.sep, '/');
   if (relative === storePath) {
     continue;
   }

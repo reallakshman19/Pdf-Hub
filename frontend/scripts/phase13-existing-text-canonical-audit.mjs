@@ -252,14 +252,8 @@ const componentSources =
     )
     .map(read)
     .join('\n');
-forbidTokens(
-  'no end-user UI command exposure',
-  componentSources,
-  [
-    'REPLACE_EXISTING_TEXT',
-    'replaceExistingText(',
-  ],
-);
+// End-user UI command exposure (REPLACE_EXISTING_TEXT via ExistingTextInspectorTab) was
+// enabled in Phase 13.5+; keep checking that core/dispatcher/SDK boundaries hold above.
 
 if (failures.length > 0) {
   console.error(

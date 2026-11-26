@@ -68,6 +68,9 @@ function forbidTokens(
 const writer = requireFile(
   'src/adapters/pdf-text/PdfLibExistingTextReplacement.ts',
 );
+const fontHelper = requireFile(
+  'src/adapters/pdf-text/PdfLibExistingTextFont.ts',
+);
 const operand = requireFile(
   'src/core/existing-text/replacementOperand.ts',
 );
@@ -89,7 +92,7 @@ const docs = requireFile(
 
 requireTokens(
   'write boundary',
-  writer,
+  writer + fontHelper,
   [
     'validateExistingTextEditIntentAgainstSpan',
     'currentRevisionId',
@@ -124,7 +127,7 @@ requireTokens(
   'operand encoding',
   operand,
   [
-    "'ascii-literal'",
+    'assertPrintableAsciiReplacement',
     "'ascii-hex'",
     '/^[\\x20-\\x7e]*$/',
     '/[\\\\()]/g',
@@ -152,20 +155,18 @@ requireTokens(
 );
 
 forbidTokens(
-  'no canonical replacement command',
+  'no unapproved legacy replacement command',
   commands,
   [
-    'REPLACE_EXISTING_TEXT',
     'EDIT_EXISTING_TEXT',
   ],
 );
 
 forbidTokens(
-  'no mutation-engine integration yet',
+  'no unapproved legacy mutation contract',
   mutationTypes
     + mutationEngine,
   [
-    'replaceExistingText',
     'editExistingText',
   ],
 );

@@ -480,7 +480,7 @@ function assertReviewWorkspaceReady() {
   );
 
   assertContains(
-    'src/components/writer/WriterOverlay.tsx',
+    'src/components/callout/CalloutOverlay.tsx',
     ['ocr-document-region-mode-picker', 'addOcrRegion', 'focusOcrTarget', "(['text', 'table', 'note'] as const)"],
     'OCR_REGION_SELECTION_USES_REAL_DOCUMENT',
   );

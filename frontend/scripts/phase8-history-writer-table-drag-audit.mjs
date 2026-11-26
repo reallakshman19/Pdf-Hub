@@ -46,9 +46,8 @@ requireContains(overlay, overlayPath, [
   'data-writer-table-resize-preview="column"',
   'data-writer-table-resize-preview="row"',
   'buildWriterTableDragResizeCommand({',
-  'dispatchDurableWriterUiCommand(',
-  "'WriterTableInteractionOverlay column resize'",
-  "'WriterTableInteractionOverlay row resize'",
+  'dispatchDurableWriterHelperLatest(',
+  "'Writer table resize'",
   'onPointerCancel={onPointerCancel}',
   "type: 'SET_ACTIVE_WRITER_ELEMENT'",
 ]);
@@ -110,8 +109,7 @@ if (
     overlayPath,
     [
       'buildWriterTableDragResizeCommand({',
-      'useWriterV2Store.getState().elements',
-      'dispatchDurableWriterUiCommand(',
+      'dispatchDurableWriterHelperLatest(',
     ],
   );
 
@@ -136,7 +134,6 @@ const helper = read(helperPath);
 requireContains(helper, helperPath, [
   'buildWriterTableDragResizeCommand',
   'computeResizedColumnWidths',
-  'buildResizeTableColumnCommand',
   'buildResizeTableRowCommand',
   "'Writer table resize target is unavailable.'",
 ]);
@@ -157,10 +154,6 @@ const inheritedPath =
 const inherited = read(inheritedPath);
 forbidContains(inherited, inheritedPath, [
   "'src/components/writer-v2/WriterTableInteractionOverlay.tsx',",
-]);
-requireContains(inherited, inheritedPath, [
-  "'src/components/writer-v2/WriterV2Inspector.tsx'",
-  "'src/components/writer-v2/WriterTablePropertiesPanel.tsx'",
 ]);
 
 if (failed) process.exit(1);

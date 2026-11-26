@@ -92,10 +92,10 @@ requireContains(transaction, transactionPath, [
   'useHistoryStore.setState(historySnapshot)',
 ]);
 const prepareIndex = transaction.indexOf(
-  'preparedJournal = await prepareHistoryJournalMutation',
+  'await prepareHistoryJournalMutation({',
 );
 const sessionCommitIndex = transaction.indexOf(
-  'useSessionStore.getState().replaceWorkingCopy',
+  'useSessionStore.getState().commitMutation',
 );
 const historyPushIndex = transaction.indexOf(
   'useHistoryStore.getState().push({',
@@ -165,7 +165,7 @@ const appendTestPath =
   'src/core/document-history/journal/appendMutation.test.ts';
 const appendTest = read(appendTestPath);
 requireContains(appendTest, appendTestPath, [
-  'appends a replayable mutation without adding a checkpoint',
+  'does not add another periodic checkpoint before any policy bound is reached',
   'adds a barrier checkpoint for donor-backed mutation',
   'truncates an abandoned redo tail before appending a new branch',
   'fails closed when journal active revision does not match mutation input',

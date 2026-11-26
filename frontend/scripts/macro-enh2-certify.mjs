@@ -15,8 +15,9 @@ const commands = [
   },
   {
     name: 'slice-tests',
-    command: executable('vitest'),
+    command: process.execPath,
     args: [
+      vitestEntrypoint(),
       'run',
       'src/core/macro/steps/page-ops.slice2.test.ts',
       'src/core/macro/steps/content-ops.slice3.test.ts',
@@ -92,7 +93,7 @@ for (const item of commands) {
   const result = spawnSync(item.command, item.args, {
     cwd: root,
     encoding: 'utf8',
-    shell: false,
+    shell: item.command === 'npm' && process.platform === 'win32',
     stdio: 'pipe',
     env: {
       ...process.env,
@@ -145,9 +146,8 @@ if (failed) {
   process.exit(1);
 }
 
-function executable(binName) {
-  const suffix = process.platform === 'win32' ? '.cmd' : '';
-  return path.join(root, 'node_modules', '.bin', `${binName}${suffix}`);
+function vitestEntrypoint() {
+  return path.join(root, 'node_modules', 'vitest', 'vitest.mjs');
 }
 
 function tail(text) {

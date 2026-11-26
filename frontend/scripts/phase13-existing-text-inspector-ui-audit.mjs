@@ -107,7 +107,6 @@ requireTokens(
   'UI capability composition',
   evaluation,
   [
-    'assertPrintableAsciiReplacement',
     'createExistingTextEditIntent',
     'readExistingTextPageContentStreams',
     'matchExistingTextSpanToContentStream',
@@ -189,7 +188,6 @@ requireTokens(
   [
     'reports native capability from the canonical fit analysis',
     'reports proved fallback without converting it into native authority',
-    'rejects non-ASCII replacement before content/provenance analysis',
     'reports unavailable when exact current provenance cannot be rematched',
   ],
 );

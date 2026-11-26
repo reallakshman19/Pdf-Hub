@@ -42,9 +42,9 @@ const ensurePath =
   'src/core/writer-v2/ensureRichTextEditing.ts';
 const ensure = read(ensurePath);
 requireContains(ensure, ensurePath, [
-  'await writer.dispatchWriterCommandDurable({',
-  'if (!addResult.changed)',
-  'beginEditingWriterElement(element.id)',
+  'dispatchWriterCommandDurableLatest(',
+  'if (!result.changed',
+  'return begin(element)',
 ]);
 forbidContains(ensure, ensurePath, [
   'writer.dispatchWriterCommand({',
@@ -54,7 +54,7 @@ const stylePath =
   'src/core/writer-v2/writerRichBoxStyleActions.ts';
 const style = read(stylePath);
 requireContains(style, stylePath, [
-  'await store.dispatchWriterCommandDurable({',
+  'await store.dispatchWriterCommandDurableLatest(',
 ]);
 forbidContains(style, stylePath, [
   'store.dispatchWriterCommand({',
@@ -65,7 +65,7 @@ const fitPath =
 const fit = read(fitPath);
 requireContains(fit, fitPath, [
   'async function applyRichBoxFit(',
-  '.dispatchWriterCommandDurable({',
+  '.dispatchWriterCommandDurableLatest(',
 ]);
 const awaitedFitCount =
   fit.match(/await applyRichBoxFit\(/g)?.length ?? 0;
@@ -82,19 +82,15 @@ const imagePath =
   'src/core/writer-v2/writerImageBoxActions.ts';
 const image = read(imagePath);
 requireContains(image, imagePath, [
-  'await store.dispatchWriterCommandDurable({',
-  'const previousDirty = store.dirty',
-  'removeWriterAsset(',
-  'dirty: previousDirty',
-  'catch (error)',
+  'dispatchWriterCommandDurableLatest(',
+  'dispatchDurableWriterHelperLatest(',
   'clearActiveImageBoxAsset',
 ]);
-// clearActiveImageBoxAsset remains synchronous in C2A.
 const durableIndex = image.indexOf(
-  'await store.dispatchWriterCommandDurable({',
+  'dispatchWriterCommandDurableLatest(',
 );
 const clearIndex = image.indexOf(
-  'export function clearActiveImageBoxAsset',
+  'export async function clearActiveImageBoxAsset',
 );
 if (
   durableIndex < 0
@@ -113,8 +109,8 @@ requireContains(imageTests, imageTestPath, [
   'removes the admitted asset when durable Writer dispatch fails',
   "mockRejectedValueOnce(",
   "new Error('journal write failed')",
-  'expect(useWriterV2Store.getState().assetRecords)',
-  'expect(useWriterV2Store.getState().dirty)',
+  'expect(after.assetRecords)',
+  'expect(after.dirty)',
 ]);
 
 const integrationTestPath =
@@ -135,10 +131,6 @@ const inheritedAuditPath =
 const inheritedAudit = read(inheritedAuditPath);
 requireContains(inheritedAudit, inheritedAuditPath, [
   'approvedDurableCallers',
-  "'src/core/writer-v2/ensureRichTextEditing.ts'",
-  "'src/core/writer-v2/writerRichBoxStyleActions.ts'",
-  "'src/core/writer-v2/writerRichBoxFitActions.ts'",
-  "'src/core/writer-v2/writerImageBoxActions.ts'",
   'Unapproved production durable Writer caller',
   'Approved C2A durable Writer caller is missing',
 ]);

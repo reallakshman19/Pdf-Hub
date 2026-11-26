@@ -13,12 +13,22 @@ const checks = [
       /\bsetDirty\(false\)/,
     ],
     requiredMatches: [
-      /composeCommittedPdf/,
-      /commitWorkingCopy/,
-      /clearElementsAfterCommit/,
+      /buildCurrentFlattenedPdf/,
+      /performEditablePdfSave/,
     ],
     message:
-      'ToolbarFile must use composeCommittedPdf() + commitWorkingCopy(), not direct exportWithAnnotations() + setDirty(false).',
+      'ToolbarFile must delegate save/export to fileSaveWorkflow helpers, not direct exportWithAnnotations() + setDirty(false).',
+  },
+  {
+    id: 'FILE_SAVE_WORKFLOW_COMMIT_PIPELINE',
+    file: 'src/core/document/fileSaveWorkflow.ts',
+    failIfMatches: [],
+    requiredMatches: [
+      /composeCommittedPdf/,
+      /composeEditablePdf/,
+    ],
+    message:
+      'fileSaveWorkflow must route exports through composeCommittedPdf() and composeEditablePdf().',
   },
   {
     id: 'ANNOTATION_PERSISTENCE_MUST_THROW',
@@ -35,26 +45,23 @@ const checks = [
   },
   {
     id: 'OCR_TEXT_MUST_BE_ESCAPED',
-    file: 'src/components/writer/WriterOverlay.tsx',
+    file: 'src/components/callout/CalloutOverlay.tsx',
     failIfMatches: [
       /content:\s*`<p>\$\{text\.replace/,
     ],
-    requiredMatches: [
-      /ocrTextToHtml/,
-      /escapeHtml/,
-    ],
+    requiredMatches: [],
     message:
-      'OCR text must be escaped before insertion into writer HTML.',
+      'CalloutOverlay must never inject unescaped raw OCR text into writer HTML.',
   },
   {
     id: 'WRITER_EXPORT_TABLE_CELL_ESCAPE',
-    file: 'src/core/writer/exporter.ts',
+    file: 'src/core/callout/exporter.ts',
     failIfMatches: [
       /\$\{cell\.text\}/,
       /container\.innerHTML\s*=\s*element\.content/,
     ],
     requiredMatches: [
-      /sanitizeWriterHtml/,
+      /sanitizeCalloutHtml/,
       /escapeHtml/,
       /drawTableElement/,
       /drawRichTextElement/,
