@@ -84,9 +84,15 @@ describe('DocumentWorkspace - CAD Grid & Polar Tracking Integration', () => {
     }) as unknown as typeof HTMLCanvasElement.prototype.getContext;
   });
 
-  it('renders CadDraftingToolbar in bottom dock and cycles grid overlay', async () => {
+  it('renders CadDraftingToolbar when CAD tools are toggled and cycles grid overlay', async () => {
+    useEditorStore.setState({ cadToolsOpen: false });
     await act(async () => {
       render(<DocumentWorkspace />);
+    });
+
+    expect(screen.queryByTestId('cad-drafting-toolbar')).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('cad-tools-toggle-btn'));
     });
 
     // Drafting toolbar is in the dock

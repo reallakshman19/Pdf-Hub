@@ -5,6 +5,7 @@ import {
   generateXmlBuilderCoordinateTsv,
   pdfPointsToRealMm,
 } from './pipelineCoordinateExport';
+import { computeCoordinatePatches } from './table-store/reverseTransform';
 import type { PdfAnnotation } from '../annotations/types';
 import type { ScaleCalibration } from '../annotations/calibration';
 
@@ -214,5 +215,54 @@ describe('pipelineCoordinateExport engine', () => {
     // 3D spatial hypotenuse between (0, 0, 105000) and (2540, 0, 107500):
     // dx = 2540, dz = 2500 -> hypot ~ 3564 mm
     expect(rows[0].lengthToNextMm).toBeCloseTo(3564, -1);
+  });
+
+  it('does not double-offset page-space perimeter-takeoff polylines and preserves coordinateSpace in reverseTransform', () => {
+    const portedPipe: PdfAnnotation = {
+      id: 'pipe-page-space-1',
+      type: 'perimeter-takeoff',
+      pageNumber: 1,
+      rect: { x: 72, y: 72, width: 144, height: 72 },
+      createdAt: 1,
+      updatedAt: 1,
+      data: {
+        coordinateSpace: 'page',
+        isPipeRun: true,
+        branchName: '4"-P-202-CS',
+        points: [72, 72, 216, 72, 216, 144],
+      },
+    };
+
+    const rows = extractPipelineCoordinates([portedPipe], () => cal100, {
+      startNodeNumber: 100,
+      nodeIncrement: 10,
+      defaultElevationZ: 100000,
+    });
+
+    expect(rows).toHaveLength(3);
+    expect(rows[0].branchName).toBe('4"-P-202-CS');
+    // Node 100 must stay at 72pt = 2540mm (NOT 144pt = 5080mm!)
+    expect(rows[0].x).toBeCloseTo(2540, 0);
+    expect(rows[0].y).toBeCloseTo(2540, 0);
+    // Node 110 at 216pt = 7620mm
+    expect(rows[1].x).toBeCloseTo(7620, 0);
+    expect(rows[1].y).toBeCloseTo(2540, 0);
+    // Node 120 at (216pt, 144pt) = (7620mm, 5080mm)
+    expect(rows[2].x).toBeCloseTo(7620, 0);
+    expect(rows[2].y).toBeCloseTo(5080, 0);
+
+    // Reverse transform edit of node 110 x -> 10160 mm (288pt)
+    const modifiedRows = rows.map((r) => (r.nodeNumber === 110 ? { ...r, x: 10160 } : r));
+    const patches = computeCoordinatePatches(
+      [portedPipe],
+      modifiedRows,
+      { 'coordinates:110:x': true },
+      () => cal100,
+    );
+
+    expect(patches).toHaveLength(1);
+    expect(patches[0].patch.data?.coordinateSpace).toBe('page');
+    expect(patches[0].patch.data?.points).toEqual([72, 72, 288, 72, 216, 144]);
+    expect(patches[0].patch.rect).toEqual({ x: 72, y: 72, width: 216, height: 72 });
   });
 });

@@ -1,12 +1,19 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { OPS, type PDFDocumentProxy } from 'pdfjs-dist';
 import { TakeoffInspectorTab } from './TakeoffInspectorTab';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
+import { usePdfStore } from '@/core/session/pdfStore';
+import { useCadModelingStore } from '@/core/cad-modeling/store';
+import { useCalloutStore } from '@/core/callout/store';
+import { PdfRendererAdapter } from '@/adapters/pdf-renderer/PdfRendererAdapter';
 
 describe('TakeoffInspectorTab', () => {
   beforeEach(() => {
+    usePdfStore.setState({ pdfDoc: null });
+    useCadModelingStore.getState().reset();
     useSessionStore.setState({
       viewState: {
         currentPageId: 'page-1',
@@ -266,5 +273,231 @@ describe('TakeoffInspectorTab', () => {
 
     fireEvent.change(modeSelect, { target: { value: 'isometric' } });
     expect(modeSelect.value).toBe('isometric');
+  });
+
+  it('ports PDF page vectors to canvas annotations and arms ROI region capture', async () => {
+    const packedPipe = new Float32Array([
+      0, 100, 100, // moveTo
+      1, 200, 100, // lineTo
+      1, 200, 180, // lineTo
+    ]);
+    const mockPage = {
+      pageNumber: 1,
+      getViewport: () => ({ width: 400, height: 300, transform: [1, 0, 0, -1, 0, 300] }),
+      getOperatorList: vi.fn().mockResolvedValue({
+        fnArray: [OPS.constructPath],
+        argsArray: [[OPS.stroke, [packedPipe], [100, 100, 200, 180]]],
+      }),
+      getTextContent: vi.fn().mockResolvedValue({
+        items: [
+          { str: '6"-P-300', width: 50, height: 10, transform: [10, 0, 0, 10, 120, 110] },
+        ],
+      }),
+    };
+    usePdfStore.setState({
+      pdfDoc: {
+        numPages: 1,
+        getPage: vi.fn().mockResolvedValue(mockPage),
+      } as unknown as PDFDocumentProxy,
+    });
+    useCadModelingStore.getState().reset();
+
+    render(<TakeoffInspectorTab />);
+
+    const portBtn = screen.getByTestId('port-page-vectors-btn');
+    await act(async () => {
+      fireEvent.click(portBtn);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const portedAnn = useAnnotationStore
+      .getState()
+      .annotations.find((a) => a.type === 'perimeter-takeoff');
+    expect(portedAnn).toBeDefined();
+    expect(portedAnn?.data.coordinateSpace).toBe('page');
+    expect(portedAnn?.data.importedFromPdfVector).toBe(true);
+    expect(screen.getByTestId('vector-port-status')).toHaveTextContent(/Ported 1 polylines/i);
+
+    const regionBtn = screen.getByTestId('port-region-vectors-btn');
+    fireEvent.click(regionBtn);
+    expect(useCadModelingStore.getState().vectorRoiCapture).toMatchObject({
+      mode: 'pipe',
+      includeTextLabels: true,
+      attachBranchLabels: true,
+    });
+  });
+
+  it('offers Trace Polyline and OCR Region fallback controls when a scanned/raster PDF is detected', async () => {
+    const mockRasterPage = {
+      pageNumber: 1,
+      getViewport: () => ({ width: 400, height: 300, transform: [1, 0, 0, -1, 0, 300] }),
+      getOperatorList: vi.fn().mockResolvedValue({
+        fnArray: [OPS.paintImageXObject],
+        argsArray: [['img1', 400, 300]],
+      }),
+      getTextContent: vi.fn().mockResolvedValue({ items: [] }),
+    };
+    usePdfStore.setState({
+      pdfDoc: {
+        numPages: 1,
+        getPage: vi.fn().mockResolvedValue(mockRasterPage),
+      } as unknown as PDFDocumentProxy,
+    });
+    useCadModelingStore.getState().reset();
+    useEditorStore.setState({ activeTool: 'select' });
+    useCalloutStore.setState({ activeTool: 'select' });
+
+    render(<TakeoffInspectorTab />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('port-page-vectors-btn'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('vector-port-status')).toHaveTextContent(/Scanned\/raster PDF/i);
+    const traceBtn = screen.getByTestId('raster-fallback-trace-btn');
+    fireEvent.click(traceBtn);
+    expect(useEditorStore.getState().activeTool).toBe('perimeter-takeoff');
+
+    const ocrBtn = screen.getByTestId('raster-fallback-ocr-btn');
+    fireEvent.click(ocrBtn);
+    expect(useCalloutStore.getState().activeTool).toBe('ocr-region');
+  });
+
+  it('auto-traces raster pipe runs onto canvas when Auto-Trace Pipe Runs is clicked', async () => {
+    const W = 80;
+    const H = 80;
+    const pixels = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < W * H * 4; i += 4) {
+      pixels[i] = 255;
+      pixels[i + 1] = 255;
+      pixels[i + 2] = 255;
+      pixels[i + 3] = 255;
+    }
+    for (let x = 10; x <= 65; x++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const idx = ((35 + dy) * W + x) * 4;
+        pixels[idx] = 0;
+        pixels[idx + 1] = 0;
+        pixels[idx + 2] = 0;
+      }
+    }
+    const rasterSpy = vi
+      .spyOn(PdfRendererAdapter, 'rasterizePageRegion')
+      .mockResolvedValue({ data: pixels, width: W, height: H, colorSpace: 'srgb' } as ImageData);
+
+    const mockRasterPage = {
+      pageNumber: 1,
+      getViewport: () => ({ width: 80, height: 80, transform: [1, 0, 0, -1, 0, 80] }),
+      getOperatorList: vi.fn().mockResolvedValue({
+        fnArray: [OPS.paintImageXObject],
+        argsArray: [['img1', 80, 80]],
+      }),
+      getTextContent: vi.fn().mockResolvedValue({ items: [] }),
+    };
+    usePdfStore.setState({
+      pdfDoc: {
+        numPages: 1,
+        getPage: vi.fn().mockResolvedValue(mockRasterPage),
+      } as unknown as PDFDocumentProxy,
+    });
+    useCadModelingStore.getState().reset();
+    useAnnotationStore.setState({ annotations: [] });
+
+    render(<TakeoffInspectorTab />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('port-page-vectors-btn'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const autoTraceBtn = screen.getByTestId('raster-autotrace-btn');
+    fireEvent.click(autoTraceBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('vector-port-status')).toHaveTextContent(/Auto-traced/i);
+    });
+
+    expect(rasterSpy).toHaveBeenCalledTimes(1);
+    const tracedAnns = useAnnotationStore
+      .getState()
+      .annotations.filter((a) => a.data.importedFromRasterTrace === true);
+    expect(tracedAnns.length).toBeGreaterThan(0);
+    expect(tracedAnns[0].type).toBe('perimeter-takeoff');
+    rasterSpy.mockRestore();
+  });
+
+  it('forwards ROI region and Bradley tuning options from raster panel controls', async () => {
+    const W = 50;
+    const H = 50;
+    const pixels = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < W * H * 4; i += 4) {
+      pixels[i] = 240;
+      pixels[i + 1] = 240;
+      pixels[i + 2] = 240;
+      pixels[i + 3] = 255;
+    }
+    for (let x = 5; x <= 42; x++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const idx = ((25 + dy) * W + x) * 4;
+        pixels[idx] = 10;
+        pixels[idx + 1] = 10;
+        pixels[idx + 2] = 10;
+      }
+    }
+    const rasterSpy = vi
+      .spyOn(PdfRendererAdapter, 'rasterizePageRegion')
+      .mockResolvedValue({ data: pixels, width: W, height: H, colorSpace: 'srgb' } as ImageData);
+
+    const mockRasterPage = {
+      pageNumber: 1,
+      getViewport: () => ({ width: 200, height: 200, transform: [1, 0, 0, -1, 0, 200] }),
+      getOperatorList: vi.fn().mockResolvedValue({
+        fnArray: [OPS.paintImageXObject],
+        argsArray: [['img1', 200, 200]],
+      }),
+      getTextContent: vi.fn().mockResolvedValue({ items: [] }),
+    };
+    usePdfStore.setState({
+      pdfDoc: {
+        numPages: 1,
+        getPage: vi.fn().mockResolvedValue(mockRasterPage),
+      } as unknown as PDFDocumentProxy,
+    });
+    useCadModelingStore.getState().reset();
+    useCadModelingStore.setState({
+      lastRasterRegionRect: { x: 20, y: 30, width: 50, height: 50 },
+      vectorRoiStatus: 'Scanned/raster region (1 image(s), 0 vectors). Auto-Trace ready for cropped region.',
+    });
+    useAnnotationStore.setState({ annotations: [] });
+
+    render(<TakeoffInspectorTab />);
+
+    fireEvent.change(screen.getByTestId('raster-method-select'), { target: { value: 'bradley' } });
+    fireEvent.change(screen.getByTestId('raster-rdp-select'), { target: { value: '0.8' } });
+    fireEvent.change(screen.getByTestId('raster-minlen-select'), { target: { value: '10' } });
+
+    expect(useCadModelingStore.getState().rasterThresholdMethod).toBe('bradley');
+    expect(useCadModelingStore.getState().rasterRdpEpsilonPx).toBe(0.8);
+    expect(useCadModelingStore.getState().rasterMinLengthPx).toBe(10);
+
+    const traceRegionBtn = screen.getByTestId('raster-autotrace-btn');
+    expect(traceRegionBtn).toHaveTextContent('Auto-Trace Region');
+    fireEvent.click(traceRegionBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('vector-port-status')).toHaveTextContent(/cropped region/i);
+    });
+
+    expect(rasterSpy).toHaveBeenCalledWith(
+      mockRasterPage,
+      expect.objectContaining({
+        regionRect: { x: 20, y: 30, width: 50, height: 50 },
+      }),
+    );
+    rasterSpy.mockRestore();
   });
 });

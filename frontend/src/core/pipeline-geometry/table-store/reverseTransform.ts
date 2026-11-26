@@ -8,6 +8,7 @@
  */
 
 import type { PdfAnnotation, Rect, ScaleCalibration } from '../../annotations/types';
+import { getAnnotationPageVertices, resolveAnnotationPointsSpace } from '../../annotations/pointsSpace';
 import type {
   PipelineCoordinateRow,
   PipelineRestraintRow,
@@ -55,18 +56,9 @@ export function computeCoordinatePatches(
 
     const cal = getCalibration(ann.pageNumber);
     const scaleRatio = cal.scaleRatio > 0 ? cal.scaleRatio : 100;
-    const rawPoints = (ann.data?.points as number[]) ?? [];
 
-    if (ann.type === 'line' || ann.type === 'arrow') {
-      const baseRect = ann.rect ?? { x: 0, y: 0, width: 0, height: 0 };
-      const absVertices: Array<{ x: number; y: number }> = [];
-
-      for (let i = 0; i < rawPoints.length - 1; i += 2) {
-        absVertices.push({
-          x: baseRect.x + rawPoints[i],
-          y: baseRect.y + rawPoints[i + 1],
-        });
-      }
+    if (ann.type === 'line' || ann.type === 'arrow' || ann.type === 'perimeter-takeoff') {
+      const absVertices = getAnnotationPageVertices(ann);
 
       // Update vertices that changed
       let geometryModified = false;
@@ -108,10 +100,13 @@ export function computeCoordinatePatches(
           height: Math.max(maxY - minY, 8),
         };
 
-        const newRelPoints: number[] = [];
+        const usePageSpace = resolveAnnotationPointsSpace(ann) === 'page';
+        const nextPoints: number[] = [];
         for (const v of absVertices) {
-          newRelPoints.push(Math.round((v.x - newRect.x) * 100) / 100);
-          newRelPoints.push(Math.round((v.y - newRect.y) * 100) / 100);
+          const px = usePageSpace ? v.x : v.x - newRect.x;
+          const py = usePageSpace ? v.y : v.y - newRect.y;
+          nextPoints.push(Math.round(px * 100) / 100);
+          nextPoints.push(Math.round(py * 100) / 100);
         }
 
         patches.push({
@@ -120,7 +115,8 @@ export function computeCoordinatePatches(
             rect: newRect,
             data: {
               ...ann.data,
-              points: newRelPoints,
+              points: nextPoints,
+              ...(usePageSpace ? { coordinateSpace: 'page' as const } : {}),
               nodeElevations: nodeElevationsPatch,
             },
           },
