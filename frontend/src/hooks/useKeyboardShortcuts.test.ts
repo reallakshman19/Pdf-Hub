@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import { useEditorStore } from '@/core/editor/store';
 import { useSearchStore } from '@/core/search/store';
 import { useSessionStore } from '@/core/session/store';
 
@@ -66,5 +67,34 @@ describe('useKeyboardShortcuts - Search Shortcuts', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(useSearchStore.getState().query).toBe('');
     expect(useSearchStore.getState().hits).toEqual([]);
+  });
+
+  it('dispatches pdf-hub:print on Ctrl+P', () => {
+    renderHook(() => useKeyboardShortcuts());
+    const listener = vi.fn();
+    document.addEventListener('pdf-hub:print', listener);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true }));
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    document.removeEventListener('pdf-hub:print', listener);
+  });
+
+  it('opens Automate panel and Macro Builder drawer on Ctrl+M', () => {
+    useEditorStore.setState({
+      activeMode: 'view',
+      sidebarTab: 'thumbnails',
+      leftPanelWidth: 0,
+      macroBuilderOpen: false,
+    });
+    renderHook(() => useKeyboardShortcuts());
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', ctrlKey: true }));
+
+    const state = useEditorStore.getState();
+    expect(state.activeMode).toBe('generate');
+    expect(state.sidebarTab).toBe('macros');
+    expect(state.leftPanelWidth).toBe(20);
+    expect(state.macroBuilderOpen).toBe(true);
   });
 });

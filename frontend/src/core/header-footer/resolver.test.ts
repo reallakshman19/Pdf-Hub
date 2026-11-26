@@ -323,4 +323,41 @@ describe('professional header/footer template resolution', () => {
     if (badTimeResult.ok) return;
     expect(badTimeResult.errors.join('\n')).toMatch(/valid Date/);
   });
+
+  it('numbers matched pages sequentially from rule.startNumber and rejects non-positive startNumber', () => {
+    const startTemplate = template();
+    startTemplate.rules = [
+      {
+        id: 'numbered-subset',
+        startNumber: 5,
+        selector: {
+          include: { mode: 'pageIds', pageIds: ['front-1', 'body-1'] },
+        },
+        footer: {
+          center: { kind: 'text', template: 'Page {{physicalPage}} of {{pageCount}}' },
+        },
+      },
+    ];
+
+    const okResult = resolveHeaderFooterTemplate(startTemplate, graph(), context);
+    expect(okResult.ok).toBe(true);
+    if (!okResult.ok) return;
+
+    expect(okResult.pages[0]?.footer).toBeUndefined();
+    expect(okResult.pages[1]?.footer?.center).toMatchObject({ kind: 'text', text: 'Page 5 of 6' });
+    expect(okResult.pages[2]?.footer).toBeUndefined();
+    expect(okResult.pages[3]?.footer?.center).toMatchObject({ kind: 'text', text: 'Page 6 of 6' });
+
+    const invalidStart = template();
+    invalidStart.rules = [
+      {
+        ...startTemplate.rules[0]!,
+        startNumber: 0,
+      },
+    ];
+    const badResult = resolveHeaderFooterTemplate(invalidStart, graph(), context);
+    expect(badResult.ok).toBe(false);
+    if (badResult.ok) return;
+    expect(badResult.errors.join('\n')).toMatch(/startNumber must be a positive integer/);
+  });
 });

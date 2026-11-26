@@ -6,7 +6,18 @@ import { useHistoryStore } from '@/core/document-history/store';
 import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import { isDebugRouteEnabled } from '@/core/debug/availability';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
+import { useEditorStore } from '@/core/editor/store';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import {
+  deleteSelectedWriterElements,
+  duplicateSelectedWriterElements,
+} from '@/core/writer-v2/writerSelectionActions';
+import {
+  copySelectedWriterElementsToClipboard,
+  pasteWriterClipboardElements,
+} from '@/core/writer-v2/writerClipboardActions';
+import { isWriterKeyboardHandled, markWriterKeyboardHandled } from '@/core/writer-v2/writerKeyboardGuard';
+import { deleteRegionsByAnnotationIds } from '@/core/redaction/store';
 import { useSearchStore } from '@/core/search/store';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -96,26 +107,111 @@ export const useKeyboardShortcuts = () => {
         return;
       }
 
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'o') {
+        event.preventDefault();
+        document.dispatchEvent(new CustomEvent('pdf-hub:open', { bubbles: true }));
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        document.dispatchEvent(new CustomEvent('pdf-hub:save', { bubbles: true }));
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        document.dispatchEvent(new CustomEvent('pdf-hub:print', { bubbles: true }));
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'm') {
+        event.preventDefault();
+        const editor = useEditorStore.getState();
+        editor.setActiveMode('generate');
+        editor.setSidebarTab('macros');
+        if (editor.leftPanelWidth < 1) {
+          editor.setLeftPanelWidth(20);
+        }
+        editor.setMacroBuilderOpen(true);
+        return;
+      }
+
+      const writerState = useWriterV2Store.getState();
+      const writerHasSelection = writerState.selectedIds.length > 0;
+      const writerOwnsSelection = writerHasSelection || writerState.documentMeta?.mode === 'blankDocument';
+
+      if (!isTypingTarget && event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey && writerState.editingId === null && writerState.selectedIds.length === 1) {
+        const selectedEl = writerState.elements.find((el) => el.id === writerState.selectedIds[0]);
+        if (selectedEl && !selectedEl.locked && selectedEl.type !== 'imageBox') {
+          event.preventDefault();
+          if (!isWriterKeyboardHandled(event)) {
+            markWriterKeyboardHandled(event);
+            writerState.beginEditingWriterElement(selectedEl.id);
+          }
+          return;
+        }
+      }
+
       if (!isTypingTarget && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
         event.preventDefault();
+        if (writerOwnsSelection) {
+          if (writerHasSelection && writerState.editingId === null && !isWriterKeyboardHandled(event)) {
+            markWriterKeyboardHandled(event);
+            copySelectedWriterElementsToClipboard();
+          }
+          return;
+        }
         copySelection();
         return;
       }
 
       if (!isTypingTarget && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
         event.preventDefault();
+        if (writerOwnsSelection) {
+          if (writerState.editingId === null && !isWriterKeyboardHandled(event)) {
+            markWriterKeyboardHandled(event);
+            void pasteWriterClipboardElements()
+              .then((result) => {
+                if (!result.changed) {
+                  useSessionStore.getState().failSaveOperation(result.message);
+                }
+              })
+              .catch((error: unknown) => {
+                useSessionStore.getState().failSaveOperation(
+                  error instanceof Error ? error.message : String(error),
+                );
+              });
+          }
+          return;
+        }
         pasteClipboard(useSessionStore.getState().viewState.currentPage);
         return;
       }
 
       if (!isTypingTarget && (event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'd') {
         event.preventDefault();
+        if (writerOwnsSelection) {
+          if (writerHasSelection && writerState.editingId === null && !isWriterKeyboardHandled(event)) {
+            markWriterKeyboardHandled(event);
+            void duplicateSelectedWriterElements();
+          }
+          return;
+        }
         duplicateSelection();
         return;
       }
 
       if (!isTypingTarget && (event.key === 'Delete' || event.key === 'Backspace')) {
         event.preventDefault();
+        if (writerOwnsSelection) {
+          if (writerHasSelection && writerState.editingId === null && !isWriterKeyboardHandled(event)) {
+            markWriterKeyboardHandled(event);
+            void deleteSelectedWriterElements();
+          }
+          return;
+        }
+        deleteRegionsByAnnotationIds(useAnnotationStore.getState().selectedAnnotationIds);
         deleteSelection();
         return;
       }

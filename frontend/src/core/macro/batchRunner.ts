@@ -785,7 +785,7 @@ export function buildBatchAuxiliaryOutputName(
   const leaf = originalName.split(/[\\/]/).at(-1) ?? '';
   const safeLeaf = leaf.replace(/\.pdf$/i, '')
     .trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^[.\-]+|[.\-]+$/g, '').slice(0, 72) || 'generated';
+    .replace(/^[.-]+|[.-]+$/g, '').slice(0, 72) || 'generated';
   const parent = buildBatchOutputName(inputIndex, fileName, recipeId, sourceSha256)
     .replace(/\.pdf$/i, '');
   return `${parent}-aux-${String(outputIndex).padStart(3, '0')}-${safeLeaf}.pdf`;

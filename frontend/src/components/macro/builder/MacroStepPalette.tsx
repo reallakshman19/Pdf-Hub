@@ -43,11 +43,11 @@ export function MacroStepPalette({
                   title={presentation.description}
                   style={{
                     textAlign: 'left',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--writer-border-strong, #cbd5e1)',
                     borderRadius: 6,
                     padding: '6px 8px',
-                    background: '#f9fafb',
-                    color: '#111827',
+                    background: 'var(--writer-surface-subtle, #f8fafc)',
+                    color: 'var(--writer-text, #0f172a)',
                     cursor: 'pointer',
                   }}
                 >

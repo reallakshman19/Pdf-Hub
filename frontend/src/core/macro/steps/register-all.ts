@@ -1,16 +1,16 @@
 import './page-ops';
 import './document-ops';
 import './content-ops';
-// The committed PS/ISONOTE executor intentionally replaces content-ops' legacy
-// dual-write implementation. Import order is part of the single-authority contract.
-import './professional-callout-commit-ops';
 import './conditional-ops';
 
 import { macroRegistry } from '../registry';
 import { info, warn } from '@/core/logger/service';
 import { registerLegacyVisualMaskCompatibility } from './visual-mask-compat';
+import { registerCommittedProfessionalCallout } from './professional-callout-commit-ops';
 
 registerLegacyVisualMaskCompatibility();
+// Register committed PS/ISONOTE executor after content-ops as part of the single-authority contract.
+registerCommittedProfessionalCallout();
 
 const ALL_OPS = [
   'rotate_pages', 'extract_pages', 'split_pages', 'duplicate_pages',

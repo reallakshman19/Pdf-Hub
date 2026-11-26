@@ -20,13 +20,13 @@ import {
 } from './page-ops';
 import { verifyProfessionalCalloutOutput } from '../../annotation-verification/output-verifier';
 import {
-  buildTableHtml as buildSafeWriterTableHtml,
-  sanitizeWriterHtml,
-} from '../../writer/exporter';
+  buildTableHtml as buildSafeCalloutTableHtml,
+  sanitizeCalloutHtml,
+} from '../../callout/exporter';
 import type {
-  WriterStyles,
-  WriterTableData,
-} from '../../writer/types';
+  CalloutStyles,
+  CalloutTableData,
+} from '../../callout/types';
 
 type SupportedImageMime = 'image/png' | 'image/jpeg';
 
@@ -243,7 +243,7 @@ async function captureHtmlToPng(
   htmlContent: string,
   width: number,
   height: number,
-  styles: WriterStyles,
+  styles: CalloutStyles,
 ): Promise<Uint8Array> {
   const safeWidth = Math.max(1, Math.round(width));
   const safeHeight = Math.max(1, Math.round(height));
@@ -270,7 +270,7 @@ async function captureHtmlToPng(
       : 'none',
   });
 
-  container.innerHTML = sanitizeWriterHtml(htmlContent);
+  container.innerHTML = sanitizeCalloutHtml(htmlContent);
   document.body.appendChild(container);
 
   try {
@@ -291,7 +291,7 @@ async function captureHtmlToPng(
 }
 
 async function captureTableToPng(
-  tableData: WriterTableData,
+  tableData: CalloutTableData,
   width: number,
 ): Promise<{
   bytes: Uint8Array;
@@ -317,7 +317,7 @@ async function captureTableToPng(
     boxSizing: 'border-box',
   });
 
-  container.innerHTML = buildSafeWriterTableHtml(
+  container.innerHTML = buildSafeCalloutTableHtml(
     tableData,
     safeWidth,
     renderScale,
@@ -653,7 +653,7 @@ async function executePlaceProfessionalCallout(
       const verificationReport = await verifyProfessionalCalloutOutput(
         updatedBytes,
         [step.callout],
-        (step.callout as any).mappingHash ?? `sha256:${'0'.repeat(64)}`,
+        (step.callout as { mappingHash?: string }).mappingHash ?? `sha256:${'0'.repeat(64)}`,
         ctx.options?.abortSignal,
       );
       if (!verificationReport.passed) {

@@ -131,7 +131,7 @@ export type MacroStep =
       width: number;
       height?: number;
       content: string;
-      styles: import('../writer/types').WriterStyles;
+      styles: import('../callout/types').CalloutStyles;
     }
   | {
       op: 'place_professional_callout';
@@ -145,7 +145,7 @@ export type MacroStep =
       x: number;
       y: number;
       width: number;
-      tableData: import('../writer/types').WriterTableData;
+      tableData: import('../callout/types').CalloutTableData;
     }
   | {
       op: 'adjust_image';

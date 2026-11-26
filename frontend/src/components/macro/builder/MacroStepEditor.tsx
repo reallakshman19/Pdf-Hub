@@ -59,7 +59,7 @@ export function MacroStepEditor({
     return (
       <section aria-label="Macro step editor">
         <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>Step Editor</h2>
-        <p role="alert" style={{ color: '#b91c1c' }}>
+        <p role="alert" style={{ color: 'var(--writer-danger-text, #dc2626)' }}>
           Selected step was not found.
         </p>
       </section>
@@ -86,15 +86,16 @@ export function MacroStepEditor({
 
       <div
         style={{
-          border: '1px solid #d1d5db',
+          border: '1px solid var(--writer-border-strong, #cbd5e1)',
           borderRadius: 8,
           padding: 10,
           marginBottom: 12,
-          background: '#ffffff',
+          background: 'var(--writer-surface-subtle, #f8fafc)',
+          color: 'var(--writer-text, #0f172a)',
         }}
       >
         <strong>{presentation.label}</strong>
-        <p style={{ fontSize: 12, color: '#374151' }}>{presentation.description}</p>
+        <p style={{ fontSize: 12, color: 'var(--writer-text-secondary, #334155)' }}>{presentation.description}</p>
       </div>
 
       {editableFields.map((field) => (
@@ -130,9 +131,9 @@ export function MacroStepEditor({
         <div
           role="alert"
           style={{
-            border: '1px solid #fecaca',
-            background: '#fef2f2',
-            color: '#991b1b',
+            border: '1px solid var(--writer-danger-border, #fca5a5)',
+            background: 'var(--writer-danger-bg, #fff1f2)',
+            color: 'var(--writer-danger-text, #dc2626)',
             borderRadius: 8,
             padding: 8,
             marginTop: 10,

@@ -16,6 +16,9 @@ export interface SimpleHeaderFooterTextTemplateInput {
   color: string;
   opacity?: number;
   fontFamily?: string;
+  fontWeight?: 'normal' | 'bold';
+  fontStyle?: 'normal' | 'italic';
+  startNumber?: number;
 }
 
 export function createSimpleHeaderFooterTextTemplate(
@@ -45,8 +48,8 @@ export function createSimpleHeaderFooterTextTemplate(
     defaultTextStyle: {
       fontFamily: input.fontFamily ?? 'Helvetica',
       fontSizePt: input.fontSizePt,
-      fontWeight: 'normal',
-      fontStyle: 'normal',
+      fontWeight: input.fontWeight ?? 'normal',
+      fontStyle: input.fontStyle ?? 'normal',
       color: input.color,
       opacity: input.opacity ?? 1,
     },
@@ -54,6 +57,9 @@ export function createSimpleHeaderFooterTextTemplate(
       {
         id: 'simple-text',
         selector: input.selector,
+        ...(input.startNumber !== undefined && input.startNumber !== 1
+          ? { startNumber: input.startNumber }
+          : {}),
         ...(input.zone === 'header'
           ? { header: band }
           : { footer: band }),

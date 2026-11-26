@@ -43,8 +43,9 @@ export function resolveHeaderFooterTemplate(
     };
   }
 
+  const ruleMatchCounts = new Map<number, number>();
   const pages = pageGraph.pages.map((page, pageIndex) =>
-    resolvePage(template, pageGraph, page, pageIndex, context, warnings),
+    resolvePage(template, pageGraph, page, pageIndex, context, warnings, ruleMatchCounts),
   );
 
   return {
@@ -61,6 +62,7 @@ function resolvePage(
   pageIndex: number,
   context: HeaderFooterResolutionContext,
   warnings: Set<string>,
+  ruleMatchCounts: Map<number, number>,
 ): ResolvedHeaderFooterPage {
   const physicalPageNumber = pageIndex + 1;
   const section = sectionForPage(pageGraph, pageIndex);
@@ -71,13 +73,20 @@ function resolvePage(
   let header: ResolvedHeaderFooterBand | undefined;
   let footer: ResolvedHeaderFooterBand | undefined;
 
-  for (const rule of template.rules) {
+  template.rules.forEach((rule, ruleIndex) => {
     if (!matchesHeaderFooterSelector(rule.selector, pageGraph, pageIndex)) {
-      continue;
+      return;
     }
 
+    const matchOffset = ruleMatchCounts.get(ruleIndex) ?? 0;
+    ruleMatchCounts.set(ruleIndex, matchOffset + 1);
+    const resolvedPhysicalPage =
+      rule.startNumber !== undefined
+        ? rule.startNumber + matchOffset
+        : physicalPageNumber;
+
     const tokenValues = {
-      physicalPage: physicalPageNumber,
+      physicalPage: resolvedPhysicalPage,
       pageLabel: logicalPageLabel,
       pageCount: pageGraph.pages.length,
       sectionPage: sectionPageNumber,
@@ -106,7 +115,7 @@ function resolvePage(
         warnings,
       );
     }
-  }
+  });
 
   return {
     pageId: page.pageId,

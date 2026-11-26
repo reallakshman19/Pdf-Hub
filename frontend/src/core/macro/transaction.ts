@@ -1,5 +1,5 @@
 import { useAnnotationStore } from '@/core/annotations/store';
-import { useWriterStore } from '@/core/writer/store';
+import { useCalloutStore } from '@/core/callout/store';
 import type { MacroMutableState, SideEffect } from './registry';
 import type { MacroPageLineageEntry } from './pageLineage';
 
@@ -12,7 +12,7 @@ export interface MacroTransactionSnapshot {
   lineageOrdinal?: number;
   outputFiles: { name: string; bytes: Uint8Array }[];
   annotations: ReturnType<typeof useAnnotationStore.getState>['annotations'];
-  writerElements: ReturnType<typeof useWriterStore.getState>['elements'];
+  writerElements: ReturnType<typeof useCalloutStore.getState>['elements'];
 }
 
 export function beginMacroTransaction(
@@ -34,7 +34,7 @@ export function beginMacroTransaction(
       rect: { ...annotation.rect },
       data: { ...annotation.data },
     })),
-    writerElements: useWriterStore.getState().elements.map((element) => ({
+    writerElements: useCalloutStore.getState().elements.map((element) => ({
       ...element,
       styles: { ...(element.styles ?? {}) },
       style: { ...(element.style ?? element.styles ?? {}) },
@@ -63,7 +63,7 @@ export function rollbackMacroTransaction(
     activeAnnotationId: null,
   });
 
-  useWriterStore.setState({
+  useCalloutStore.setState({
     elements: snapshot.writerElements,
     selectedIds: [],
     activeId: null,

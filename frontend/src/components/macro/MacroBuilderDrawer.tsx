@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 import { MacroRecipeBuilder } from './builder/MacroRecipeBuilder';
 import { findBuiltInMacroRecipe, getBuiltInMacroRecipes } from '@/core/macro/recipes/builtInRecipes';
 import {
@@ -53,25 +53,70 @@ export const MacroBuilderDrawer: React.FC = () => {
     [],
   );
 
-  React.useEffect(() => {
-    if (!macroBuilderOpen) return;
-    loadSelected(macroBuilderSource ?? 'new');
-  }, [loadSelected, macroBuilderOpen, macroBuilderSource]);
+  const [prevDrawerSync, setPrevDrawerSync] = React.useState<{ open: boolean; source: string | null }>({
+    open: macroBuilderOpen,
+    source: macroBuilderSource,
+  });
+  if (
+    macroBuilderOpen &&
+    (!prevDrawerSync.open || macroBuilderSource !== prevDrawerSync.source)
+  ) {
+    setPrevDrawerSync({ open: macroBuilderOpen, source: macroBuilderSource });
+    const nextValue = macroBuilderSource ?? 'new';
+    setSelectedSource(nextValue);
+    setSaveMessage(null);
+    if (nextValue === 'new') {
+      setActiveRecipe(undefined);
+    } else if (nextValue.startsWith('builtin:')) {
+      setActiveRecipe(findBuiltInMacroRecipe(nextValue.slice('builtin:'.length))?.recipe);
+    } else if (nextValue.startsWith('custom:')) {
+      const found = customRecipes.find((r) => r.id === nextValue.slice('custom:'.length));
+      setActiveRecipe(found ? cloneRecipe(found) : undefined);
+    }
+  } else if (!macroBuilderOpen && prevDrawerSync.open) {
+    setPrevDrawerSync({ open: false, source: macroBuilderSource });
+  }
 
   function handleLoadSelected(value: string): void {
     setMacroBuilderSource(value);
     loadSelected(value);
   }
 
-  function closeBuilder(): void {
+  const closeBuilder = React.useCallback((): void => {
     setMacroBuilderOpen(false);
     setMacroBuilderSource(null);
-  }
+  }, [setMacroBuilderOpen, setMacroBuilderSource]);
+
+  const saveTimerRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => () => {
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!macroBuilderOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeBuilder();
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [macroBuilderOpen, closeBuilder]);
 
   function handleSave(recipe: MacroRecipe): void {
     setCustomRecipes(loadCustomMacroRecipes());
     setSaveMessage(`Saved: ${recipe.name}`);
-    setTimeout(() => setSaveMessage(null), 3000);
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = window.setTimeout(() => {
+      setSaveMessage(null);
+      saveTimerRef.current = null;
+    }, 3000);
   }
 
   if (!macroBuilderOpen) return null;
@@ -79,6 +124,9 @@ export const MacroBuilderDrawer: React.FC = () => {
   return (
     // fixed overlay covering viewport below top bars
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Workflow Builder"
       className="fixed inset-0 z-[200] flex items-stretch"
       style={{ paddingTop: 0 }}
     >
@@ -106,6 +154,7 @@ export const MacroBuilderDrawer: React.FC = () => {
             )}
             {/* Source selector */}
             <select
+              aria-label="Workflow source selector"
               value={selectedSource}
               onChange={(e) => handleLoadSelected(e.target.value)}
               className="text-xs border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 outline-none focus:ring-1 focus:ring-blue-500"
@@ -124,7 +173,19 @@ export const MacroBuilderDrawer: React.FC = () => {
                 </optgroup>
               )}
             </select>
+            <a
+              href="#/macro-builder"
+              onClick={() => closeBuilder()}
+              aria-label="Open Workflow Builder full page"
+              title="Open full-page Workflow Builder"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 no-underline transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Full Page</span>
+            </a>
             <button
+              type="button"
+              aria-label="Close Workflow Builder"
               onClick={() => closeBuilder()}
               className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-all border-none bg-transparent cursor-pointer"
             >

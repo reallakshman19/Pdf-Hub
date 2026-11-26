@@ -26,6 +26,7 @@ import { MacroRecipeImportExport } from './MacroRecipeImportExport';
 import { MacroStepEditor } from './MacroStepEditor';
 import { getChildParentPath } from './macroPathUtils';
 import { MacroBuilderExecutionPanel } from './MacroBuilderExecutionPanel';
+import './MacroRecipeBuilder.css';
 
 export interface MacroRecipeBuilderProps {
   initialRecipe?: MacroRecipe;
@@ -139,27 +140,21 @@ export function MacroRecipeBuilder({
       data-macro-builder="true"
       className="macro-recipe-builder"
       aria-label="Workflow builder"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '280px minmax(320px, 1fr) 380px',
-        gap: 12,
-        alignItems: 'start',
-      }}
     >
       <aside
         aria-label="Macro operation palette"
         style={{
-          border: '1px solid #e5e7eb',
+          border: '1px solid var(--writer-border, #e2e8f0)',
           borderRadius: 8,
           padding: 12,
-          background: '#ffffff',
-          color: '#111827',
+          background: 'var(--writer-surface, #ffffff)',
+          color: 'var(--writer-text, #0f172a)',
         }}
       >
         <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>Workflow Builder</h2>
 
         <label style={{ display: 'block', marginBottom: 12 }}>
-          <span style={{ display: 'block', fontSize: 12, color: '#4b5563' }}>Workflow Name</span>
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--writer-text-muted, #64748b)' }}>Workflow Name</span>
           <input
             aria-label="Workflow Name"
             value={state.recipe.name}
@@ -177,11 +172,11 @@ export function MacroRecipeBuilder({
       <main
         aria-label="Macro step list"
         style={{
-          border: '1px solid #e5e7eb',
+          border: '1px solid var(--writer-border, #e2e8f0)',
           borderRadius: 8,
           padding: 12,
-          background: '#ffffff',
-          color: '#111827',
+          background: 'var(--writer-surface, #ffffff)',
+          color: 'var(--writer-text, #0f172a)',
         }}
       >
         <MacroStepList
@@ -199,11 +194,11 @@ export function MacroRecipeBuilder({
       <aside
         aria-label="Macro recipe actions"
         style={{
-          border: '1px solid #e5e7eb',
+          border: '1px solid var(--writer-border, #e2e8f0)',
           borderRadius: 8,
           padding: 12,
-          background: '#ffffff',
-          color: '#111827',
+          background: 'var(--writer-surface, #ffffff)',
+          color: 'var(--writer-text, #0f172a)',
         }}
       >
         <MacroStepEditor
@@ -220,7 +215,7 @@ export function MacroRecipeBuilder({
           onMoveDown={handleMoveDown}
         />
 
-        <hr style={{ margin: '12px 0', border: 0, borderTop: '1px solid #e5e7eb' }} />
+        <hr style={{ margin: '12px 0', border: 0, borderTop: '1px solid var(--writer-border, #e2e8f0)' }} />
 
         <MacroValidationPanel validation={state.validation} />
 
@@ -230,11 +225,16 @@ export function MacroRecipeBuilder({
         />
 
         <div style={{ display: 'flex', gap: 8, margin: '12px 0', flexWrap: 'wrap' }}>
-          <button type="button" onClick={handleSave} disabled={!state.validation.valid}>
+          <button
+            type="button"
+            className="macro-builder-btn-primary"
+            onClick={handleSave}
+            disabled={!state.validation.valid}
+          >
             Save Workflow
           </button>
           {onClose ? (
-            <button type="button" onClick={onClose}>
+            <button type="button" className="macro-builder-btn" onClick={onClose}>
               Close
             </button>
           ) : null}
@@ -243,7 +243,7 @@ export function MacroRecipeBuilder({
         <details
           style={{
             marginTop: 12,
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--writer-border, #e2e8f0)',
             borderRadius: 8,
             padding: 8,
           }}
@@ -255,7 +255,7 @@ export function MacroRecipeBuilder({
 
           <div style={{ marginTop: 10 }}>
             <label style={{ display: 'block', marginBottom: 8 }}>
-              <span style={{ display: 'block', fontSize: 12, color: '#4b5563' }}>Workflow ID</span>
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--writer-text-muted, #64748b)' }}>Workflow ID</span>
               <input
                 aria-label="Workflow ID"
                 value={state.recipe.id}
@@ -264,7 +264,7 @@ export function MacroRecipeBuilder({
               />
             </label>
 
-            <button type="button" onClick={handleExport}>
+            <button type="button" className="macro-builder-btn" onClick={handleExport}>
               View recipe source
             </button>
 
@@ -279,7 +279,7 @@ export function MacroRecipeBuilder({
         </details>
 
         {state.lastError ? (
-          <p role="alert" style={{ color: '#b91c1c' }}>
+          <p role="alert" style={{ color: 'var(--writer-danger-text, #dc2626)' }}>
             {state.lastError}
           </p>
         ) : null}
@@ -354,7 +354,9 @@ function resolveStepByParentPath(
 const inputStyle: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--writer-border-strong, #cbd5e1)',
+  background: 'var(--writer-surface-subtle, #f8fafc)',
+  color: 'var(--writer-text, #0f172a)',
   borderRadius: 6,
   padding: '6px 8px',
 };

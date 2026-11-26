@@ -21,14 +21,14 @@ export function MacroRecipeImportExport({
     <section aria-label="Import and export macro recipe">
       <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>Import / Export</h2>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-        <button type="button" onClick={handleUseExportText} disabled={!exportText}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        <button type="button" className="macro-builder-btn" onClick={handleUseExportText} disabled={!exportText}>
           Use Export
         </button>
-        <button type="button" onClick={() => onImport(draft)}>
+        <button type="button" className="macro-builder-btn" onClick={() => onImport(draft)}>
           Import JSON
         </button>
-        <button type="button" onClick={() => onExportTextChange('')}>
+        <button type="button" className="macro-builder-btn" onClick={() => onExportTextChange('')}>
           Clear Export
         </button>
       </div>
@@ -44,9 +44,11 @@ export function MacroRecipeImportExport({
         style={{
           width: '100%',
           boxSizing: 'border-box',
-          border: '1px solid #d1d5db',
+          border: '1px solid var(--writer-border-strong, #cbd5e1)',
           borderRadius: 6,
           padding: 8,
+          background: 'var(--writer-surface-subtle, #f8fafc)',
+          color: 'var(--writer-text, #0f172a)',
           fontFamily: 'monospace',
           fontSize: 12,
         }}

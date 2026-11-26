@@ -31,7 +31,7 @@ export function MacroFieldEditor({
         style={{
           display: 'block',
           fontSize: 12,
-          color: '#4b5563',
+          color: 'var(--writer-text-secondary, #334155)',
           marginBottom: 4,
         }}
       >
@@ -51,7 +51,7 @@ export function MacroFieldEditor({
           style={{
             display: 'block',
             fontSize: 11,
-            color: '#6b7280',
+            color: 'var(--writer-text-muted, #64748b)',
             marginTop: 4,
           }}
         >
@@ -204,11 +204,11 @@ function renderFieldControl(args: {
         id={id}
         aria-label={field.label}
         style={{
-          border: '1px solid #d1d5db',
+          border: '1px solid var(--writer-border-strong, #cbd5e1)',
           borderRadius: 6,
           padding: 8,
-          background: '#f9fafb',
-          color: '#374151',
+          background: 'var(--writer-surface-muted, #f1f5f9)',
+          color: 'var(--writer-text-secondary, #334155)',
           fontSize: 12,
         }}
       >
@@ -282,7 +282,7 @@ function JsonFieldEditor({
         }}
       />
       {error ? (
-        <div role="alert" style={{ color: '#b91c1c', fontSize: 12, marginTop: 4 }}>
+        <div role="alert" style={{ color: 'var(--writer-danger-text, #dc2626)', fontSize: 12, marginTop: 4 }}>
           Invalid JSON: {error}
         </div>
       ) : null}
@@ -562,7 +562,9 @@ function numericSelectValue(fieldName: string, selected: string): string | numbe
 const inputStyle: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--writer-border-strong, #cbd5e1)',
+  background: 'var(--writer-surface-subtle, #f8fafc)',
+  color: 'var(--writer-text, #0f172a)',
   borderRadius: 6,
   padding: '6px 8px',
 };
@@ -570,7 +572,9 @@ const inputStyle: React.CSSProperties = {
 const textareaStyle: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--writer-border-strong, #cbd5e1)',
+  background: 'var(--writer-surface-subtle, #f8fafc)',
+  color: 'var(--writer-text, #0f172a)',
   borderRadius: 6,
   padding: '6px 8px',
 };
@@ -578,10 +582,11 @@ const textareaStyle: React.CSSProperties = {
 const boxStyle: React.CSSProperties = {
   display: 'grid',
   gap: 6,
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--writer-border, #e2e8f0)',
   borderRadius: 6,
   padding: 8,
-  background: '#f9fafb',
+  background: 'var(--writer-surface-muted, #f1f5f9)',
+  color: 'var(--writer-text, #0f172a)',
 };
 
 const rowStyle: React.CSSProperties = {

@@ -17,13 +17,13 @@ import { PIPING_ISO_PLACEMENT_POLICY } from '../../annotation-core/placement-pol
 function pageSceneToObstacles(scene: PageScene): Obstacle[] {
   return scene.obstacles
     .filter(o => o.penaltyWeight !== Infinity && o.bounds.width > 0 && o.bounds.height > 0)
-    .map(o => ({
+    .map((o) => ({
       id: o.id,
       type: (o.penaltyWeight ?? 0) > 500 ? 'hard' : 'soft',
       source: o.kind === 'text' ? 'existing-text' : o.kind,
       rect: o.bounds,
       weight: o.kind === 'text' ? 2 : o.penaltyWeight,
-    } as any));
+    } as unknown as Obstacle));
 }
 
 export type PsIsonotePlacement = 'auto' | 'right' | 'left';
@@ -170,9 +170,9 @@ export function findPsIsonoteReferencesInTextItems(
     let mapping = mappingByPs.get(psNo);
     let isStemMatch = false;
     if (!mapping && options.tolerance !== 'exact' && options.tolerance !== false) {
-      const stem = psNo.split(/[.\/]/)[0];
+      const stem = psNo.split(/[./]/)[0];
       mapping = mappings.find((m) => {
-        const mStem = m.psNo.split(/[.\/]/)[0];
+        const mStem = m.psNo.split(/[./]/)[0];
         return mStem === stem;
       });
       if (mapping) isStemMatch = true;
@@ -580,7 +580,7 @@ export function planPsIsonoteCallouts(
         targetPoint,
         pageNumber,
         preferredWidth: c.box.width,
-        preferredPlacement: (placement !== 'auto' ? placement : undefined) as any,
+        preferredPlacement: (placement !== 'auto' ? placement : undefined) as 'left' | 'right' | undefined,
       };
     });
 

@@ -102,4 +102,34 @@ describe('simple header/footer text template', () => {
       }),
     ).toThrow(/must not be empty/);
   });
+
+  it('forwards startNumber, fontWeight, and fontStyle when customized', () => {
+    const template = createSimpleHeaderFooterTextTemplate({
+      name: 'Custom numbers',
+      selector: { include: { mode: 'all' } },
+      zone: 'header',
+      text: '{{physicalPage}} / {{pageCount}}',
+      align: 'right',
+      marginXPt: 36,
+      marginYPt: 28,
+      fontFamily: 'Courier',
+      fontSizePt: 11,
+      fontWeight: 'bold',
+      fontStyle: 'italic',
+      color: '#111827',
+      startNumber: 10,
+    });
+
+    expect(template.defaultTextStyle).toMatchObject({
+      fontFamily: 'Courier',
+      fontSizePt: 11,
+      fontWeight: 'bold',
+      fontStyle: 'italic',
+    });
+    expect(template.rules[0]?.startNumber).toBe(10);
+    expect(template.rules[0]?.header?.right).toMatchObject({
+      kind: 'text',
+      template: '{{physicalPage}} / {{pageCount}}',
+    });
+  });
 });

@@ -27,14 +27,18 @@ export function useHeaderFooterImageResource(
   const controllerRef = React.useRef<AbortController | null>(null);
   const previewUrlRef = React.useRef<string | null>(null);
 
-  const releasePreview = React.useCallback(() => {
+  const releasePreviewUrlOnly = React.useCallback(() => {
     const url = previewUrlRef.current;
     if (url && typeof URL.revokeObjectURL === 'function') {
       URL.revokeObjectURL(url);
     }
     previewUrlRef.current = null;
-    setPreviewUrl(null);
   }, []);
+
+  const releasePreview = React.useCallback(() => {
+    releasePreviewUrlOnly();
+    setPreviewUrl(null);
+  }, [releasePreviewUrlOnly]);
 
   const clear = React.useCallback(() => {
     controllerRef.current?.abort('header/footer image cleared');
@@ -45,12 +49,27 @@ export function useHeaderFooterImageResource(
     setError(null);
   }, [releasePreview]);
 
+  const [prevIsOpen, setPrevIsOpen] = React.useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (!isOpen) {
+      setPreviewUrl(null);
+      setAdmitted(null);
+      setBusy(false);
+      setError(null);
+    }
+  }
+
   React.useEffect(() => {
-    if (!isOpen) clear();
+    if (!isOpen) {
+      controllerRef.current?.abort('header/footer image cleared');
+      controllerRef.current = null;
+      releasePreviewUrlOnly();
+    }
     return () => {
       controllerRef.current?.abort('header/footer image UI disposed');
     };
-  }, [clear, isOpen]);
+  }, [isOpen, releasePreviewUrlOnly]);
 
   React.useEffect(
     () => () => {

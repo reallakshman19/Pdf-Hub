@@ -138,8 +138,13 @@ export async function executeCommittedProfessionalCallout(
   }
 }
 
-macroRegistry.register(
-  'place_professional_callout',
-  executeCommittedProfessionalCallout,
-  { override: true },
-);
+/** Register the authoritative committed-callout executor as single-authority override. */
+export function registerCommittedProfessionalCallout(): void {
+  macroRegistry.register(
+    'place_professional_callout',
+    executeCommittedProfessionalCallout,
+    { override: true },
+  );
+}
+
+registerCommittedProfessionalCallout();
