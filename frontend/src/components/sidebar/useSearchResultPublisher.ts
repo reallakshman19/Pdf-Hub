@@ -45,8 +45,9 @@ export function useSearchResultPublisher(
     );
   const searchOptionsRef =
     React.useRef(searchOptions);
-  searchOptionsRef.current =
-    searchOptions;
+  React.useEffect(() => {
+    searchOptionsRef.current = searchOptions;
+  }, [searchOptions]);
 
   const publishSearchResults =
     React.useCallback((

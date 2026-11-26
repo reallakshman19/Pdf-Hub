@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 
 import { CtxBar } from '../CtxBar';
 import { useEditorStore } from '@/core/editor/store';
-import { useWriterStore } from '@/core/writer/store';
+import { useCalloutStore } from '@/core/callout/store';
 import { useReviewStore } from '@/core/review/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 
@@ -17,7 +17,7 @@ describe('CtxBar annotate mode', () => {
       activeMode: 'annotate',
       activeTool: 'select',
     });
-    useWriterStore.setState({
+    useCalloutStore.setState({
       activeTool: 'select',
     });
     useReviewStore.setState({
@@ -63,7 +63,7 @@ describe('CtxBar annotate mode', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /OCR Area/ }));
 
     expect(useEditorStore.getState().activeTool).toBe('select');
-    expect(useWriterStore.getState().activeTool).toBe('ocr-region');
+    expect(useCalloutStore.getState().activeTool).toBe('ocr-region');
   });
 
   it('renders quick fill buttons (Solid, Translucent, No BG) when an annotation is selected', () => {

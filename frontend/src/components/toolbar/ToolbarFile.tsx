@@ -1,25 +1,27 @@
 import React from 'react';
 import { Button } from '@/components/ui/Button';
-import { FolderOpen, Save, Download, FileOutput } from 'lucide-react';
+import { FolderOpen, Save, Download, FileOutput, ShieldCheck, Printer } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import {
   admitAndOpenPdfFile,
   firstAdmissionErrorMessage,
 } from '@/core/admission/openPdf';
+import { openWithPasswordRetry } from '@/core/pdf/passwordPromptBridge';
+import {
+  buildCurrentFlattenedPdf,
+  performEditablePdfSave,
+} from '@/core/document/fileSaveWorkflow';
 import { useSessionStore } from '@/core/session/store';
 import { useAnnotationStore } from '@/core/annotations/store';
-import { verifiedNativeWriteEvidence } from '@/core/annotations/nativeWriteEvidence';
-import { saveAnnotations } from '@/core/annotations/persistence';
-import { useWriterStore } from '@/core/writer/store';
-import { composeCommittedPdf, composeEditablePdf } from '@/core/document/commitPipeline';
-import { enqueueDocumentOperation } from '@/core/commands/documentOperationQueue';
-import { assertDocumentMutationOwner, captureDocumentMutationOwner, isDocumentMutationOwnerCurrent, type DocumentMutationOwner } from '@/core/session/mutationOwner';
+import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent, type DocumentMutationOwner } from '@/core/session/mutationOwner';
 import { error as logError, warn } from '@/core/logger/service';
 import { useToastStore } from '@/core/toast/store';
 import { useShallow } from 'zustand/react/shallow';
 import { inspectPdfSignatureRisk, type PdfSignatureRiskStatus } from '@/core/pdf-signatures/signatureRisk';
 import { SignedPdfRewriteWarningDialog } from './SignedPdfRewriteWarningDialog';
+import { PdfAExportDialog } from '@/components/dialogs/PdfAExportDialog';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 
 export const ToolbarFile: React.FC = () => {
   const [signatureWarning, setSignatureWarning] = React.useState<{
@@ -27,24 +29,21 @@ export const ToolbarFile: React.FC = () => {
     signatureCount: number;
     owner: DocumentMutationOwner;
   } | null>(null);
+  const [pdfADialogOpen, setPdfADialogOpen] = React.useState(false);
   const savePreflightSequence = React.useRef(0);
   const {
     workingBytes,
     fileName,
-    setSaveHandle,
     isDirty,
     recordSaveExportAction,
-    beginSaveOperation,
     beginExportOperation,
     completeSaveOperation,
     failSaveOperation,
   } = useSessionStore(useShallow((state) => ({
     workingBytes: state.workingBytes,
     fileName: state.fileName,
-    setSaveHandle: state.setSaveHandle,
     isDirty: state.isDirty,
     recordSaveExportAction: state.recordSaveExportAction,
-    beginSaveOperation: state.beginSaveOperation,
     beginExportOperation: state.beginExportOperation,
     completeSaveOperation: state.completeSaveOperation,
     failSaveOperation: state.failSaveOperation,
@@ -54,60 +53,17 @@ export const ToolbarFile: React.FC = () => {
     nativeIntegrity: state.nativeIntegrity,
     hydratedDocumentKey: state.hydratedDocumentKey,
   })));
+  const isBlankWriterDocument = useWriterV2Store(
+    (state) => state.documentMeta?.mode === 'blankDocument',
+  );
   const addToast = useToastStore((state) => state.addToast);
 
-  const requireWorkingPdf = () => {
-    if (!workingBytes) {
-      throw new Error('No working PDF is loaded');
-    }
-    return workingBytes;
-  };
-
-  const verifiedNativeAuthorization = async () => {
-    const session = useSessionStore.getState();
-    const state = useAnnotationStore.getState();
-    if (!session.documentKey || state.hydratedDocumentKey !== session.documentKey
-      || state.nativeIntegrity.documentKey !== session.documentKey
-      || state.nativeIntegrity.status !== 'COMPLETE') {
-      throw new Error('Cannot safely save: native annotation import integrity is incomplete.');
-    }
-    const sourceAnnotations = state.annotations;
-    const tombstones = state.nativeDeletionTombstones;
-    const evidence = await verifiedNativeWriteEvidence({
-      sourceRevision: session.documentKey,
-      baseBytes: requireWorkingPdf(),
-      annotations: sourceAnnotations,
-      tombstones,
-      journalStoreId: session.historyJournalStoreId,
-    });
-    if (useSessionStore.getState().documentKey !== session.documentKey
-      || useAnnotationStore.getState().annotations !== sourceAnnotations
-      || useAnnotationStore.getState().nativeDeletionTombstones !== tombstones
-      || useAnnotationStore.getState().nativeIntegrity.status !== 'COMPLETE') {
-      throw new Error('Native source or annotations changed during Save authorization.');
-    }
-    return {
-      sourceRevision: session.documentKey,
-      sourcePageIds: session.pageGraph?.pages.map((page) => page.pageId) ?? [],
-      tombstones,
-      ...evidence,
-    };
-  };
-  const canRewriteNative = Boolean(workingBytes && hydratedDocumentKey
+  const isEncryptedSource = useSessionStore((state) => state.isEncryptedSource);
+  const canRewriteNative = Boolean(workingBytes && !isEncryptedSource && hydratedDocumentKey
     && hydratedDocumentKey === useSessionStore.getState().documentKey
     && nativeIntegrity.documentKey === hydratedDocumentKey
     && nativeIntegrity.status === 'COMPLETE');
-
-  const buildFlattenedPdf = async () => {
-    const nativeDeletionAuthorization = await verifiedNativeAuthorization();
-    return composeCommittedPdf({
-      baseBytes: requireWorkingPdf(),
-      annotations: useAnnotationStore.getState().annotations,
-      writerElements: useWriterStore.getState().elements,
-      replaceManagedAnnotations: true,
-      nativeDeletionAuthorization,
-    });
-  };
+  const canPrint = Boolean(workingBytes) || isBlankWriterDocument;
 
   const handleOpen = async () => {
     try {
@@ -115,11 +71,14 @@ export const ToolbarFile: React.FC = () => {
       if (!picked) {
         return;
       }
-
-      const result = await admitAndOpenPdfFile(picked.file, 'TOOLBAR_PICKER', {
-        saveHandle: picked.handle ?? null,
-      });
-      if (result.outcome !== 'ACCEPTED' && result.outcome !== 'CANCELLED') {
+      const { result, cancelledByPasswordPrompt } = await openWithPasswordRetry(
+        (password) => admitAndOpenPdfFile(picked.file, 'TOOLBAR_PICKER', {
+          saveHandle: picked.handle ?? null,
+          ...(password !== undefined ? { password } : {}),
+        }),
+        picked.file.name,
+      );
+      if (result.outcome !== 'ACCEPTED' && result.outcome !== 'CANCELLED' && !cancelledByPasswordPrompt) {
         addToast({
           type: 'error',
           title: 'Unable to Open PDF',
@@ -130,7 +89,7 @@ export const ToolbarFile: React.FC = () => {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
-      logError('session', 'Failed to select PDF from toolbar', { error: String(err) });
+      logError('session', 'Failed to select PDF from picker', { error: String(err) });
       addToast({
         type: 'error',
         title: 'Unable to Open PDF',
@@ -138,97 +97,21 @@ export const ToolbarFile: React.FC = () => {
       });
     }
   };
-
-  const performEditableSave = async (owner: DocumentMutationOwner) => {
-    if (!isDocumentMutationOwnerCurrent(owner) || !owner.session.workingBytes || !owner.session.fileName) {
-      return;
-    }
-    try {
-      beginSaveOperation('Saving editable annotations and document content…');
-      await enqueueDocumentOperation(async () => {
-        assertDocumentMutationOwner(owner);
-        const session = useSessionStore.getState();
-        if (!session.workingBytes || !session.documentKey || !session.fileName) {
-          throw new Error('No working PDF is loaded');
-        }
-        const nativeDeletionAuthorization = await verifiedNativeAuthorization();
-        const currentAnnotations = useAnnotationStore.getState().annotations;
-        const currentWriterElements = useWriterStore.getState().elements;
-        const { bytes } = await composeEditablePdf({
-          baseBytes: session.workingBytes,
-          annotations: currentAnnotations,
-          writerElements: currentWriterElements,
-          replaceManagedAnnotations: true,
-          nativeDeletionAuthorization,
-        });
-        assertDocumentMutationOwner(owner);
-        // Keep the editing base and its durable journal in the same revision.
-        // The output is materialized from that base plus the current overlays;
-        // retaining overlays also prevents duplicate Writer content on later saves.
-        // Composition can take long enough for more annotation edits to occur.
-        // The PDF intentionally uses the captured snapshot, but recovery must
-        // retain the latest in-memory edits instead of restoring stale content.
-        const latestAnnotationState = useAnnotationStore.getState();
-        await saveAnnotations(session.documentKey, latestAnnotationState.annotations, {
-          nativeDeletionTombstones: latestAnnotationState.nativeDeletionTombstones,
-        });
-        assertDocumentMutationOwner(owner);
-        let nextHandle: FileSystemFileHandle | null;
-        try {
-          nextHandle = await FileAdapter.savePdfBytes(bytes, session.fileName, session.saveHandle);
-        } catch (error) {
-          if (!session.saveHandle || !isHandleAccessError(error)) throw error;
-          warn('session', 'Existing save handle became invalid, retrying with Save As flow', { error: String(error) });
-          assertDocumentMutationOwner(owner);
-          nextHandle = await FileAdapter.savePdfBytes(bytes, session.fileName, null);
-        }
-        if (!isDocumentMutationOwnerCurrent(owner)) return;
-        if (!nextHandle) {
-          // The anchor-download fallback has no durable receipt. Do not publish
-          // Saved, change the file handle, or clear any dirty-state flags.
-          const message = `Download started for ${session.fileName}; browser file receipt cannot be verified. Edits remain unsaved.`;
-          useSessionStore.setState({
-            saveState: { status: 'idle', completedAt: Date.now(), message },
-          });
-          recordSaveExportAction({ type: 'DOWNLOAD_PROCESSED_PDF' }, 'success', message);
-          addToast({ type: 'info', title: 'Download Started — Save Not Confirmed', message });
-          return;
-        }
-        setSaveHandle(nextHandle);
-        const unchanged = useAnnotationStore.getState().annotations === currentAnnotations
-          && useAnnotationStore.getState().nativeDeletionTombstones === nativeDeletionAuthorization.tombstones
-          && useWriterStore.getState().elements === currentWriterElements;
-        if (unchanged) {
-          useSessionStore.setState({ isDirty: false, isDocumentDirty: false, isReviewDirty: false, isSessionDirty: false });
-        }
-        const message = unchanged ? `Saved ${session.fileName}` : `Saved ${session.fileName}; newer changes remain unsaved`;
-        completeSaveOperation(message);
-        recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'success', message);
-        addToast({ type: 'success', title: 'Saved Successfully', message });
-      });
-    } catch (err) {
-      if (!isDocumentMutationOwnerCurrent(owner)) return;
-      const message = err instanceof Error ? err.message : String(err);
-      logError('session', 'Failed to save PDF', { error: message, fileName });
-      failSaveOperation(message);
-      recordSaveExportAction({ type: 'SAVE_WORKING_DOCUMENT' }, 'failure', message);
-      addToast({
-        type: 'error',
-        title: 'Save Failed',
-        message: message.startsWith('Cannot safely ') || message.startsWith('Cannot render native') || message.startsWith('Cannot fit the annotation text')
-          ? message : 'Failed to save the document. Please try again.',
-      });
-    }
+  const handlePrint = () => {
+    document.dispatchEvent(new CustomEvent('pdf-hub:print', { bubbles: true }));
   };
+
+  const performEditableSave = (owner: DocumentMutationOwner) =>
+    performEditablePdfSave(owner, addToast);
 
   const handleSave = async () => {
     const owner = captureDocumentMutationOwner();
-    const workingBytes = owner.session.workingBytes;
-    if (!workingBytes || !owner.session.fileName) {
+    const currentWorkingBytes = owner.session.workingBytes;
+    if (!currentWorkingBytes || !owner.session.fileName) {
       return;
     }
     const sequence = ++savePreflightSequence.current;
-    const risk = await inspectPdfSignatureRisk(workingBytes);
+    const risk = await inspectPdfSignatureRisk(currentWorkingBytes);
     if (sequence !== savePreflightSequence.current || !isDocumentMutationOwnerCurrent(owner)) return;
     if (risk.status === 'SIGNED' || risk.status === 'UNKNOWN') {
       if (risk.status === 'UNKNOWN') {
@@ -267,7 +150,7 @@ export const ToolbarFile: React.FC = () => {
     }
     try {
       beginExportOperation('Building flattened export…');
-      const { bytes } = await buildFlattenedPdf();
+      const { bytes } = await buildCurrentFlattenedPdf();
       const exportName = fileName.replace(/\.pdf$/i, '') + '-review.pdf';
       await FileAdapter.savePdfBytes(bytes, exportName, null);
       completeSaveOperation(`Exported ${exportName}`);
@@ -300,7 +183,7 @@ export const ToolbarFile: React.FC = () => {
     }
     try {
       beginExportOperation('Building flattened export…');
-      const { bytes } = await buildFlattenedPdf();
+      const { bytes } = await buildCurrentFlattenedPdf();
       const exportName = fileName.replace(/\.pdf$/i, '') + '-annotated.pdf';
       await FileAdapter.savePdfBytes(bytes, exportName, null);
       completeSaveOperation(`Exported ${exportName}`);
@@ -359,6 +242,20 @@ export const ToolbarFile: React.FC = () => {
         </Button>
       </Tooltip>
 
+      <Tooltip content="Export PDF/A (Archival)">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Export PDF/A"
+          data-testid="toolbar-export-pdfa-btn"
+          className="h-8 w-8"
+          onClick={() => setPdfADialogOpen(true)}
+          disabled={!workingBytes}
+        >
+          <ShieldCheck className="w-4 h-4" />
+        </Button>
+      </Tooltip>
+
       <Tooltip content="Export Review">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleExportReview} disabled={!workingBytes}>
           <FileOutput className="w-4 h-4" />
@@ -368,6 +265,20 @@ export const ToolbarFile: React.FC = () => {
       <Tooltip content="Download current PDF">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDownload} disabled={!workingBytes}>
           <Download className="w-4 h-4" />
+        </Button>
+      </Tooltip>
+
+      <Tooltip content="Print PDF (Ctrl+P)">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Print PDF"
+          data-testid="toolbar-print-btn"
+          className="h-8 w-8"
+          onClick={handlePrint}
+          disabled={!canPrint}
+        >
+          <Printer className="w-4 h-4" />
         </Button>
       </Tooltip>
       </div>
@@ -380,13 +291,13 @@ export const ToolbarFile: React.FC = () => {
           onContinue={handleSignedSaveContinue}
         />
       ) : null}
+
+      {pdfADialogOpen ? (
+        <PdfAExportDialog
+          isOpen
+          onClose={() => setPdfADialogOpen(false)}
+        />
+      ) : null}
     </>
   );
 };
-
-function isHandleAccessError(err: unknown): boolean {
-  if (!(err instanceof DOMException)) {
-    return false;
-  }
-  return err.name === 'NotReadableError' || err.name === 'NotAllowedError' || err.name === 'NotFoundError';
-}

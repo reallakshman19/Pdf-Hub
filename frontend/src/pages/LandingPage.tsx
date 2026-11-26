@@ -11,6 +11,7 @@ import {
   admitAndOpenPdfFile,
   firstAdmissionErrorMessage,
 } from '@/core/admission/openPdf';
+import { openWithPasswordRetry } from '@/core/pdf/passwordPromptBridge';
 import { useToastStore } from '@/core/toast/store';
 
 export const LandingPage: React.FC = () => {
@@ -22,12 +23,18 @@ export const LandingPage: React.FC = () => {
     const file = e.dataTransfer.files[0];
     if (!file) return;
 
-    const result = await admitAndOpenPdfFile(file, 'LANDING_DROP', { recoverEditableWriter: true });
+    const { result, cancelledByPasswordPrompt } = await openWithPasswordRetry(
+      (password) => admitAndOpenPdfFile(file, 'LANDING_DROP', {
+        recoverEditableWriter: true,
+        ...(password !== undefined ? { password } : {}),
+      }),
+      file.name,
+    );
     if (result.outcome === 'ACCEPTED') {
       navigate('/workspace');
       return;
     }
-    if (result.outcome !== 'CANCELLED') {
+    if (result.outcome !== 'CANCELLED' && !cancelledByPasswordPrompt) {
       addToast({
         type: 'error',
         title: 'Unable to Open PDF',

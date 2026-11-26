@@ -100,8 +100,8 @@ vi.mock('@/core/annotations/store', () => ({
   }),
 }));
 
-vi.mock('@/core/writer/store', () => ({
-  useWriterStore: Object.assign((selector: (state: unknown) => unknown) => selector({ elements: mocks.writerElements }), {
+vi.mock('@/core/callout/store', () => ({
+  useCalloutStore: Object.assign((selector: (state: unknown) => unknown) => selector({ elements: mocks.writerElements }), {
     getState: () => ({ elements: mocks.writerElements }),
   }),
 }));

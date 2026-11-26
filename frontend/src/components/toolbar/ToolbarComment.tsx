@@ -29,6 +29,7 @@ import {
   Trash2,
   Lock,
   ScanText,
+  Waypoints,
 } from 'lucide-react';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
@@ -36,7 +37,7 @@ import { useHistoryStore } from '@/core/document-history/store';
 import { applyRedo, applyUndo } from '@/core/document-history/transactions';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
-import { useWriterStore } from '@/core/writer/store';
+import { useCalloutStore } from '@/core/callout/store';
 import { useShallow } from 'zustand/react/shallow';
 import type { ActiveTool } from '@/core/editor/types';
 import type { AnnotationType } from '@/core/annotations/annotationTypes';
@@ -54,8 +55,8 @@ export const ToolbarComment: React.FC = () => {
     activeTool: state.activeTool,
     setActiveTool: state.setActiveTool,
   })));
-  const writerActiveTool = useWriterStore((state) => state.activeTool);
-  const setWriterActiveTool = useWriterStore((state) => state.setActiveTool);
+  const calloutActiveTool = useCalloutStore((state) => state.activeTool);
+  const setCalloutActiveTool = useCalloutStore((state) => state.setActiveTool);
   const {
     selectedAnnotationIds,
     copySelection,
@@ -92,12 +93,12 @@ export const ToolbarComment: React.FC = () => {
 
   const handleToolClick = (tool: AnnotationType) => {
     if (isToolDisabled(tool)) {
-      setWriterActiveTool('select');
+      setCalloutActiveTool('select');
       setActiveTool('select');
       return;
     }
 
-    setWriterActiveTool('select');
+    setCalloutActiveTool('select');
     setActiveTool(activeTool === tool ? 'select' : tool);
   };
 
@@ -110,12 +111,12 @@ export const ToolbarComment: React.FC = () => {
   };
 
   const handleOcrToolClick = () => {
-    if (writerActiveTool === 'ocr-region') {
-      setWriterActiveTool('select');
+    if (calloutActiveTool === 'ocr-region') {
+      setCalloutActiveTool('select');
       return;
     }
     setActiveTool('select');
-    setWriterActiveTool('ocr-region');
+    setCalloutActiveTool('ocr-region');
   };
 
   const getToolVariant = (tool: string) =>
@@ -328,9 +329,21 @@ export const ToolbarComment: React.FC = () => {
           <MoveRight className="w-4 h-4" />
         </Button>
       </Tooltip>
+      <Tooltip content={disabledTitle('perimeter-takeoff', 'Polyline / Pipe Run (Double-click or Enter to finish)')}>
+        <Button
+          variant={getToolVariant('perimeter-takeoff')}
+          size="icon"
+          title={disabledTitle('perimeter-takeoff', 'Polyline / Pipe Run (Double-click or Enter to finish)')}
+          aria-disabled={isToolDisabled('perimeter-takeoff')}
+          className={disabledClass('perimeter-takeoff')}
+          onClick={() => handleToolClick('perimeter-takeoff')}
+        >
+          <Waypoints className="w-4 h-4" />
+        </Button>
+      </Tooltip>
       <Tooltip content="OCR Region (Auto-text)">
         <Button
-          variant={writerActiveTool === 'ocr-region' ? 'secondary' : 'ghost'}
+          variant={calloutActiveTool === 'ocr-region' ? 'secondary' : 'ghost'}
           size="icon"
           onClick={handleOcrToolClick}
         >

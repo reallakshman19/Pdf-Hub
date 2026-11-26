@@ -5,10 +5,18 @@ import { v4 as uuidv4 } from 'uuid';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { VList, type VListHandle } from 'virtua';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useMockPdf } from '@/hooks/useMockPdf';
 
 import { PdfRendererAdapter, type PdfDocumentLease, type TextLayerItem } from '@/adapters/pdf-renderer/PdfRendererAdapter';
+import { portPdfPageVectorsToAnnotations } from '@/adapters/pdf-renderer/pdfVectorToCanvasService';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { initializeMarkupDraft, remapAnnotationGeometry } from '@/core/annotations/geometryTransform';
+import { computeRectFromPagePoints, getAnnotationPageVertices } from '@/core/annotations/pointsSpace';
+import {
+  deleteAnnotationVertex,
+  insertAnnotationVertex,
+  moveAnnotationVertex,
+} from '@/core/annotations/vertexEditing';
 import type { PdfAnnotation, Rect, AnnotationType, Point2D, AnnotationNodeProps } from '@/core/annotations/types';
 
 import { isAnnotationType } from '@/core/annotations/annotationTypes';
@@ -35,12 +43,15 @@ import { useWriterPersistence } from './useWriterPersistence';
 import { useShallow } from 'zustand/react/shallow';
 
 import { usePageRenderer } from '@/core/renderer/usePageRenderer';
+import { useScrollVelocityStore, useIsRapidScrolling } from '@/core/renderer/scrollVelocityStore';
+import { PageThumbnailPlaceholder } from './PageThumbnailPlaceholder';
 import { useNativeAnnotationAppearances } from '@/core/renderer/useNativeStampAppearances';
 import { NativeAppearanceNode } from '@/components/annotations/NativeAppearanceNode';
 
 import { useSearchStore } from '@/core/search/store';
 import { FileAdapter, type PickedPdfFileSource } from '@/adapters/file/FileAdapter';
 import { admitAndOpenPdfFile, firstAdmissionErrorMessage } from '@/core/admission/openPdf';
+import { openWithPasswordRetry } from '@/core/pdf/passwordPromptBridge';
 import {
   admitDonorPdfFiles,
   firstDonorAdmissionErrorMessage,
@@ -53,15 +64,19 @@ import { commandBus } from '@/core/commands/bus';
 import { materializePdfCommand } from '@/core/commands/types';
 import { useToastStore } from '@/core/toast/store';
 import { InsertPdfDialog } from '@/components/dialogs/InsertPdfDialog';
-import { WriterOverlay } from '@/components/writer/WriterOverlay';
+import { CalloutOverlay } from '@/components/callout/CalloutOverlay';
 import { WriterOverlayLayer } from '@/components/writer-v2/WriterOverlayLayer';
+import { useCalloutStore } from '@/core/callout/store';
 import { ocrStore } from '@/core/ocr/store';
 import { useOcrStore as useOcrReviewStore } from '@/core/ocr/ocrStore';
-import { pdfRectToViewportSelection } from '@/core/ocr/ocrViewportGeometry';
+import { pdfRectToViewportSelection, viewportSelectionToPdfRect } from '@/core/ocr/ocrViewportGeometry';
+import { addRegion as addRedactionRegion, updateRegionByAnnotationId } from '@/core/redaction/store';
 import { OcrCanvasTextLayer } from '@/components/ocr/canvas/OcrCanvasTextLayer';
 import { InlineOcrCorrectionPopover } from '@/components/ocr/canvas/InlineOcrCorrectionPopover';
 import type { OcrWord } from '@/core/ocr/types';
 import EquationOverlay from '@/components/viewer/EquationOverlay';
+import { AcroFormOverlay } from '@/components/viewer/AcroFormOverlay';
+import { useAcroFormStore } from '@/core/pdf-forms/store';
 import { SearchHighlightOverlay } from '@/components/viewer/SearchHighlightOverlay';
 import { SearchFloatingHud } from '@/components/viewer/SearchFloatingHud';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
@@ -80,6 +95,10 @@ import { CadGridOverlay } from '../cad/CadGridOverlay';
 import { CursorPolarTrackingHud } from '../cad/CursorPolarTrackingHud';
 import { CadDraftingToolbar } from '../cad/CadDraftingToolbar';
 import { CrossProbeNodeBeacon } from '../cad/CrossProbeNodeBeacon';
+import { Cad3DViewportDock } from '../cad/Cad3DViewportDock';
+import { ContinuousModelingHud } from '../cad/ContinuousModelingHud';
+import { useCadModelingStore } from '@/core/cad-modeling/store';
+import { harvestLoopsFromAnnotations } from '@/core/cad-modeling/annotationLoops';
 import { usePipingTableStore } from '@/core/pipeline-geometry/table-store/pipingTableStore';
 import { snapToIsometricGrid, snapToOrthogonalGrid } from '@/core/cad-grid/gridMath';
 import type { CadGridMode, IsoplaneMode } from '@/core/cad-grid/types';
@@ -131,6 +150,7 @@ export const DocumentWorkspace: React.FC = () => {
     annotations,
     setAnnotations,
     addAnnotation,
+    addManyAnnotations,
     updateAnnotation,
     updateManyAnnotations,
     setActiveAnnotationId,
@@ -138,6 +158,7 @@ export const DocumentWorkspace: React.FC = () => {
     setSelection,
     toggleSelection,
     clearSelection,
+    pageCalibrations,
     getPageCalibration,
     setPageCalibration,
     setAllPagesCalibration,
@@ -145,6 +166,7 @@ export const DocumentWorkspace: React.FC = () => {
     annotations: state.annotations,
     setAnnotations: state.setAnnotations,
     addAnnotation: state.addAnnotation,
+    addManyAnnotations: state.addManyAnnotations,
     updateAnnotation: state.updateAnnotation,
     updateManyAnnotations: state.updateManyAnnotations,
     setActiveAnnotationId: state.setActiveAnnotationId,
@@ -152,6 +174,7 @@ export const DocumentWorkspace: React.FC = () => {
     setSelection: state.setSelection,
     toggleSelection: state.toggleSelection,
     clearSelection: state.clearSelection,
+    pageCalibrations: state.pageCalibrations,
     getPageCalibration: state.getPageCalibration,
     setPageCalibration: state.setPageCalibration,
     setAllPagesCalibration: state.setAllPagesCalibration,
@@ -182,8 +205,11 @@ export const DocumentWorkspace: React.FC = () => {
 
   const {
     activeTool,
+    setActiveTool,
+    setActiveMode,
     existingTextSelection,
     setExistingTextSelection,
+    inspectorTab,
     setInspectorTab,
     setRightPanelWidth,
     setMobileSheetOpen,
@@ -193,12 +219,17 @@ export const DocumentWorkspace: React.FC = () => {
     cadIsoplane,
     cadGridSnap,
     cadGridSpacing,
+    cadToolsOpen,
+    setCadToolsOpen,
   } = useEditorStore(useShallow((state) => ({
     activeTool: state.activeTool,
+    setActiveTool: state.setActiveTool,
+    setActiveMode: state.setActiveMode,
     existingTextSelection:
       state.existingTextSelection,
     setExistingTextSelection:
       state.setExistingTextSelection,
+    inspectorTab: state.inspectorTab,
     setInspectorTab:
       state.setInspectorTab,
     setRightPanelWidth:
@@ -217,15 +248,43 @@ export const DocumentWorkspace: React.FC = () => {
       state.cadGridSnap ?? false,
     cadGridSpacing:
       state.cadGridSpacing ?? 20,
+    cadToolsOpen:
+      state.cadToolsOpen ?? false,
+    setCadToolsOpen:
+      state.setCadToolsOpen,
+  })));
+
+  const {
+    dock3dOpen,
+    harvestedLoops,
+    pipingRoutingMode,
+    pipingBranchName,
+    pipingElevationZ,
+    vectorRoiCapture,
+    cancelVectorRoiCapture,
+    set3DDockOpen,
+    setHarvestedLoops,
+  } = useCadModelingStore(useShallow((state) => ({
+    dock3dOpen: state.dock3d.isOpen,
+    harvestedLoops: state.harvestedLoops,
+    pipingRoutingMode: state.pipingRoutingMode,
+    pipingBranchName: state.pipingBranchName,
+    pipingElevationZ: state.pipingElevationZ,
+    vectorRoiCapture: state.vectorRoiCapture,
+    cancelVectorRoiCapture: state.cancelVectorRoiCapture,
+    set3DDockOpen: state.set3DDockOpen,
+    setHarvestedLoops: state.setHarvestedLoops,
   })));
 
   const [selectedPipingNode, setSelectedPipingNode] = useState<number | null>(null);
 
   const fullPipingModel = useMemo(() => {
     return extractFullXmlBuilderModel(annotations, getPageCalibration, {
-      routingMode: 'isometric',
+      branchName: pipingBranchName,
+      defaultElevationZ: pipingElevationZ,
+      routingMode: pipingRoutingMode,
     });
-  }, [annotations, getPageCalibration]);
+  }, [annotations, getPageCalibration, pipingBranchName, pipingElevationZ, pipingRoutingMode]);
 
   const { hideResolved } = useReviewStore(useShallow((state) => ({
     hideResolved: state.hideResolved,
@@ -263,8 +322,29 @@ export const DocumentWorkspace: React.FC = () => {
   }, [sortedVisibleAnnotations]);
 
   const emptyPageAnnotations = React.useMemo<PdfAnnotation[]>(() => [], []);
+
+  React.useEffect(() => {
+    const activePageAnnotations = pageAnnotationsMap.get(viewState.currentPage) ?? emptyPageAnnotations;
+    setHarvestedLoops(harvestLoopsFromAnnotations(activePageAnnotations));
+  }, [pageAnnotationsMap, viewState.currentPage, emptyPageAnnotations, setHarvestedLoops]);
+
   const ocrReviewFocus = useOcrReviewStore((state) => state.reviewFocus);
   const setSharedPdfDoc = usePdfStore((state) => state.setPdfDoc);
+  const {
+    acroFormFieldCount,
+    acroFormDirtyCount,
+    acroFormHighlightFields,
+    toggleAcroFormHighlight,
+    resetAcroFormValues,
+  } = useAcroFormStore(
+    useShallow((state) => ({
+      acroFormFieldCount: state.fields.length,
+      acroFormDirtyCount: state.dirtyFieldNames.length,
+      acroFormHighlightFields: state.highlightFields,
+      toggleAcroFormHighlight: state.toggleHighlightFields,
+      resetAcroFormValues: state.resetFormValues,
+    })),
+  );
 
   const [pdfDoc, setPdfDoc] = React.useState<PDFDocumentProxy | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -274,6 +354,9 @@ export const DocumentWorkspace: React.FC = () => {
   const vlistRef = React.useRef<VListHandle>(null);
   const [isPanning, setIsPanning] = React.useState(false);
   const lastPanPos = React.useRef<{ x: number; y: number } | null>(null);
+  const handleVListScroll = React.useCallback((offset: number) => {
+    useScrollVelocityStore.getState().recordScroll(offset);
+  }, []);
   // Page pixel width at current zoom — used to activate horizontal scroll on wide CAD drawings
   const [pagePixelWidth, setPagePixelWidth] = React.useState<number>(0);
 
@@ -309,6 +392,10 @@ export const DocumentWorkspace: React.FC = () => {
     pageNumber: number;
     x: number;
     y: number;
+  } | null>(null);
+  const [drawingPolyline, setDrawingPolyline] = React.useState<{
+    pageNumber: number;
+    vertices: Point2D[];
   } | null>(null);
   const [drawingLineCurrent, setDrawingLineCurrent] = React.useState<{
     x: number;
@@ -609,16 +696,22 @@ export const DocumentWorkspace: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleInsertPdfShortcut]);
 
+  const { openMockPdf, loading: mockLoading } = useMockPdf();
+
   const handleBrowse = async () => {
     setLoadError(null);
     try {
       const [picked] = await FileAdapter.pickPdfFileSources(false);
       if (!picked) return;
 
-      const result = await admitAndOpenPdfFile(picked.file, 'WORKSPACE_PICKER', {
-        saveHandle: picked.handle ?? null,
-      });
-      if (result.outcome !== 'ACCEPTED') {
+      const { result, cancelledByPasswordPrompt } = await openWithPasswordRetry(
+        (password) => admitAndOpenPdfFile(picked.file, 'WORKSPACE_PICKER', {
+          saveHandle: picked.handle ?? null,
+          ...(password !== undefined ? { password } : {}),
+        }),
+        picked.file.name,
+      );
+      if (result.outcome !== 'ACCEPTED' && !cancelledByPasswordPrompt) {
         setLoadError(firstAdmissionErrorMessage(result) ?? 'PDF opening was cancelled.');
       }
     } catch (err) {
@@ -649,7 +742,17 @@ export const DocumentWorkspace: React.FC = () => {
         setPdfDoc(null);
         setSharedPdfDoc(null);
         setLoadError(null);
+        useAcroFormStore.getState().clearForm();
         return;
+      }
+
+      if (workingBytes) {
+        void useAcroFormStore.getState().hydrateFromBytes(
+          documentKey ?? 'active-doc',
+          workingBytes,
+        );
+      } else {
+        useAcroFormStore.getState().clearForm();
       }
 
       setLoading(true);
@@ -738,14 +841,94 @@ export const DocumentWorkspace: React.FC = () => {
     setExistingTextSelection,
   ]);
 
-  // Reset drawing state when tool changes
+  // Reset drawing state immediately when activeTool changes (React render-time state adjustment)
+  const [prevDrawingTool, setPrevDrawingTool] = React.useState(activeTool);
+  if (prevDrawingTool !== activeTool) {
+    setPrevDrawingTool(activeTool);
+    if (drawingLineStart !== null) setDrawingLineStart(null);
+    if (drawingPolyline !== null) setDrawingPolyline(null);
+    if (drawingLineCurrent !== null) setDrawingLineCurrent(null);
+    if (activeSnapResult !== null) setActiveSnapResult(null);
+    if (isAngleConstrained) setIsAngleConstrained(false);
+  }
+
+  // Manage window multi-vertex polyline mousemove/Enter/Backspace/Escape listeners cleanly
   React.useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDrawingLineStart(null);
-    setDrawingLineCurrent(null);
-    setActiveSnapResult(null);
-    setIsAngleConstrained(false);
-  }, [activeTool]);
+    if (!drawingPolyline) return;
+
+    const scale = viewState.zoom / 100;
+    const verts = drawingPolyline.vertices;
+    const lastVert = verts[verts.length - 1];
+
+    const onMove = (e: MouseEvent) => {
+      const pageEl = containerRef.current?.querySelector(`[data-page="${drawingPolyline.pageNumber}"]`);
+      if (!pageEl || !lastVert) return;
+      const rect = pageEl.getBoundingClientRect();
+      const currentX = (e.clientX - rect.left) / scale;
+      const currentY = (e.clientY - rect.top) / scale;
+
+      const snapPoints = collectPageSnapPoints(annotations, drawingPolyline.pageNumber);
+      const resolved = resolveLineEndpoint(
+        lastVert,
+        { x: currentX, y: currentY },
+        snapPoints,
+        e.shiftKey,
+        {
+          gridMode: cadGridMode,
+          gridSpacing: cadGridSpacing,
+          isoplane: cadIsoplane,
+          snapEnabled: cadGridSnap,
+        },
+      );
+      setActiveSnapResult(resolved.snapResult);
+      setIsAngleConstrained(resolved.angleConstrained);
+      setDrawingLineCurrent(resolved.point);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDrawingPolyline(null);
+        setDrawingLineCurrent(null);
+        setActiveSnapResult(null);
+        setIsAngleConstrained(false);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        if (verts.length <= 1) {
+          setDrawingPolyline(null);
+          setDrawingLineCurrent(null);
+        } else {
+          setDrawingPolyline({ ...drawingPolyline, vertices: verts.slice(0, -1) });
+        }
+      } else if (e.key === 'Enter' && verts.length >= 2) {
+        e.preventDefault();
+        const cal = getPageCalibration(drawingPolyline.pageNumber);
+        const ann = buildPolylineAnnotation(drawingPolyline.pageNumber, verts, cal);
+        addAnnotation(ann);
+        setDrawingPolyline(null);
+        setDrawingLineCurrent(null);
+        setActiveSnapResult(null);
+        setIsAngleConstrained(false);
+        resetInteractionState();
+      }
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [
+    drawingPolyline,
+    viewState.zoom,
+    annotations,
+    cadGridMode,
+    cadGridSpacing,
+    cadIsoplane,
+    cadGridSnap,
+    getPageCalibration,
+    addAnnotation,
+  ]);
 
   // Manage window drawing-line preview mousemove/Escape key event listeners cleanly via React lifecycles
   React.useEffect(() => {
@@ -805,6 +988,18 @@ export const DocumentWorkspace: React.FC = () => {
     cadIsoplane,
     cadGridSnap,
   ]);
+
+  // Allow Escape to cancel active ROI vector porting mode
+  React.useEffect(() => {
+    if (!vectorRoiCapture) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        cancelVectorRoiCapture();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [vectorRoiCapture, cancelVectorRoiCapture]);
 
   useAnnotationPersistence({
     documentKey,
@@ -1053,8 +1248,13 @@ export const DocumentWorkspace: React.FC = () => {
               setLoadError(null);
               void (async () => {
                 try {
-                  const result = await admitAndOpenPdfFile(file, 'WORKSPACE_PICKER');
-                  if (result.outcome !== 'ACCEPTED') {
+                  const { result, cancelledByPasswordPrompt } = await openWithPasswordRetry(
+                    (password) => admitAndOpenPdfFile(file, 'WORKSPACE_PICKER', {
+                      ...(password !== undefined ? { password } : {}),
+                    }),
+                    file.name,
+                  );
+                  if (result.outcome !== 'ACCEPTED' && !cancelledByPasswordPrompt) {
                     setLoadError(firstAdmissionErrorMessage(result) ?? 'PDF opening was cancelled.');
                   }
                 } catch (err) {
@@ -1090,15 +1290,38 @@ export const DocumentWorkspace: React.FC = () => {
               Unable to open PDF: {loadError}
             </p>
           ) : null}
-          <button
-            className={[
-              "bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors cursor-pointer",
-              isMobile ? "w-full h-14 text-base" : "px-6 py-2 text-sm"
-            ].join(' ')}
-            onClick={handleBrowse}
-          >
-            Browse Files
-          </button>
+          <div className={isMobile ? 'flex flex-col gap-2.5 w-full' : 'flex flex-wrap items-center justify-center gap-2.5'}>
+            <button
+              className={[
+                "bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors cursor-pointer",
+                isMobile ? "w-full h-14 text-base" : "px-5 py-2 text-sm"
+              ].join(' ')}
+              onClick={handleBrowse}
+            >
+              Browse Files
+            </button>
+            <button
+              type="button"
+              className={[
+                "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-md font-medium transition-colors cursor-pointer",
+                isMobile ? "w-full h-12 text-sm" : "px-4 py-2 text-sm"
+              ].join(' ')}
+              onClick={() => window.dispatchEvent(new CustomEvent('pdf-hub:new-blank'))}
+            >
+              New Blank Document
+            </button>
+            <button
+              type="button"
+              disabled={mockLoading}
+              className={[
+                "bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-50",
+                isMobile ? "w-full h-12 text-sm" : "px-4 py-2 text-sm"
+              ].join(' ')}
+              onClick={() => { void openMockPdf(); }}
+            >
+              {mockLoading ? 'Loading Sample…' : 'Try Sample PDF'}
+            </button>
+          </div>
           {!isMobile && (
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
               or paste a file with <kbd className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">⌘V</kbd>
@@ -1146,11 +1369,21 @@ export const DocumentWorkspace: React.FC = () => {
           pageAnnotations={pageAnnotationsMap.get(pageNumber) ?? emptyPageAnnotations}
           selectedAnnotationIds={selectedAnnotationIds}
           drawingLineStart={drawingLineStart}
+          drawingPolyline={drawingPolyline}
           drawingLineCurrent={drawingLineCurrent}
           setDrawingLineStart={setDrawingLineStart}
+          setDrawingPolyline={setDrawingPolyline}
           setDrawingLineCurrent={setDrawingLineCurrent}
-          activeSnapResult={drawingLineStart?.pageNumber === pageNumber ? activeSnapResult : null}
-          isAngleConstrained={drawingLineStart?.pageNumber === pageNumber ? isAngleConstrained : false}
+          activeSnapResult={
+            drawingLineStart?.pageNumber === pageNumber || drawingPolyline?.pageNumber === pageNumber
+              ? activeSnapResult
+              : null
+          }
+          isAngleConstrained={
+            drawingLineStart?.pageNumber === pageNumber || drawingPolyline?.pageNumber === pageNumber
+              ? isAngleConstrained
+              : false
+          }
           cadGridMode={cadGridMode}
           cadIsoplane={cadIsoplane}
           cadGridSpacing={cadGridSpacing}
@@ -1174,12 +1407,11 @@ export const DocumentWorkspace: React.FC = () => {
             setActiveAnnotationId(annotation.id);
           }}
           onCreateManyAnnotations={(items) => {
-            items.forEach((item) => addAnnotation(item));
-            if (items.length > 0) {
-              const ids = items.map((item) => item.id);
-              setSelection(ids);
-              setActiveAnnotationId(ids[0] ?? null);
-            }
+            if (items.length === 0) return;
+            addManyAnnotations(items, 'Add annotations');
+            const ids = items.map((item) => item.id);
+            setSelection(ids);
+            setActiveAnnotationId(ids[0] ?? null);
           }}
           onSetSingleSelection={(id) => {
             setSelection([id]);
@@ -1275,6 +1507,19 @@ export const DocumentWorkspace: React.FC = () => {
     }
   };
 
+  const hasCustomPageCalibration = Boolean(pageCalibrations[viewState.currentPage]);
+  const showCadChrome =
+    cadToolsOpen
+    || workspaceViewMode === '3d'
+    || inspectorTab === 'takeoff'
+    || dock3dOpen
+    || cadGridMode !== 'none'
+    || cadGridSnap
+    || harvestedLoops.length > 0
+    || fullPipingModel.coordinateRows.length > 0
+    || ['measure', 'line', 'arrow', 'perimeter-takeoff', 'shape-rect', 'shape-polygon'].includes(activeTool)
+    || hasCustomPageCalibration;
+
   return (
     <div
       ref={containerRef}
@@ -1357,11 +1602,13 @@ export const DocumentWorkspace: React.FC = () => {
         </div>
       )}
 
-      {/* Workspace Tabs: 2D Document Canvas vs 3D Piping Space Canvas */}
+      {/* Workspace Tabs: 2D Document / 3D Canvas & Fillable Form controls (only when CAD or AcroForm active) */}
+      {(showCadChrome || (workspaceViewMode === '2d' && acroFormFieldCount > 0)) && (
       <div
         data-testid="workspace-view-tabs"
         className="sticky top-0 z-40 flex items-center justify-between px-3 py-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 shadow-xs select-none shrink-0"
       >
+        {showCadChrome ? (
         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
           <button
             type="button"
@@ -1399,6 +1646,38 @@ export const DocumentWorkspace: React.FC = () => {
             )}
           </button>
         </div>
+        ) : <div />}
+
+        {workspaceViewMode === '2d' && acroFormFieldCount > 0 && (
+          <div
+            data-testid="acroform-status-controls"
+            className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300"
+          >
+            <span className="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-medium">
+              Fillable Form · {acroFormFieldCount} field{acroFormFieldCount === 1 ? '' : 's'}
+            </span>
+            <button
+              type="button"
+              onClick={toggleAcroFormHighlight}
+              className={`px-2 py-0.5 rounded border text-[11px] font-medium cursor-pointer transition-colors ${
+                acroFormHighlightFields
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              Highlight Fields
+            </button>
+            {acroFormDirtyCount > 0 && (
+              <button
+                type="button"
+                onClick={resetAcroFormValues}
+                className="px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-[11px] font-medium cursor-pointer"
+              >
+                Reset Form ({acroFormDirtyCount})
+              </button>
+            )}
+          </div>
+        )}
 
         {workspaceViewMode === '3d' && (
           <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
@@ -1409,15 +1688,24 @@ export const DocumentWorkspace: React.FC = () => {
           </div>
         )}
       </div>
+      )}
 
       {workspaceViewMode === '3d' ? (
-        <div data-testid="workspace-3d-canvas-container" className="flex-1 flex flex-col p-4 bg-slate-950 overflow-hidden">
-          <div className="w-full h-full flex flex-col rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
+        <div data-testid="workspace-3d-canvas-container" className="flex-1 flex flex-col p-3 bg-slate-100 dark:bg-slate-950 overflow-hidden">
+          <div className="w-full h-full flex flex-col rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-lg bg-white dark:bg-slate-900">
             <Piping3DViewer
               model={fullPipingModel}
               isMainCanvas={true}
+              className="h-full"
               selectedNode={selectedPipingNode}
               onSelectNode={setSelectedPipingNode}
+              harvestedLoopCount={harvestedLoops.length}
+              onReturnTo2d={() => {
+                setWorkspaceViewMode('2d');
+                setActiveMode('draw');
+                setActiveTool('line');
+              }}
+              onOpenExtrusionDock={() => set3DDockOpen(true)}
             />
           </div>
         </div>
@@ -1435,6 +1723,8 @@ export const DocumentWorkspace: React.FC = () => {
           {viewState.viewMode === 'continuous' ? (
             <VList
               ref={vlistRef}
+              bufferSize={400}
+              onScroll={handleVListScroll}
               style={{
                 height: '100%',
                 // Explicit width drives the outer overflow-x scrollbar for wide drawings
@@ -1452,16 +1742,73 @@ export const DocumentWorkspace: React.FC = () => {
         </div>
       )}
 
-      {pdfDoc && workspaceViewMode === '2d' && (
-        <div className="absolute bottom-4 left-4 z-40 flex items-center gap-2">
-          <DrawingScaleBar
-            calibration={getPageCalibration(viewState.currentPage)}
-            scale={viewState.zoom / 100}
-            onOpenCalibration={() => setShowScaleDialog(true)}
-          />
-          <CadDraftingToolbar />
+      {pdfDoc && workspaceViewMode === '2d' && vectorRoiCapture && (
+        <div
+          data-testid="vector-roi-capture-banner"
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-3.5 py-1.5 rounded-full bg-cyan-950/95 text-cyan-100 border border-cyan-500/60 shadow-lg text-xs"
+        >
+          <span>
+            Drag a box over PDF vectors to port ({vectorRoiCapture.mode === 'pipe' ? 'Pipe Runs' : 'CAD Polylines'})
+          </span>
+          <button
+            type="button"
+            onClick={cancelVectorRoiCapture}
+            className="px-2 py-0.5 rounded bg-cyan-800 hover:bg-cyan-700 text-white text-[11px] font-medium cursor-pointer"
+          >
+            Cancel
+          </button>
         </div>
       )}
+
+      {pdfDoc && workspaceViewMode === '2d' && (
+        <div
+          className={`absolute left-4 z-40 flex items-center gap-2 transition-all ${
+            cadToolsOpen || cadGridMode !== 'none' || dock3dOpen || ['line', 'arrow', 'perimeter-takeoff', 'shape-rect', 'shape-polygon'].includes(activeTool)
+              ? 'bottom-16'
+              : 'bottom-4'
+          }`}
+        >
+          {showCadChrome ? (
+            <>
+              <DrawingScaleBar
+                calibration={getPageCalibration(viewState.currentPage)}
+                scale={viewState.zoom / 100}
+                onOpenCalibration={() => setShowScaleDialog(true)}
+              />
+              <CadDraftingToolbar />
+              {cadToolsOpen && (
+                <button
+                  type="button"
+                  data-testid="cad-tools-close-btn"
+                  onClick={() => setCadToolsOpen(false)}
+                  title="Hide CAD & Scale controls"
+                  className="px-2 py-1 rounded-lg bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-sm text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 cursor-pointer"
+                >
+                  Hide CAD
+                </button>
+              )}
+            </>
+          ) : (
+            <button
+              type="button"
+              data-testid="cad-tools-toggle-btn"
+              onClick={() => setCadToolsOpen(true)}
+              title="Show CAD Scale, Grid, and 3D Workspace controls"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs border border-slate-200 dark:border-slate-800 shadow-xs text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 cursor-pointer transition-colors"
+            >
+              <span>CAD &amp; Scale</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {pdfDoc &&
+        workspaceViewMode === '2d' &&
+        (cadToolsOpen || cadGridMode !== 'none' || dock3dOpen || ['line', 'arrow', 'perimeter-takeoff', 'shape-rect', 'shape-polygon'].includes(activeTool)) && (
+          <ContinuousModelingHud className="!absolute !bottom-4 !left-1/2 !-translate-x-1/2" />
+        )}
+
+      {pdfDoc && <Cad3DViewportDock className="!absolute !top-14 !right-4" />}
 
       {pdfDoc && workspaceViewMode === '2d' && <SearchFloatingHud />}
 
@@ -1532,8 +1879,10 @@ interface PageSurfaceProps {
   onCommitAnnotation: (id: string, patch: Partial<PdfAnnotation>) => void;
   onCommitManyAnnotations: (updates: Array<{ id: string; data: Partial<PdfAnnotation> }>) => void;
   drawingLineStart: { pageNumber: number; x: number; y: number } | null;
+  drawingPolyline?: { pageNumber: number; vertices: Point2D[] } | null;
   drawingLineCurrent: { x: number; y: number } | null;
   setDrawingLineStart: (val: { pageNumber: number; x: number; y: number } | null) => void;
+  setDrawingPolyline?: (val: { pageNumber: number; vertices: Point2D[] } | null) => void;
   setDrawingLineCurrent: (val: { x: number; y: number } | null) => void;
   activeSnapResult?: SnapResult | null;
   isAngleConstrained?: boolean;
@@ -1563,11 +1912,13 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   onToggleSelection,
   onSetSelection,
   onClearSelection,
-  onCommitAnnotation,
-  onCommitManyAnnotations,
+  onCommitAnnotation: commitAnnotation,
+  onCommitManyAnnotations: commitManyAnnotations,
   drawingLineStart,
+  drawingPolyline,
   drawingLineCurrent,
   setDrawingLineStart,
+  setDrawingPolyline,
   setDrawingLineCurrent,
   activeSnapResult,
   isAngleConstrained,
@@ -1588,6 +1939,24 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       coordinateRows: state.coordinateRows,
     })),
   );
+  const {
+    vectorRoiCapture,
+    cancelVectorRoiCapture,
+    setVectorRoiStatus,
+    setVectorLayersDetected,
+    setLastRasterRegionRect,
+    setRasterTraceStatus,
+  } = useCadModelingStore(
+    useShallow((state) => ({
+      vectorRoiCapture: state.vectorRoiCapture,
+      cancelVectorRoiCapture: state.cancelVectorRoiCapture,
+      setVectorRoiStatus: state.setVectorRoiStatus,
+      setVectorLayersDetected: state.setVectorLayersDetected,
+      setLastRasterRegionRect: state.setLastRasterRegionRect,
+      setRasterTraceStatus: state.setRasterTraceStatus,
+    })),
+  );
+  const [roiDraft, setRoiDraft] = React.useState<Rect | null>(null);
 
   const activeBeaconNode = React.useMemo(() => {
     if (selectedNodeNumber == null) return null;
@@ -1627,6 +1996,14 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       ? ocrReviewFocus
       : null;
   const activeMode = useEditorStore((state) => state.activeMode);
+  const calloutActiveTool = useCalloutStore((state) => state.activeTool);
+  const calloutHasElements = useCalloutStore((state) => state.elements.length > 0);
+  const calloutHasPendingOcr = useCalloutStore((state) => Boolean(state.pendingOcrRegion));
+  const showCalloutOverlay =
+    calloutHasElements ||
+    calloutActiveTool === 'ocr-region' ||
+    calloutHasPendingOcr ||
+    (activeMode !== 'write' && calloutActiveTool !== 'select');
   const annotationMode = activeMode === 'annotate' || activeMode === 'draw';
   const isSelectTool = activeTool === 'select' || (!annotationMode && activeTool !== 'hand');
   const matrixTool = activeTool as ActiveTool;
@@ -1665,7 +2042,11 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   const onCreateAnnotation = (annotation: PdfAnnotation) => {
     if (!isCurrentPage()) return;
     if (needsViewportBasis(annotation) && !hasViewportBasis()) return;
-    createAnnotation(initializeMarkupDraft(annotation, rotation));
+    const initialized = initializeMarkupDraft(annotation, rotation);
+    createAnnotation(initialized);
+    if (initialized.type === 'redaction') {
+      syncCreatedRedactionRegion(initialized);
+    }
   };
   const onCreateManyAnnotations = (annotations: PdfAnnotation[]) => {
     if (!isCurrentPage()) return;
@@ -1679,7 +2060,11 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   const [draftRects, setDraftRects] = React.useState<Record<string, Rect>>({});
   const [draftAnchors, setDraftAnchors] = React.useState<Record<string, Point2D | null>>({});
   const [draftKnees, setDraftKnees] = React.useState<Record<string, Point2D | null>>({});
-  const [, setDraftLinePoints] = React.useState<Record<string, number[]>>({});
+  const [draftLinePoints, setDraftLinePoints] = React.useState<Record<string, number[]>>({});
+  const [draftVertices, setDraftVertices] = React.useState<
+    Record<string, { rect: Rect; points: number[]; coordinateSpace: 'page' | 'rect-local' }>
+  >({});
+  const [vertexSnapResult, setVertexSnapResult] = React.useState<SnapResult | null>(null);
   const [editingState, setEditingState] = React.useState<{
     identity: typeof pageIdentity; id: string; value: string;
   } | null>(null);
@@ -1698,6 +2083,18 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
   const draftAnchorsRef = React.useRef<Record<string, Point2D | null>>({});
   const draftKneesRef = React.useRef<Record<string, Point2D | null>>({});
   const draftLinePointsRef = React.useRef<Record<string, number[]>>({});
+  const draftVerticesRef = React.useRef<
+    Record<string, { rect: Rect; points: number[]; coordinateSpace: 'page' | 'rect-local' }>
+  >({});
+  const updateDraftVertices = (
+    update: (
+      state: Record<string, { rect: Rect; points: number[]; coordinateSpace: 'page' | 'rect-local' }>,
+    ) => Record<string, { rect: Rect; points: number[]; coordinateSpace: 'page' | 'rect-local' }>,
+  ) => {
+    const next = update(draftVerticesRef.current);
+    draftVerticesRef.current = next;
+    setDraftVertices(next);
+  };
 
   // A page can be replaced or unmounted while a window-level gesture is in
   // progress. Only one gesture may own these listeners; cancelling never
@@ -1720,7 +2117,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', finish);
       window.removeEventListener('blur', cancel);
-      document.body.style.userSelect = '';
+      setBodyUserSelect('');
       if (cancelGestureRef.current === cancel) cancelGestureRef.current = null;
     };
     const cancel = () => { detach(); onCancel(); };
@@ -1742,7 +2139,7 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       onUp(event);
     };
     cancelGestureRef.current = cancel;
-    document.body.style.userSelect = 'none';
+    setBodyUserSelect('none');
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', finish);
     window.addEventListener('mousemove', move);
@@ -1750,12 +2147,14 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     window.addEventListener('blur', cancel);
   };
 
-  const { size: renderSize, ocrViewport } = usePageRenderer({
+  const isRapidScrolling = useIsRapidScrolling();
+  const { size: renderSize, isPlaceholderActive, ocrViewport } = usePageRenderer({
     doc,
     documentKey: resolvedDocumentKey,
     pageNumber,
     scale,
     canvasRef,
+    isRapidScrolling,
   });
   const nativeAnnotationAppearances = useNativeAnnotationAppearances(doc, pageAnnotations);
 
@@ -1849,6 +2248,51 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
 
   const pageWidth = (renderSize?.width || size.width) / scale;
   const pageHeight = (renderSize?.height || size.height) / scale;
+
+  const annotationRectToPdfRect = (rect: Rect) => {
+    if (ocrViewport) {
+      return viewportSelectionToPdfRect(ocrViewport, {
+        x: rect.x * scale,
+        y: rect.y * scale,
+        width: rect.width * scale,
+        height: rect.height * scale,
+      });
+    }
+    return {
+      x: rect.x,
+      y: Math.max(0, pageHeight - rect.y - rect.height),
+      width: rect.width,
+      height: rect.height,
+    };
+  };
+
+  const syncCreatedRedactionRegion = (annotation: PdfAnnotation) => {
+    addRedactionRegion(annotation.pageNumber, annotationRectToPdfRect(annotation.rect), 'Marked via Redact tool', {
+      sourceAnnotationId: annotation.id,
+    });
+  };
+
+  const onCommitAnnotation = (id: string, patch: Partial<PdfAnnotation>) => {
+    commitAnnotation(id, patch);
+    if (patch.rect) {
+      const target = pageAnnotations.find((item) => item.id === id);
+      if (target?.type === 'redaction') {
+        updateRegionByAnnotationId(id, annotationRectToPdfRect(patch.rect));
+      }
+    }
+  };
+
+  const onCommitManyAnnotations = (updates: Array<{ id: string; data: Partial<PdfAnnotation> }>) => {
+    commitManyAnnotations(updates);
+    for (const update of updates) {
+      if (update.data.rect) {
+        const target = pageAnnotations.find((item) => item.id === update.id);
+        if (target?.type === 'redaction') {
+          updateRegionByAnnotationId(update.id, annotationRectToPdfRect(update.data.rect));
+        }
+      }
+    }
+  };
 
   const pageOcrFocusRect = React.useMemo(() => {
     if (!pageOcrFocus) return null;
@@ -2462,6 +2906,108 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     });
   };
 
+  const startVertexDrag = (
+    event: React.PointerEvent<SVGElement>,
+    annotation: PdfAnnotation,
+    vertexIndex: number,
+  ) => {
+    if (annotation.data.locked === true) return;
+    const verts = getAnnotationPageVertices(annotation);
+    if (vertexIndex < 0 || vertexIndex >= verts.length) return;
+    cancelGestureRef.current?.();
+
+    event.preventDefault();
+    event.stopPropagation();
+    clearTextSelectionDraft();
+    onSetSingleSelection(annotation.id);
+
+    const anchorRefPt =
+      vertexIndex > 0
+        ? verts[vertexIndex - 1]
+        : verts[vertexIndex + 1] ?? verts[vertexIndex];
+    const startPt = verts[vertexIndex];
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    const snapPool = collectPageSnapPoints(
+      pageAnnotations.filter((item) => item.id !== annotation.id),
+      pageNumber,
+    );
+
+    let moved = false;
+
+    const resolveTargetPoint = (moveEvent: MouseEvent | PointerEvent): Point2D => {
+      const dx = (moveEvent.clientX - startClientX) / scale;
+      const dy = (moveEvent.clientY - startClientY) / scale;
+      const rawPt: Point2D = {
+        x: clamp(startPt.x + dx, 0, pageWidth),
+        y: clamp(startPt.y + dy, 0, pageHeight),
+      };
+      const resolved = resolveLineEndpoint(
+        anchorRefPt,
+        rawPt,
+        snapPool,
+        moveEvent.shiftKey,
+        {
+          gridMode: cadGridMode,
+          gridSpacing: cadGridSpacing,
+          isoplane: cadIsoplane,
+          snapEnabled: cadGridSnap,
+        },
+      );
+      setVertexSnapResult(resolved.snapResult);
+      return {
+        x: clamp(resolved.point.x, 0, pageWidth),
+        y: clamp(resolved.point.y, 0, pageHeight),
+      };
+    };
+
+    const onMove = (moveEvent: MouseEvent | PointerEvent) => {
+      if (!moved && Math.hypot(moveEvent.clientX - startClientX, moveEvent.clientY - startClientY) < 1) {
+        return;
+      }
+      moved = true;
+      const targetPt = resolveTargetPoint(moveEvent);
+      const patch = moveAnnotationVertex(annotation, vertexIndex, targetPt);
+      if (!patch) return;
+      updateDraftVertices((state) => ({
+        ...state,
+        [annotation.id]: patch,
+      }));
+    };
+
+    const onUp = (upEvent: MouseEvent | PointerEvent) => {
+      if (moved || Math.hypot(upEvent.clientX - startClientX, upEvent.clientY - startClientY) >= 1) {
+        onMove(upEvent);
+      }
+      const latest = draftVerticesRef.current[annotation.id];
+      if (moved && latest) {
+        onCommitAnnotation(annotation.id, {
+          rect: latest.rect,
+          data: {
+            ...annotation.data,
+            points: latest.points,
+            coordinateSpace: latest.coordinateSpace,
+          },
+        });
+      }
+      updateDraftVertices((state) => {
+        const next = { ...state };
+        delete next[annotation.id];
+        return next;
+      });
+      setVertexSnapResult(null);
+    };
+
+    listenForGesture(onMove, onUp, () => {
+      updateDraftVertices((state) => {
+        const next = { ...state };
+        delete next[annotation.id];
+        return next;
+      });
+      setVertexSnapResult(null);
+    });
+  };
+
   const handleTextSelectionMouseUp = (event: Pick<MouseEvent, 'button'>) => {
     if (event.button !== 0 || !isCurrentPage()) return;
     if (!(isSelectTool || isTextMarkTool || isNoteTool) || !pageRef.current) return;
@@ -2765,6 +3311,64 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
     }
     if (tool === 'squiggly' && event.altKey) event.preventDefault();
 
+    // Multi-vertex polyline / pipe run: click vertices, double-click or Enter commits.
+    if (tool === 'perimeter-takeoff') {
+      if (!drawingPolyline || drawingPolyline.pageNumber !== pageNumber) {
+        let firstPt: Point2D = { x: startX, y: startY };
+        const snapPoints = collectPageSnapPoints(pageAnnotations, pageNumber);
+        const initialSnap = resolveLineEndpoint(
+          firstPt,
+          firstPt,
+          snapPoints,
+          false,
+          {
+            gridMode: cadGridMode,
+            gridSpacing: cadGridSpacing,
+            isoplane: cadIsoplane,
+            snapEnabled: cadGridSnap,
+          },
+        );
+        if (initialSnap.snapResult?.snapped) {
+          firstPt = initialSnap.snapResult.point;
+        } else if (cadGridSnap && cadGridMode !== 'none') {
+          firstPt = cadGridMode === 'isometric'
+            ? snapToIsometricGrid(firstPt, cadGridSpacing)
+            : snapToOrthogonalGrid(firstPt, cadGridSpacing);
+        }
+        setDrawingPolyline?.({ pageNumber, vertices: [firstPt] });
+        setDrawingLineCurrent(firstPt);
+      } else {
+        const currentVerts = drawingPolyline.vertices;
+        const lastVert = currentVerts[currentVerts.length - 1];
+        const snapPoints = collectPageSnapPoints(pageAnnotations, pageNumber);
+        const nextPt = resolveLineEndpoint(
+          lastVert,
+          { x: startX, y: startY },
+          snapPoints,
+          event.shiftKey,
+          {
+            gridMode: cadGridMode,
+            gridSpacing: cadGridSpacing,
+            isoplane: cadIsoplane,
+            snapEnabled: cadGridSnap,
+          },
+        ).point;
+        const distFromLast = Math.hypot(nextPt.x - lastVert.x, nextPt.y - lastVert.y);
+        const nextVerts = distFromLast >= 2 ? [...currentVerts, nextPt] : currentVerts;
+
+        if (event.detail >= 2 && nextVerts.length >= 2) {
+          onCreateAnnotation(buildPolylineAnnotation(pageNumber, nextVerts, calibration));
+          setDrawingPolyline?.(null);
+          setDrawingLineCurrent(null);
+          resetInteractionState();
+        } else if (distFromLast >= 2) {
+          setDrawingPolyline?.({ pageNumber, vertices: nextVerts });
+          setDrawingLineCurrent(nextPt);
+        }
+      }
+      return;
+    }
+
     // Line and arrow are placed via exactly two clicks.
     if (tool === 'line' || tool === 'arrow') {
       if (!drawingLineStart || drawingLineStart.pageNumber !== pageNumber) {
@@ -2908,6 +3512,16 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
       onClick={onActivate}
     >
       <canvas ref={canvasRef} className="block" />
+
+      {isPlaceholderActive && (
+        <PageThumbnailPlaceholder
+          pageNumber={pageNumber}
+          documentKey={resolvedDocumentKey}
+          width={renderSize?.width || size.width}
+          height={renderSize?.height || size.height}
+          isRapidScrolling={isRapidScrolling}
+        />
+      )}
 
       {/* CAD Grid Overlay (Orthogonal / Isometric) */}
       {cadGridMode !== 'none' && (
@@ -3305,6 +3919,55 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             isoplane={cadIsoplane}
           />
         )}
+        {/* Multi-vertex polyline preview + snap + polar HUD */}
+        {drawingPolyline && drawingPolyline.pageNumber === pageNumber && drawingPolyline.vertices.length > 0 && (
+          <>
+            <svg
+              data-testid="polyline-draft-preview"
+              className="absolute inset-0 pointer-events-none w-full h-full"
+              style={{ overflow: 'visible' }}
+            >
+              <polyline
+                points={[
+                  ...drawingPolyline.vertices.map((v) => `${v.x * scale},${v.y * scale}`),
+                  ...(drawingLineCurrent ? [`${drawingLineCurrent.x * scale},${drawingLineCurrent.y * scale}`] : []),
+                ].join(' ')}
+                fill="none"
+                stroke="#2563eb"
+                strokeWidth={2}
+                strokeDasharray="5 3"
+                strokeLinejoin="round"
+              />
+              {drawingPolyline.vertices.map((v, idx) => (
+                <circle
+                  key={`poly-v-${idx}`}
+                  cx={v.x * scale}
+                  cy={v.y * scale}
+                  r={4}
+                  fill="#ffffff"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                />
+              ))}
+            </svg>
+            <SnapIndicatorOverlay
+              snapResult={activeSnapResult ?? null}
+              originPoint={drawingPolyline.vertices[drawingPolyline.vertices.length - 1]}
+              isAngleConstrained={isAngleConstrained}
+              scale={scale}
+            />
+            {drawingLineCurrent && (
+              <CursorPolarTrackingHud
+                origin={drawingPolyline.vertices[drawingPolyline.vertices.length - 1]}
+                current={drawingLineCurrent}
+                scale={scale}
+                calibration={calibration}
+                isAngleConstrained={isAngleConstrained}
+                isoplane={cadIsoplane}
+              />
+            )}
+          </>
+        )}
         {pageAnnotations
         .slice()
         .sort((a, b) => (a.data?.zIndex ?? 0) - (b.data?.zIndex ?? 0))
@@ -3338,13 +4001,32 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
           }
 
           const selected = selectedAnnotationIds.includes(annotation.id);
-          const rawRect = draftRects[annotation.id] ?? annotation.rect;
-          const linePoints = draftLinePointsRef.current[annotation.id];
-          const displayAnnotation = (annotation.type === 'ink' || annotation.type === 'shape-polygon') && rawRect !== annotation.rect
-            ? { ...annotation, rect: rawRect, data: remapAnnotationGeometry(annotation, rawRect) }
-            : (annotation.type === 'line' || annotation.type === 'arrow') && linePoints
-              ? { ...annotation, rect: rawRect, data: { ...annotation.data, points: linePoints } }
-              : annotation;
+          const vertexDraft = draftVertices[annotation.id];
+          const rawRect = vertexDraft?.rect ?? draftRects[annotation.id] ?? annotation.rect;
+          const linePoints = draftLinePoints[annotation.id];
+          const displayAnnotation = vertexDraft
+            ? {
+                ...annotation,
+                rect: vertexDraft.rect,
+                data: {
+                  ...annotation.data,
+                  points: vertexDraft.points,
+                  coordinateSpace: vertexDraft.coordinateSpace,
+                },
+              }
+            : (annotation.type === 'ink' ||
+                annotation.type === 'shape-polygon' ||
+                annotation.type === 'area-takeoff' ||
+                annotation.type === 'perimeter-takeoff') &&
+              rawRect !== annotation.rect
+              ? { ...annotation, rect: rawRect, data: remapAnnotationGeometry(annotation, rawRect) }
+              : (annotation.type === 'line' || annotation.type === 'arrow') && linePoints
+                ? { ...annotation, rect: rawRect, data: { ...annotation.data, points: linePoints } }
+                : (annotation.type === 'line' || annotation.type === 'arrow') &&
+                    annotation.data.coordinateSpace === 'page' &&
+                    rawRect !== annotation.rect
+                  ? { ...annotation, rect: rawRect, data: remapAnnotationGeometry(annotation, rawRect) }
+                  : annotation;
           const scaledRect = {
             x: rawRect.x * scale,
             y: rawRect.y * scale,
@@ -3410,9 +4092,45 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
                 onAnchorDragStart: (event: React.PointerEvent<SVGCircleElement>) => startAnchorDrag(event, annotation),
                 onKneeDragStart: (event: React.PointerEvent<SVGElement>) => startKneeDrag(event, annotation),
               } : {})}
+              {...(['line', 'arrow', 'perimeter-takeoff', 'shape-polygon', 'area-takeoff'].includes(annotation.type) ? {
+                onVertexDragStart: (event: React.PointerEvent<SVGElement>, vertexIndex: number) =>
+                  startVertexDrag(event, annotation, vertexIndex),
+                onInsertMidpointVertex: (segmentIndex: number, midpoint: Point2D) => {
+                  if (!isCurrentPage() || annotation.data?.locked === true) return;
+                  const patch = insertAnnotationVertex(annotation, segmentIndex, midpoint);
+                  if (!patch) return;
+                  onCommitAnnotation(annotation.id, {
+                    rect: patch.rect,
+                    data: {
+                      ...annotation.data,
+                      points: patch.points,
+                      coordinateSpace: patch.coordinateSpace,
+                    },
+                  });
+                },
+                onDeleteVertex: (vertexIndex: number) => {
+                  if (!isCurrentPage() || annotation.data?.locked === true) return;
+                  const patch = deleteAnnotationVertex(annotation, vertexIndex);
+                  if (!patch) return;
+                  onCommitAnnotation(annotation.id, {
+                    rect: patch.rect,
+                    data: {
+                      ...annotation.data,
+                      points: patch.points,
+                      coordinateSpace: patch.coordinateSpace,
+                    },
+                  });
+                },
+              } : {})}
             />
           );
         })}
+        {vertexSnapResult?.snapped && (
+          <SnapIndicatorOverlay
+            snapResult={vertexSnapResult}
+            scale={scale}
+          />
+        )}
         {marquee && (
           <div
             className="absolute pointer-events-none border border-blue-500 bg-blue-200/20"
@@ -3447,14 +4165,109 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
             ))}
           </div>
         )}
+        {vectorRoiCapture && (
+          <div
+            data-testid="vector-roi-capture-layer"
+            className="absolute inset-0 cursor-crosshair"
+            style={{ pointerEvents: 'auto', zIndex: 120 }}
+            onMouseDown={(event) => {
+              if (event.button !== 0) return;
+              const req = vectorRoiCapture;
+              const hostRect = event.currentTarget.getBoundingClientRect();
+              const startX = (event.clientX - hostRect.left) / scale;
+              const startY = (event.clientY - hostRect.top) / scale;
+              let latestRect: Rect = { x: startX, y: startY, width: 0, height: 0 };
+              setRoiDraft(latestRect);
+              listenForGesture(
+                (moveEvent) => {
+                  const mx = (moveEvent.clientX - hostRect.left) / scale;
+                  const my = (moveEvent.clientY - hostRect.top) / scale;
+                  latestRect = {
+                    x: Math.min(startX, mx),
+                    y: Math.min(startY, my),
+                    width: Math.abs(mx - startX),
+                    height: Math.abs(my - startY),
+                  };
+                  setRoiDraft(latestRect);
+                },
+                () => {
+                  const finalRect = latestRect;
+                  setRoiDraft(null);
+                  cancelVectorRoiCapture();
+                  if (finalRect.width < 8 || finalRect.height < 8) {
+                    return;
+                  }
+                  void (async () => {
+                    try {
+                      const page = await doc.getPage(pageNumber);
+                      const res = await portPdfPageVectorsToAnnotations(page, {
+                        mode: req.mode,
+                        pageId: existingTextPageId ?? undefined,
+                        calibration,
+                        extract: {
+                          regionRect: finalRect,
+                          includeLayers: req.selectedLayer ? [req.selectedLayer] : undefined,
+                          includeTextAnchors: req.includeTextLabels,
+                        },
+                        import: {
+                          importTextLabels: req.includeTextLabels,
+                        },
+                        attachBranchLabels: req.attachBranchLabels,
+                      });
+                      if (res.layersDetected.length > 0) {
+                        setVectorLayersDetected(res.layersDetected);
+                      }
+                      if (res.annotations.length > 0) {
+                        setLastRasterRegionRect(null);
+                        createManyAnnotations(res.annotations);
+                        setVectorRoiStatus(
+                          `Ported region: ${res.stats.polylinesCreated} polylines, ${res.stats.linesCreated} lines, ${res.stats.rectsCreated} rects, ${res.attachedBranchCount} tags`,
+                        );
+                      } else if (res.isRasterOnlyLikely) {
+                        setLastRasterRegionRect(finalRect);
+                        setRasterTraceStatus('idle');
+                        setVectorRoiStatus(
+                          `Scanned/raster region (${res.imageXObjectCount} image(s), 0 vectors). Auto-Trace ready for cropped region.`,
+                        );
+                      } else {
+                        setLastRasterRegionRect(null);
+                        setVectorRoiStatus('No vector geometry found inside selected region.');
+                      }
+                    } catch (err) {
+                      setVectorRoiStatus(err instanceof Error ? err.message : 'Region vector import failed.');
+                    }
+                  })();
+                },
+                () => {
+                  setRoiDraft(null);
+                },
+              );
+            }}
+          >
+            {roiDraft && (
+              <div
+                data-testid="vector-roi-draft-box"
+                className="absolute pointer-events-none border-2 border-dashed border-cyan-500 bg-cyan-400/15"
+                style={{
+                  left: roiDraft.x * scale,
+                  top: roiDraft.y * scale,
+                  width: roiDraft.width * scale,
+                  height: roiDraft.height * scale,
+                }}
+              />
+            )}
+          </div>
+        )}
       </div>
 
-      <WriterOverlay
-        pageNumber={pageNumber}
-        scale={scale}
-        pageDimensions={renderSize || size}
-        ocrViewport={ocrViewport}
-      />
+      {showCalloutOverlay && (
+        <CalloutOverlay
+          pageNumber={pageNumber}
+          scale={scale}
+          pageDimensions={renderSize || size}
+          ocrViewport={ocrViewport}
+        />
+      )}
 
       <WriterOverlayLayer
         pageNumber={pageNumber}
@@ -3464,6 +4277,11 @@ export const PageSurface: React.FC<PageSurfaceProps> = ({
           scale,
           rotation: 0,
         }}
+      />
+
+      <AcroFormOverlay
+        pageNumber={pageNumber}
+        scale={scale}
       />
 
       <EquationOverlay
@@ -3494,6 +4312,7 @@ const PageSurfaceMemo = React.memo(
     prev.onSelectExistingText === next.onSelectExistingText &&
     prev.onDeselectExistingText === next.onDeselectExistingText &&
     prev.drawingLineStart === next.drawingLineStart &&
+    prev.drawingPolyline === next.drawingPolyline &&
     prev.drawingLineCurrent === next.drawingLineCurrent &&
     prev.activeSnapResult === next.activeSnapResult &&
     prev.isAngleConstrained === next.isAngleConstrained &&
@@ -3517,12 +4336,59 @@ const PageSurfaceMemo = React.memo(
 
 
 
+function setBodyUserSelect(value: string): void {
+  if (typeof document !== 'undefined' && document.body) {
+    document.body.style.userSelect = value;
+  }
+}
+
 function buildLineAnnotation(type: 'line' | 'arrow', pageNumber: number, rect: Rect, points: number[]): PdfAnnotation {
   const timestamp = Date.now();
   return {
     id: uuidv4(), type, pageNumber, rect,
-    data: { borderColor: '#111827', points, ...(type === 'arrow' ? { lineEndCap: 'arrow' } : {}) },
+    data: {
+      borderColor: '#111827',
+      points,
+      coordinateSpace: 'rect-local',
+      ...(type === 'arrow' ? { lineEndCap: 'arrow' } : {}),
+    },
     createdAt: timestamp, updatedAt: timestamp,
+  };
+}
+
+function buildPolylineAnnotation(
+  pageNumber: number,
+  vertices: Point2D[],
+  calibration?: ScaleCalibration,
+): PdfAnnotation {
+  const timestamp = Date.now();
+  const flatPoints: number[] = [];
+  for (const v of vertices) {
+    flatPoints.push(v.x, v.y);
+  }
+  const rect = computeRectFromPagePoints(flatPoints, 8);
+  return {
+    id: uuidv4(),
+    type: 'perimeter-takeoff',
+    pageNumber,
+    rect,
+    data: {
+      borderColor: '#2563eb',
+      borderWidth: 2,
+      borderStyle: 'solid',
+      points: flatPoints,
+      coordinateSpace: 'page',
+      isPipeRun: true,
+      ...(calibration
+        ? {
+            dimensionScale: calibration.scaleRatio,
+            dimensionUnit: calibration.unit,
+            dimensionPrecision: calibration.precision,
+          }
+        : {}),
+    },
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
 }
 
@@ -3962,6 +4828,9 @@ function readPoints(
   annotation: PdfAnnotation,
   fallback: number[] | null,
 ): number[] | null {
+  if (annotation.data.coordinateSpace === 'page') {
+    return null;
+  }
   if (Array.isArray(annotation.data.points) && annotation.data.points.length === 4) {
     return [...(annotation.data.points as number[])];
   }

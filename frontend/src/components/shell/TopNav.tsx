@@ -5,7 +5,8 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import {
   Moon, Search, Settings, Sun, Wand2, X, FolderOpen, Save, Highlighter, MessageSquare,
   ChevronRight, Menu, FlaskConical, MousePointer2, PenTool, Type, Layers, Sparkles,
-  Undo2, Redo2, Minus, Plus
+  Undo2, Redo2, Minus, Plus, FilePlus2, HelpCircle, MessageSquareDot, Printer,
+  Stamp, Crop, Maximize2, GitMerge,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
@@ -37,6 +38,7 @@ export const TopNav: React.FC = () => {
     setMobileDrawerOpen,
     activeMode,
     setActiveMode,
+    setMacroBuilderOpen,
   } = useEditorStore(useShallow((state) => ({
     setSidebarTab: state.setSidebarTab,
     setLeftPanelWidth: state.setLeftPanelWidth,
@@ -45,6 +47,7 @@ export const TopNav: React.FC = () => {
     setMobileDrawerOpen: state.setMobileDrawerOpen,
     activeMode: state.activeMode,
     setActiveMode: state.setActiveMode,
+    setMacroBuilderOpen: state.setMacroBuilderOpen,
   })));
   const { documentUndoStack, documentRedoStack } = useHistoryStore(useShallow((state) => ({
     documentUndoStack: state.undoStack,
@@ -133,16 +136,18 @@ export const TopNav: React.FC = () => {
     };
   }, [hits, activeHitId]);
 
-  const [localQuery, setLocalQuery] = useState(query);
-  const [previousQuery, setPreviousQuery] = useState(query);
+  const [queryDraft, setQueryDraft] = useState<{ baseQuery: string; value: string } | null>(null);
+  const localQuery = queryDraft && queryDraft.baseQuery === query ? queryDraft.value : query;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteSeedFilter, setPaletteSeedFilter] = useState('');
   const debounceRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        setPaletteSeedFilter('');
         setPaletteOpen((v) => !v);
       }
     };
@@ -158,14 +163,16 @@ export const TopNav: React.FC = () => {
     document.title = 'PDF Hub';
   }, [fileName, isDirty]);
 
-  if (query !== previousQuery) {
-    setPreviousQuery(query);
-    setLocalQuery(query);
-  }
-
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
-    setLocalQuery(value);
+    if (value.startsWith('>')) {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+      setQueryDraft(null);
+      setPaletteSeedFilter(value.slice(1));
+      setPaletteOpen(true);
+      return;
+    }
+    setQueryDraft({ baseQuery: query, value });
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     if (!value.trim()) { setQuery(''); clearSearch(); return; }
     setSidebarTab('search');
@@ -178,6 +185,11 @@ export const TopNav: React.FC = () => {
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
+    if (localQuery.startsWith('>')) {
+      setPaletteSeedFilter(localQuery.slice(1));
+      setPaletteOpen(true);
+      return;
+    }
     if (leftPanelWidth < 1) setLeftPanelWidth(20);
     setSidebarTab('search');
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
@@ -193,7 +205,7 @@ export const TopNav: React.FC = () => {
     setQuery(localQuery);
   };
 
-  const handleClear = () => { setLocalQuery(''); setQuery(''); clearSearch(); };
+  const handleClear = () => { setQueryDraft(null); setQuery(''); clearSearch(); };
 
 
   const displayName = fileName
@@ -237,22 +249,8 @@ export const TopNav: React.FC = () => {
           </span>
         )}
 
-        {/* Right side: Mock + Hamburger */}
+        {/* Right side: Hamburger */}
         <div className="flex items-center gap-1">
-          {mockEnabled && (
-            <Tooltip content={mockLoading ? 'Generating…' : 'Open mock benchmark PDF'}>
-              <Button
-                data-testid="mock-pdf-btn"
-                variant="ghost"
-                size="icon"
-                onClick={() => void openMockPdf()}
-                disabled={mockLoading}
-                className="min-h-[44px] min-w-[44px] text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-              >
-                <FlaskConical className="w-5 h-5" />
-              </Button>
-            </Tooltip>
-          )}
           {/* Hamburger Menu Button */}
           <Button
             data-testid="mobile-hamburger"
@@ -351,7 +349,7 @@ export const TopNav: React.FC = () => {
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               placeholder="Search or run command…"
-              className={`h-[28px] w-full pl-8 ${matchCount > 0 ? 'pr-16' : 'pr-8'} text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
+              className={`h-[28px] w-full pl-8 ${matchCount > 0 ? 'pr-16' : 'pr-11'} text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
             />
             {localQuery ? (
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -372,10 +370,19 @@ export const TopNav: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-0.5 pointer-events-none">
+              <button
+                type="button"
+                onClick={() => {
+                  setPaletteSeedFilter('');
+                  setPaletteOpen(true);
+                }}
+                title="Open Command Palette (⌘K or type >)"
+                aria-label="Open Command Palette"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 flex gap-0.5 cursor-pointer bg-transparent border-none p-0.5 rounded hover:bg-slate-200/70 dark:hover:bg-slate-700/70 transition-colors"
+              >
                 <span className="font-mono text-[9px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 py-px rounded border border-slate-300/40">⌘</span>
                 <span className="font-mono text-[9px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 py-px rounded border border-slate-300/40">K</span>
-              </div>
+              </button>
             )}
           </div>
         </div>
@@ -407,6 +414,7 @@ export const TopNav: React.FC = () => {
             <button
               onClick={handleZoomOut}
               disabled={viewState.zoom <= 25}
+              aria-label="Zoom out"
               className="flex items-center justify-center h-6 w-6 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer border-none bg-transparent"
             >
               <Minus className="w-[11px] h-[11px]" />
@@ -417,6 +425,7 @@ export const TopNav: React.FC = () => {
             <button
               onClick={handleZoomIn}
               disabled={viewState.zoom >= 400}
+              aria-label="Zoom in"
               className="flex items-center justify-center h-6 w-6 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer border-none bg-transparent"
             >
               <Plus className="w-[11px] h-[11px]" />
@@ -425,39 +434,16 @@ export const TopNav: React.FC = () => {
 
           <div className="w-px h-4 bg-slate-200 dark:bg-slate-800 mx-0.5 shrink-0" />
 
-          {/* Mock PDF button — dev/localhost only */}
-          {mockEnabled && (
-            <Tooltip content={mockLoading ? 'Generating benchmark PDF…' : 'Open mock benchmark PDF (dev only)'}>
-              <Button
-                data-testid="mock-pdf-btn"
-                variant="ghost"
-                size="icon"
-                onClick={() => void openMockPdf()}
-                disabled={mockLoading}
-                className="relative h-7 w-7 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-              >
-                <FlaskConical className={['w-3.5 h-3.5', mockLoading ? 'animate-pulse' : ''].join(' ')} />
-                {/* Amber dot indicator */}
-                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
-              </Button>
-            </Tooltip>
-          )}
-
           <Tooltip content={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}>
             <Button data-testid="theme-toggle" variant="ghost" size="icon" className="h-7 w-7 text-slate-500" onClick={toggleDarkMode}>
               {isDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </Button>
           </Tooltip>
           <Tooltip content="Open settings">
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500" onClick={() => setSettingsOpen(true)}>
+            <Button variant="ghost" size="icon" aria-label="Settings" className="h-7 w-7 text-slate-500" onClick={() => setSettingsOpen(true)}>
               <Settings className="w-3.5 h-3.5" />
             </Button>
           </Tooltip>
-
-          {/* Avatar */}
-          <div className="w-6.5 h-6.5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-semibold cursor-pointer shrink-0 select-none">
-            JD
-          </div>
         </div>
       </div>
 
@@ -466,19 +452,38 @@ export const TopNav: React.FC = () => {
         onClose={() => setSettingsOpen(false)}
         isDarkMode={isDarkMode}
         onToggleTheme={toggleDarkMode}
-      />
-      <CommandPalette
-        isOpen={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
-        onToggleTheme={toggleDarkMode}
-        canOpenMacroBuilder={capabilities.hasMacroConsole}
-        onOpenMacroBuilder={() => {
-          setPaletteOpen(false);
-          setActiveMode('generate');
-          setSidebarTab('macros');
-          if (leftPanelWidth < 1) setLeftPanelWidth(20);
+        mockEnabled={mockEnabled}
+        mockLoading={mockLoading}
+        onOpenMockPdf={() => {
+          setSettingsOpen(false);
+          void openMockPdf();
         }}
       />
+      {paletteOpen && (
+        <CommandPalette
+          key={`palette-${paletteSeedFilter}`}
+          initialFilter={paletteSeedFilter}
+          onClose={() => {
+            setPaletteOpen(false);
+            setPaletteSeedFilter('');
+          }}
+          onToggleTheme={toggleDarkMode}
+          canOpenAutomate={capabilities.canUseClientMacros}
+          onOpenAutomate={() => {
+            setPaletteOpen(false);
+            setActiveMode('generate');
+            setSidebarTab('macros');
+            if (leftPanelWidth < 1) setLeftPanelWidth(20);
+          }}
+          onOpenMacroStudio={() => {
+            setPaletteOpen(false);
+            setActiveMode('generate');
+            setSidebarTab('macros');
+            if (leftPanelWidth < 1) setLeftPanelWidth(20);
+            setMacroBuilderOpen(true);
+          }}
+        />
+      )}
     </>
   );
 };
@@ -506,9 +511,20 @@ interface SettingsModalProps {
   onClose: () => void;
   isDarkMode: boolean;
   onToggleTheme: () => void;
+  mockEnabled: boolean;
+  mockLoading: boolean;
+  onOpenMockPdf: () => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isDarkMode, onToggleTheme }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({
+  isOpen,
+  onClose,
+  isDarkMode,
+  onToggleTheme,
+  mockEnabled,
+  mockLoading,
+  onOpenMockPdf,
+}) => {
   const fileName = useSessionStore((state) => state.fileName);
   const pageCount = useSessionStore((state) => state.pageCount);
   const currentPage = useSessionStore((state) => state.viewState.currentPage);
@@ -550,6 +566,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isDarkMo
             Reset Layout
           </Button>
         </div>
+        {mockEnabled && (
+          <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
+            <div className="font-medium text-slate-800 dark:text-slate-100 mb-1">Sample Benchmark Document</div>
+            <div className="text-xs text-slate-500 mb-2">Generate and open a multi-page sample PDF locally.</div>
+            <Button
+              data-testid="mock-pdf-btn"
+              variant="secondary"
+              size="sm"
+              disabled={mockLoading}
+              onClick={onOpenMockPdf}
+            >
+              <FlaskConical className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
+              {mockLoading ? 'Generating…' : 'Open Benchmark PDF'}
+            </Button>
+          </div>
+        )}
         <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 text-xs text-slate-500">
           <div>Document: {fileName ?? 'None'}</div>
           <div>Pages: {pageCount}</div>
@@ -565,51 +597,92 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isDarkMo
 };
 
 interface CommandPaletteProps {
-  isOpen: boolean;
+  initialFilter: string;
   onClose: () => void;
   onToggleTheme: () => void;
-  canOpenMacroBuilder: boolean;
-  onOpenMacroBuilder: () => void;
+  canOpenAutomate: boolean;
+  onOpenAutomate: () => void;
+  onOpenMacroStudio: () => void;
 }
 
-const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onToggleTheme, canOpenMacroBuilder, onOpenMacroBuilder }) => {
-  const [filter, setFilter] = useState('');
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+const CommandPalette: React.FC<CommandPaletteProps> = ({
+  initialFilter,
+  onClose,
+  onToggleTheme,
+  canOpenAutomate,
+  onOpenAutomate,
+  onOpenMacroStudio,
+}) => {
+  const [filter, setFilter] = useState(initialFilter);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  if (prevIsOpen !== isOpen) {
-    setPrevIsOpen(isOpen);
-    if (isOpen) setFilter('');
-  }
-
   useEffect(() => {
-    if (isOpen) setTimeout(() => inputRef.current?.focus(), 30);
-  }, [isOpen]);
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 20);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   type Cmd = { icon: React.ComponentType<{ className?: string }>; label: string; hint?: string; section: string; action: () => void };
 
   const commands: Cmd[] = [
-    { icon: FolderOpen,   label: 'Open PDF…',          hint: '⌘O', section: 'Recent', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:open')); } },
-    { icon: Save,         label: 'Save',                hint: '⌘S', section: 'Recent', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:save')); } },
-    { icon: Highlighter,  label: 'Highlight selection', hint: 'H',   section: 'Annotate', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'highlight' })); } },
-    { icon: MessageSquare,label: 'Add sticky note',     hint: 'N',   section: 'Annotate', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'sticky-note' })); } },
-    ...(canOpenMacroBuilder
-      ? [{ icon: Wand2, label: 'Open Automate', hint: '⌘M', section: 'Automate', action: onOpenMacroBuilder }]
+    { icon: FolderOpen,       label: 'Open PDF…',             hint: '⌘O', section: 'Document', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:open')); } },
+    { icon: FilePlus2,        label: 'New Blank Document',    section: 'Document', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:new-blank')); } },
+    { icon: Save,             label: 'Save',                  hint: '⌘S', section: 'Document', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:save')); } },
+    { icon: Printer,          label: 'Print…',                hint: '⌘P', section: 'Document', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:print')); } },
+    { icon: Highlighter,      label: 'Highlight selection',   hint: 'H',  section: 'Annotate & Draw', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'highlight' })); } },
+    { icon: MessageSquare,    label: 'Add sticky note',       hint: 'N',  section: 'Annotate & Draw', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'sticky-note' })); } },
+    { icon: MessageSquareDot, label: 'Add callout',           section: 'Annotate & Draw', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'callout' })); } },
+    { icon: PenTool,          label: 'Draw freehand ink',     section: 'Annotate & Draw', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'ink' })); } },
+    { icon: Stamp,            label: 'Bates Numbering…',      section: 'Organize', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:organize-action', { detail: 'bates' })); } },
+    { icon: Crop,             label: 'Crop Margins…',         section: 'Organize', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:organize-action', { detail: 'crop' })); } },
+    { icon: Maximize2,        label: 'Normalize Page Size…',  section: 'Organize', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:organize-action', { detail: 'normalize' })); } },
+    { icon: GitMerge,         label: 'Collate with PDF…',     section: 'Organize', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:organize-action', { detail: 'collate' })); } },
+    { icon: Type,             label: 'Open Writer Rich Box',  section: 'Write', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:tool', { detail: 'writer-rich-box' })); } },
+    ...(canOpenAutomate
+      ? [
+          { icon: Sparkles, label: 'Open Automate',     section: 'Automate', action: onOpenAutomate },
+          { icon: Wand2,    label: 'Open Macro Studio', hint: '⌘M', section: 'Automate', action: onOpenMacroStudio },
+        ]
       : []),
-    { icon: Moon,         label: 'Toggle dark mode',    section: 'View', action: () => { onClose(); onToggleTheme(); } },
+    { icon: Moon,             label: 'Toggle dark mode',      section: 'View', action: () => { onClose(); onToggleTheme(); } },
+    { icon: HelpCircle,       label: 'Help & Keyboard Shortcuts', section: 'View', action: () => { onClose(); document.dispatchEvent(new CustomEvent('pdf-hub:help')); } },
   ];
 
-  const filtered = filter.trim()
-    ? commands.filter((c) => c.label.toLowerCase().includes(filter.toLowerCase()))
+  const normalizedFilter = filter.trim().replace(/^>\s*/, '').toLowerCase();
+  const filtered = normalizedFilter
+    ? commands.filter((c) => c.label.toLowerCase().includes(normalizedFilter))
     : commands;
 
+  const activeIndex = filtered.length > 0 ? Math.min(selectedIndex, filtered.length - 1) : -1;
   const sections = [...new Set(filtered.map((c) => c.section))];
 
-  if (!isOpen) return null;
+  const handlePaletteKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key === 'ArrowDown' && filtered.length > 0) {
+      event.preventDefault();
+      setSelectedIndex((prev) => (prev + 1) % filtered.length);
+      return;
+    }
+    if (event.key === 'ArrowUp' && filtered.length > 0) {
+      event.preventDefault();
+      setSelectedIndex((prev) => (prev - 1 + filtered.length) % filtered.length);
+      return;
+    }
+    if (event.key === 'Enter' && activeIndex >= 0) {
+      event.preventDefault();
+      filtered[activeIndex]?.action();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24" onClick={onClose}>
       <div
+        role="dialog"
+        aria-label="Command Palette"
         className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -620,8 +693,12 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onTogg
             ref={inputRef}
             type="text"
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Search or run a command…"
+            onChange={(e) => {
+              setFilter(e.target.value);
+              setSelectedIndex(0);
+            }}
+            onKeyDown={handlePaletteKeyDown}
+            placeholder="Type a command…"
             className="flex-1 bg-transparent text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none"
           />
           <kbd className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">ESC</kbd>
@@ -635,20 +712,31 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onTogg
             sections.map((section) => (
               <div key={section}>
                 <div className="px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{section}</div>
-                {filtered.filter((c) => c.section === section).map((cmd) => (
-                  <button
-                    key={cmd.label}
-                    onClick={cmd.action}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
-                  >
-                    <cmd.icon className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span className="flex-1">{cmd.label}</span>
-                    {cmd.hint && (
-                      <kbd className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">{cmd.hint}</kbd>
-                    )}
-                    <ChevronRight className="w-3 h-3 text-slate-300 dark:text-slate-600" />
-                  </button>
-                ))}
+                {filtered.filter((c) => c.section === section).map((cmd) => {
+                  const idx = filtered.indexOf(cmd);
+                  const isHighlighted = idx === activeIndex;
+                  return (
+                    <button
+                      key={cmd.label}
+                      type="button"
+                      onClick={cmd.action}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      className={[
+                        'w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors text-left cursor-pointer border-none',
+                        isHighlighted
+                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 bg-transparent',
+                      ].join(' ')}
+                    >
+                      <cmd.icon className="w-4 h-4 opacity-70 shrink-0" />
+                      <span className="flex-1">{cmd.label}</span>
+                      {cmd.hint && (
+                        <kbd className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">{cmd.hint}</kbd>
+                      )}
+                      <ChevronRight className="w-3 h-3 text-slate-300 dark:text-slate-600" />
+                    </button>
+                  );
+                })}
               </div>
             ))
           )}

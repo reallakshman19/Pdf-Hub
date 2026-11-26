@@ -5,7 +5,7 @@ import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { useHistoryStore } from '@/core/document-history/store';
-import { useWriterStore } from '@/core/writer/store';
+import { useCalloutStore } from '@/core/callout/store';
 import { useSearchStore } from '@/core/search/store';
 import { isDebugRouteEnabled } from '@/core/debug/availability';
 import { useShallow } from 'zustand/react/shallow';
@@ -44,7 +44,7 @@ export const DebugPage: React.FC = () => {
     undoStack: state.undoStack,
     redoStack: state.redoStack,
   })));
-    const writerState = useWriterStore();
+    const calloutState = useCalloutStore();
   const searchState = useSearchStore(useShallow((state) => ({
     query: state.query,
     hits: state.hits,
@@ -91,14 +91,14 @@ export const DebugPage: React.FC = () => {
 
   const writerSnapshot = useMemo(
     () => ({
-      elementCount: writerState.elements.length,
-      selectedIds: writerState.selectedIds,
-      activeId: writerState.activeId,
-      activeTool: writerState.activeTool,
-      undoDepth: writerState.undoStack.length,
-      redoDepth: writerState.redoStack.length,
+      elementCount: calloutState.elements.length,
+      selectedIds: calloutState.selectedIds,
+      activeId: calloutState.activeId,
+      activeTool: calloutState.activeTool,
+      undoDepth: calloutState.undoStack.length,
+      redoDepth: calloutState.redoStack.length,
     }),
-    [writerState],
+    [calloutState],
   );
 
   const searchSnapshot = useMemo(

@@ -6,6 +6,7 @@ import '@/core/annotations/register-all';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
+import { useCadModelingStore } from '@/core/cad-modeling/store';
 
 class ResizeObserverMock {
   observe() {}
@@ -154,5 +155,39 @@ describe('DocumentWorkspace - 2D / 3D Canvas Workspace Tabs', () => {
     expect(useEditorStore.getState().workspaceViewMode).toBe('2d');
     expect(screen.getByTestId('vlist')).toBeInTheDocument();
     expect(screen.queryByTestId('workspace-3d-canvas-container')).toBeNull();
+  });
+
+  it('mounts Phase P CAD modeling HUD and 3D extrusion dock and harvests shape-rect loops', async () => {
+    useCadModelingStore.getState().reset();
+    useAnnotationStore.setState({
+      annotations: [
+        {
+          id: 'rect-loop-1',
+          type: 'shape-rect',
+          pageNumber: 1,
+          rect: { x: 50, y: 50, width: 120, height: 80 },
+          createdAt: 1,
+          updatedAt: 1,
+          data: {},
+        },
+      ],
+    });
+    useEditorStore.setState({ activeMode: 'draw', activeTool: 'shape-rect', workspaceViewMode: '2d' });
+
+    await act(async () => {
+      render(<DocumentWorkspace />);
+    });
+
+    // ContinuousModelingHud is mounted contextually for CAD tools
+    expect(screen.getByTestId('cad-continuous-modeling-hud')).toBeInTheDocument();
+    // Closed loop harvested into store
+    expect(useCadModelingStore.getState().harvestedLoops.length).toBeGreaterThanOrEqual(1);
+
+    // Clicking "3D DOCK" opens Cad3DViewportDock right inside the workspace
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('hud-toggle-3d-dock'));
+    });
+
+    expect(screen.getByTestId('cad-3d-viewport-dock')).toBeInTheDocument();
   });
 });

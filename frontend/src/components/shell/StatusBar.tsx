@@ -3,6 +3,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/core/session/store';
 import { useEditorStore } from '@/core/editor/store';
 import { useCapabilities } from '@/hooks/useCapabilities';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
+import { VramTelemetryBadge } from './VramTelemetryBadge';
 
 const MODE_LABELS: Record<string, string> = {
   view: 'View',
@@ -10,7 +12,7 @@ const MODE_LABELS: Record<string, string> = {
   draw: 'Draw',
   write: 'Write',
   organize: 'Organize',
-  generate: 'Generate',
+  generate: 'Automate',
 };
 
 export const StatusBar: React.FC = () => {
@@ -24,14 +26,29 @@ export const StatusBar: React.FC = () => {
   const { activeMode } = useEditorStore(useShallow((state) => ({
     activeMode: state.activeMode,
   })));
+  const { documentMeta, writerDirty, activeBlankPage, setActiveBlankPage } = useWriterV2Store(useShallow((state) => ({
+    documentMeta: state.documentMeta,
+    writerDirty: state.dirty,
+    activeBlankPage: state.activeBlankPage,
+    setActiveBlankPage: state.setActiveBlankPage,
+  })));
   const capabilities = useCapabilities();
+
+  const isBlankDocument = documentMeta?.mode === 'blankDocument';
+  const effectivePageCount = isBlankDocument ? documentMeta.pageCount : pageCount;
+  const effectiveCurrentPage = isBlankDocument
+    ? Math.min(Math.max(1, activeBlankPage), Math.max(1, effectivePageCount))
+    : effectivePageCount > 0
+      ? Math.min(Math.max(1, viewState.currentPage), effectivePageCount)
+      : viewState.currentPage;
+  const effectiveIsDirty = isDirty || (isBlankDocument && writerDirty);
 
   const [localPageValue, setLocalPageValue] = useState<string>('');
   const [isEditingPageInput, setIsEditingPageInput] = useState(false);
 
   const pageDisplayValue = isEditingPageInput
     ? localPageValue
-    : String(viewState.currentPage);
+    : String(effectiveCurrentPage);
 
   const commitPageInput = React.useCallback(
     (raw: string) => {
@@ -41,12 +58,16 @@ export const StatusBar: React.FC = () => {
       }
       const parsed = parseInt(raw, 10);
       if (!isNaN(parsed)) {
-        const clamped = Math.min(Math.max(1, parsed), pageCount);
-        setPage(clamped);
+        const clamped = Math.min(Math.max(1, parsed), Math.max(1, effectivePageCount));
+        if (isBlankDocument) {
+          setActiveBlankPage(clamped);
+        } else {
+          setPage(clamped);
+        }
       }
       setIsEditingPageInput(false);
     },
-    [pageCount, setPage],
+    [effectivePageCount, isBlankDocument, setActiveBlankPage, setPage],
   );
 
   const zoomSteps = [25, 50, 75, 100, 125, 150, 200, 300, 400];
@@ -64,13 +85,13 @@ export const StatusBar: React.FC = () => {
       {/* Left items */}
       <div className="flex items-center">
         <span className="px-1.5">PDF Hub</span>
-        {isDirty && (
+        {effectiveIsDirty && (
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ml-1 shrink-0" title="Unsaved changes" />
         )}
       </div>
 
       <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1 shrink-0" />
-      <div className="px-1.5">{pageCount > 0 ? `${pageCount} pages` : '—'}</div>
+      <div className="px-1.5">{effectivePageCount > 0 ? `${effectivePageCount} pages` : '—'}</div>
 
       <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1 shrink-0" />
 
@@ -82,9 +103,9 @@ export const StatusBar: React.FC = () => {
           inputMode="numeric"
           pattern="[0-9]*"
           value={pageDisplayValue}
-          aria-label={`Page ${pageDisplayValue} of ${pageCount}`}
+          aria-label={`Page ${pageDisplayValue} of ${effectivePageCount}`}
           className="w-8 text-center text-[11px] font-mono px-1 py-px bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-          onFocus={() => { setLocalPageValue(String(viewState.currentPage)); setIsEditingPageInput(true); }}
+          onFocus={() => { setLocalPageValue(String(effectiveCurrentPage)); setIsEditingPageInput(true); }}
           onChange={(e) => {
             const val = e.target.value;
             if (val === '' || /^[0-9]+$/.test(val)) {
@@ -96,9 +117,9 @@ export const StatusBar: React.FC = () => {
             if (e.key === 'Escape') { setIsEditingPageInput(false); e.currentTarget.blur(); }
           }}
           onBlur={(e) => commitPageInput(e.currentTarget.value)}
-          disabled={pageCount === 0}
+          disabled={effectivePageCount === 0}
         />
-        <span>/ <span className="text-slate-600 dark:text-slate-300">{pageCount > 0 ? pageCount : '—'}</span></span>
+        <span>/ <span className="text-slate-600 dark:text-slate-300">{effectivePageCount > 0 ? effectivePageCount : '—'}</span></span>
       </div>
 
       <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1 shrink-0" />
@@ -119,6 +140,11 @@ export const StatusBar: React.FC = () => {
           </span>
         )}
       </div>
+
+      {/* VRAM Telemetry */}
+      <VramTelemetryBadge />
+
+      <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1 shrink-0" />
 
       {/* Zoom */}
       <div className="flex items-center gap-1.5 px-1.5">

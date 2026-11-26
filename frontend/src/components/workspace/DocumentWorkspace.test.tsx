@@ -291,8 +291,8 @@ describe('DocumentWorkspace', () => {
     await act(async () => {
       render(<DocumentWorkspace />);
     });
-    const page2 = await screen.findByText('Page 2');
-    expect(page2).toBeInTheDocument();
+    const page2 = await screen.findAllByText('Page 2');
+    expect(page2.length).toBeGreaterThanOrEqual(1);
   });
 
   it('viewMode changes layout to two-page', async () => {
@@ -312,8 +312,8 @@ describe('DocumentWorkspace', () => {
     await act(async () => {
       render(<DocumentWorkspace />);
     });
-    const page2 = await screen.findByText('Page 2');
-    expect(page2).toBeInTheDocument();
+    const page2 = await screen.findAllByText('Page 2');
+    expect(page2.length).toBeGreaterThanOrEqual(1);
   });
 
   it('hand tool pans', async () => {
@@ -1133,9 +1133,16 @@ describe('PageSurface gesture consistency', () => {
     }));
   });
 
-  it('renders DrawingScaleBar and opens ScaleCalibrationDialog when clicked', async () => {
+  it('hides CAD chrome by default on general PDFs and reveals DrawingScaleBar and ScaleCalibrationDialog when toggled', async () => {
     await act(async () => {
       render(<DocumentWorkspace />);
+    });
+
+    expect(screen.queryByTestId('workspace-view-tabs')).toBeNull();
+    expect(screen.queryByTestId('drawing-scale-bar')).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('cad-tools-toggle-btn'));
     });
 
     const scaleBar = await screen.findByTestId('drawing-scale-bar');

@@ -59,25 +59,32 @@ export const PageLabelsDialog: React.FC<PageLabelsDialogProps> = ({
   const [startNumber, setStartNumber] = React.useState(1);
   const [submitting, setSubmitting] = React.useState(false);
 
-  React.useEffect(() => {
-    if (!isOpen) return;
-    setTargetSource(selectedStartPageId ? 'selected' : 'current');
-  }, [isOpen, selectedStartPageId]);
+  const [prevIsOpen, setPrevIsOpen] = React.useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      setTargetSource(selectedStartPageId ? 'selected' : 'current');
+    }
+  }
 
   const targetPageId =
     targetSource === 'selected' && selectedStartPageId
       ? selectedStartPageId
       : currentPageId ?? pageGraph.pages[0]?.pageId ?? null;
 
-  React.useEffect(() => {
-    if (!isOpen || !targetPageId) return;
+  const targetSyncKey = isOpen && targetPageId ? `${isOpen}:${targetPageId}` : '';
+  const [prevTargetSyncKey, setPrevTargetSyncKey] = React.useState(targetSyncKey);
+  if (targetSyncKey && targetSyncKey !== prevTargetSyncKey) {
+    setPrevTargetSyncKey(targetSyncKey);
     const existing = pageGraph.pageLabelRanges?.find(
       (range) => range.startPageId === targetPageId,
     );
     setStyle(existing?.style ?? (existing?.prefix ? 'prefix-only' : 'decimal'));
     setPrefix(existing?.prefix ?? '');
     setStartNumber(existing?.startNumber ?? 1);
-  }, [isOpen, pageGraph, targetPageId]);
+  } else if (!targetSyncKey && prevTargetSyncKey) {
+    setPrevTargetSyncKey('');
+  }
 
   const draft = React.useMemo<PageLabelRestartDraft>(
     () => ({

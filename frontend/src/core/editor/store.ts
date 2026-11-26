@@ -30,6 +30,8 @@ export interface EditorActions {
   setCadGridSnap: (snap: boolean) => void;
   setCadGridSpacing: (spacing: number) => void;
   cycleCadIsoplane: () => void;
+  setCadToolsOpen: (open: boolean) => void;
+  toggleCadToolsOpen: () => void;
 }
 
 export const useEditorStore = create<EditorState & EditorActions>((set) => ({
@@ -49,6 +51,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   cadIsoplane: 'all',
   cadGridSnap: false,
   cadGridSpacing: 20,
+  cadToolsOpen: false,
   setActiveTool: (activeTool) => set({
     activeTool: normalizeActiveTool(activeTool),
   }),
@@ -73,4 +76,6 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
     const nextIdx = (cycle.indexOf(state.cadIsoplane) + 1) % cycle.length;
     return { cadIsoplane: cycle[nextIdx] };
   }),
+  setCadToolsOpen: (cadToolsOpen) => set({ cadToolsOpen }),
+  toggleCadToolsOpen: () => set((state) => ({ cadToolsOpen: !state.cadToolsOpen })),
 }));

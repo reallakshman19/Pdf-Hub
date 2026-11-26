@@ -1,8 +1,11 @@
-﻿import React, { useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { getState as getRedactionState, subscribe as subscribeRedaction } from '@/core/redaction/store';
 import { useEditorStore } from '@/core/editor/store';
 import { useAnnotationStore } from '@/core/annotations/store';
-import type { AnnotationType, PdfAnnotation } from '@/core/annotations/types';
+import { getAnnotationPageVertices } from '@/core/annotations/pointsSpace';
+import { mergeConnectedPolylines, orthogonalizePolyline, splitPolylineAtVertex } from '@/core/annotations/vertexEditing';
+import type { AnnotationType, CalloutLeaderBranch, PdfAnnotation } from '@/core/annotations/types';
 import { rotateBoxShapeQuarterTurn, rotateInkQuarterTurn, rotateLineQuarterTurn, rotateMarkupQuarterTurn, rotatePolygonQuarterTurn } from '@/core/annotations/geometryTransform';
 import {
   hasNativeRichTextSemantics,
@@ -11,9 +14,11 @@ import {
   isNativeRichTextReadOnly,
 } from '@/core/annotations/nativeInteropFidelity';
 import { ANNOTATION_TYPES } from '@/core/annotations/annotationTypes';
-import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, FileText, Minus, X, Calculator, ShieldAlert } from 'lucide-react';
-import { WriterInspectorPanel } from '@/components/writer/WriterInspectorPanel';
-import { useWriterStore } from '@/core/writer/store';
+import { Settings, Palette, Info, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, FileText, Minus, X, Calculator, ShieldAlert, ShieldCheck, Plus, Trash2 } from 'lucide-react';
+import { CalloutInspectorPanel } from '@/components/callout/CalloutInspectorPanel';
+import { useCalloutStore } from '@/core/callout/store';
+import { WriterV2Inspector } from '@/components/writer-v2/WriterV2Inspector';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import type { ReviewStatus } from '@/core/review/types';
 import { getAnnotationReviewStatus } from '@/core/review/annotationReview';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +26,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { ExistingTextInspectorTab } from './ExistingTextInspectorTab';
 import { TakeoffInspectorTab } from './TakeoffInspectorTab';
 import { RedactionInspectorTab } from './RedactionInspectorTab';
+import { ComplianceInspectorTab } from './ComplianceInspectorTab';
 
 
 export const InspectorPanel: React.FC = () => {
@@ -37,6 +43,7 @@ export const InspectorPanel: React.FC = () => {
     activeAnnotationId,
     updateAnnotation,
     updateManyAnnotations,
+    replaceAnnotations,
     deleteSelection,
     setReviewStatusForSelection,
     toggleLockSelection,
@@ -46,13 +53,25 @@ export const InspectorPanel: React.FC = () => {
     activeAnnotationId: state.activeAnnotationId,
     updateAnnotation: state.updateAnnotation,
     updateManyAnnotations: state.updateManyAnnotations,
+    replaceAnnotations: state.replaceAnnotations,
     deleteSelection: state.deleteSelection,
     setReviewStatusForSelection: state.setReviewStatusForSelection,
     toggleLockSelection: state.toggleLockSelection,
   })));
 
-  const writerSelectedIds = useWriterStore(s => s.selectedIds);
-  const writerActiveTool = useWriterStore(s => s.activeTool);
+  const calloutSelectedIds = useCalloutStore(s => s.selectedIds);
+  const calloutActiveTool = useCalloutStore(s => s.activeTool);
+  const writerV2SelectedIds = useWriterV2Store((s) => s.selectedIds);
+  const writerV2ActiveId = useWriterV2Store((s) => s.activeId);
+  const writerV2HasHidden = useWriterV2Store((s) => s.elements.some((el) => el.hidden));
+  const hasWriterV2Selection = writerV2SelectedIds.length > 0 || writerV2ActiveId !== null;
+  const writerV2SelectionKey = `${writerV2ActiveId ?? ''}:${writerV2SelectedIds.join(',')}:${writerV2HasHidden ? 1 : 0}`;
+  const [dismissedWriterV2Key, setDismissedWriterV2Key] = useState<string | null>(null);
+  const [redactionCount, setRedactionCount] = useState(() => getRedactionState().regions.length);
+  useEffect(() => subscribeRedaction(() => setRedactionCount(getRedactionState().regions.length)), []);
+  const showWriterV2Inspector =
+    (hasWriterV2Selection || (activeMode === 'write' && writerV2HasHidden)) &&
+    dismissedWriterV2Key !== writerV2SelectionKey;
 
   const [previousWidth, setPreviousWidth] = useState(18);
   const isCollapsed = rightPanelWidth <= 0.1;
@@ -74,10 +93,10 @@ export const InspectorPanel: React.FC = () => {
     }
   };
 
-  // Only show the writer inspector in write mode when a writer element is selected
-  const isWriterActive = activeMode === 'write' && ['select', 'place-text', 'place-image', 'place-table'].includes(writerActiveTool);
-  if (isWriterActive && writerSelectedIds.length > 0) {
-    return <WriterInspectorPanel />;
+  // Only show the legacy writer inspector in write mode when a legacy writer element is selected and no V2 element is active
+  const isCalloutActive = activeMode === 'write' && ['select', 'place-text', 'place-image', 'place-table'].includes(calloutActiveTool);
+  if (isCalloutActive && calloutSelectedIds.length > 0 && !hasWriterV2Selection) {
+    return <CalloutInspectorPanel />;
   }
 
   if (isCollapsed) {
@@ -106,6 +125,7 @@ export const InspectorPanel: React.FC = () => {
     { id: 'review', icon: MessageSquare, label: 'Review' },
     { id: 'takeoff', icon: Calculator, label: 'Takeoff & 3D' },
     { id: 'redaction', icon: ShieldAlert, label: 'Redaction' },
+    { id: 'compliance', icon: ShieldCheck, label: 'PDF/A & Compliance' },
   ] as const;
 
   return (
@@ -128,12 +148,16 @@ export const InspectorPanel: React.FC = () => {
       </div>
 
       <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-200 dark:border-slate-800">
-        {inspectorTab === 'text'
+        {showWriterV2Inspector
+          ? 'Write Studio Element'
+          : inspectorTab === 'text'
           ? 'Current page PDF text'
           : inspectorTab === 'takeoff'
             ? 'Bill of Materials & Quantity Takeoff (3D Canvas)'
             : inspectorTab === 'redaction'
               ? 'Secure Content Redaction'
+              : inspectorTab === 'compliance'
+                ? 'ISO 19005 PDF/A Archival Preflight'
               : selection.length > 1
                 ? `${selection.length} annotations selected`
                 : activeAnnotation
@@ -144,14 +168,17 @@ export const InspectorPanel: React.FC = () => {
       <div className="flex items-center p-2 border-b border-slate-200 dark:border-slate-800 shrink-0">
         <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-md w-full">
           {tabs.map((tab) => {
-            const isActive = inspectorTab === tab.id;
+            const isActive = !showWriterV2Inspector && inspectorTab === tab.id;
             const Icon = tab.icon;
             return (
               <div key={tab.id} className="flex-1">
                 <Tooltip content={tab.label}>
                   <button
-                    onClick={() => setInspectorTab(tab.id)}
-                    className={`w-full flex items-center justify-center py-1.5 rounded-sm transition-colors ${
+                    onClick={() => {
+                      setDismissedWriterV2Key(writerV2SelectionKey);
+                      setInspectorTab(tab.id);
+                    }}
+                    className={`relative w-full flex items-center justify-center py-1.5 rounded-sm transition-colors ${
                       isActive
                         ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white'
                         : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
@@ -159,6 +186,14 @@ export const InspectorPanel: React.FC = () => {
                     title={tab.label}
                   >
                     <Icon className="w-4 h-4" />
+                    {tab.id === 'redaction' && redactionCount > 0 && (
+                      <span
+                        data-testid="redaction-tab-badge"
+                        className="absolute -top-0.5 right-0.5 min-w-[14px] h-3.5 px-1 rounded-full bg-red-600 text-white text-[9px] font-bold leading-none flex items-center justify-center"
+                      >
+                        {redactionCount}
+                      </span>
+                    )}
                   </button>
                 </Tooltip>
               </div>
@@ -168,7 +203,11 @@ export const InspectorPanel: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-auto relative">
-        {!activeAnnotation && inspectorTab !== 'text' && inspectorTab !== 'takeoff' && inspectorTab !== 'redaction' && (
+        {showWriterV2Inspector ? (
+          <WriterV2Inspector embedded />
+        ) : (
+          <>
+            {!activeAnnotation && inspectorTab !== 'text' && inspectorTab !== 'takeoff' && inspectorTab !== 'redaction' && inspectorTab !== 'compliance' && (
           <div className="h-full flex items-center justify-center p-6">
             <div className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-6 text-center">
               <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center">
@@ -185,7 +224,9 @@ export const InspectorPanel: React.FC = () => {
         {activeAnnotation && inspectorTab === 'properties' && (
           <PropertiesTab
             annotation={activeAnnotation}
+            selection={selection}
             updateAnnotation={updateAnnotation}
+            replaceAnnotations={replaceAnnotations}
             deleteSelection={deleteSelection}
             setReviewStatusForSelection={setReviewStatusForSelection}
             toggleLockSelection={toggleLockSelection}
@@ -221,6 +262,12 @@ export const InspectorPanel: React.FC = () => {
 
         {inspectorTab === 'redaction' && (
           <RedactionInspectorTab />
+        )}
+
+        {inspectorTab === 'compliance' && (
+          <ComplianceInspectorTab />
+        )}
+          </>
         )}
       </div>
     </div>
@@ -427,17 +474,31 @@ const ReviewTab: React.FC<{
 
 const PropertiesTab: React.FC<{
   annotation: PdfAnnotation;
+  selection: PdfAnnotation[];
   updateAnnotation: (id: string, data: Partial<PdfAnnotation>) => void;
+  replaceAnnotations: (removeIds: string[], insertBatch: PdfAnnotation[], historyLabel?: string) => void;
   deleteSelection: () => void;
   setReviewStatusForSelection: (status: 'open' | 'resolved' | 'rejected') => void;
   toggleLockSelection: () => void;
 }> = ({
   annotation,
+  selection,
   updateAnnotation,
+  replaceAnnotations,
   deleteSelection,
   setReviewStatusForSelection,
   toggleLockSelection,
 }) => {
+  const [splitVertexIdx, setSplitVertexIdx] = useState(1);
+  const vertices = getAnnotationPageVertices(annotation);
+  const isLinearCad =
+    annotation.type === 'perimeter-takeoff' ||
+    annotation.type === 'line' ||
+    annotation.type === 'arrow';
+  const mergeCandidate =
+    selection.length === 2
+      ? mergeConnectedPolylines(selection[0], selection[1], 12)
+      : null;
   const richTextReadOnly = isNativeRichTextReadOnly(annotation);
   const richTextStructuralReadOnly = hasNativeRichTextSemantics(annotation);
   const stampArtworkReadOnly = isImportedStampArtworkReadOnly(annotation);
@@ -583,6 +644,157 @@ const PropertiesTab: React.FC<{
           />
         )
       )}
+
+      {isLinearCad && (
+        <div
+          data-testid="inspector-cad-pipe-section"
+          className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5"
+        >
+          <div className="flex items-center justify-between">
+            <SectionTitle title="CAD / Pipe Run" />
+            <span className="text-[11px] font-mono text-slate-500">
+              {vertices.length} vertices
+            </span>
+          </div>
+
+          <LabeledInputShell label="Branch / Line Tag">
+            <input
+              type="text"
+              aria-label="Branch / Line Tag"
+              value={typeof annotation.data.branchName === 'string' ? annotation.data.branchName : (typeof annotation.data.text === 'string' ? annotation.data.text : '')}
+              placeholder='e.g. 4"-P-101-CS'
+              onChange={(e) =>
+                updateAnnotation(annotation.id, {
+                  data: {
+                    ...annotation.data,
+                    branchName: e.target.value,
+                    text: e.target.value,
+                  },
+                })
+              }
+              className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono"
+            />
+          </LabeledInputShell>
+
+          <LabeledNumberInput
+            label="Elevation Z (mm)"
+            value={typeof annotation.data.elevationZ === 'number' ? annotation.data.elevationZ : 100000}
+            onChange={(val) => {
+              const next = Number(val);
+              if (Number.isNaN(next)) return;
+              updateAnnotation(annotation.id, {
+                data: { ...annotation.data, elevationZ: next },
+              });
+            }}
+          />
+
+          {typeof annotation.data.cadLayerName === 'string' && annotation.data.cadLayerName && (
+            <div className="text-[11px] text-slate-500">
+              CAD Layer: <span className="font-mono text-slate-700 dark:text-slate-300">{annotation.data.cadLayerName}</span>
+            </div>
+          )}
+
+          {vertices.length >= 3 && annotation.type !== 'arrow' && annotation.data.locked !== true && (
+            <div className="flex items-center gap-1.5">
+              <select
+                aria-label="Split Vertex Index"
+                value={Math.min(Math.max(1, splitVertexIdx), vertices.length - 2)}
+                onChange={(e) => setSplitVertexIdx(Number(e.target.value))}
+                className="flex-1 text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1"
+              >
+                {vertices.slice(1, -1).map((_, idx) => (
+                  <option key={idx + 1} value={idx + 1}>
+                    Vertex #{idx + 2}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="split-polyline-btn"
+                onClick={() => {
+                  const targetIdx = Math.min(Math.max(1, splitVertexIdx), vertices.length - 2);
+                  const parts = splitPolylineAtVertex(annotation, targetIdx);
+                  if (parts) {
+                    replaceAnnotations([annotation.id], parts, 'Split polyline run');
+                  }
+                }}
+              >
+                Split Run
+              </Button>
+            </div>
+          )}
+
+          {annotation.data.locked !== true && vertices.length >= 2 && (
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="clean-ortho-run-btn"
+                title="Snap nearly horizontal/vertical segments to 90° and remove redundant vertices"
+                onClick={() => {
+                  const patch = orthogonalizePolyline(annotation, { stepDeg: 90 });
+                  if (patch) {
+                    updateAnnotation(annotation.id, {
+                      rect: patch.rect,
+                      data: {
+                        ...annotation.data,
+                        points: patch.points,
+                        coordinateSpace: patch.coordinateSpace,
+                      },
+                    });
+                  }
+                }}
+              >
+                Snap Ortho (90°)
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="clean-iso-run-btn"
+                title="Snap segments to 45° isometric angles and remove redundant vertices"
+                onClick={() => {
+                  const patch = orthogonalizePolyline(annotation, { stepDeg: 45 });
+                  if (patch) {
+                    updateAnnotation(annotation.id, {
+                      rect: patch.rect,
+                      data: {
+                        ...annotation.data,
+                        points: patch.points,
+                        coordinateSpace: patch.coordinateSpace,
+                      },
+                    });
+                  }
+                }}
+              >
+                Snap Iso (45°)
+              </Button>
+            </div>
+          )}
+
+          {mergeCandidate && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              data-testid="merge-polylines-btn"
+              onClick={() => {
+                replaceAnnotations(
+                  [selection[0].id, selection[1].id],
+                  [mergeCandidate],
+                  'Merge pipe runs',
+                );
+              }}
+              className="w-full"
+            >
+              Merge 2 Selected Runs
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -604,7 +816,7 @@ const StyleTab: React.FC<{
   };
 
   const isTextLike = ['textbox', 'callout', 'sticky-note'].includes(annotation.type);
-  const isLineLike = ['line', 'arrow'].includes(annotation.type);
+  const isLineLike = ['line', 'arrow', 'perimeter-takeoff'].includes(annotation.type);
   const isCallout = annotation.type === 'callout';
   const defaultLineEndCap = annotation.type === 'arrow' ? 'arrow' : 'none';
 
@@ -818,30 +1030,41 @@ const StyleTab: React.FC<{
       )}
 
       {isCallout && (
-        <Section title="Leader">
-          <div className="space-y-3">
-            <LabeledSelect
-              label="Style"
-              value={typeof annotation.data.leaderStyle === 'string' ? annotation.data.leaderStyle : 'elbow'}
-              onChange={(val) => applyToSelection({ leaderStyle: val })}
-              options={[{ label: 'Elbow (3-pt)', value: 'elbow' }, { label: 'Straight (2-pt)', value: 'straight' }]}
+        <>
+          <Section title="CAD Landing Shelf">
+            <div className="space-y-3">
+              <LabeledSelect
+                label="Shelf Style"
+                value={typeof annotation.data.shelfStyle === 'string' ? annotation.data.shelfStyle : 'underline'}
+                onChange={(val) => applyToSelection({ shelfStyle: val })}
+                options={[
+                  { label: 'Underline (ASME CAD)', value: 'underline' },
+                  { label: 'Midpoint Shelf', value: 'midpoint' },
+                  { label: 'Direct / None', value: 'none' },
+                ]}
+              />
+              {annotation.data.shelfStyle !== 'none' && (
+                <LabeledNumberInput
+                  label="Shelf Length (pt)"
+                  value={typeof annotation.data.shelfLength === 'number' ? annotation.data.shelfLength : 16}
+                  onChange={(val) => {
+                    const next = Number(val);
+                    if (!Number.isNaN(next)) applyToSelection({ shelfLength: Math.max(0, next) });
+                  }}
+                />
+              )}
+            </div>
+          </Section>
+
+          <Section title="Leaders">
+            <CalloutLeadersSection
+              annotation={annotation as PdfAnnotation & { type: 'callout' }}
+              onUpdateLeaders={(newLeaders) => applyToSelection({ leaders: newLeaders })}
+              onUpdateGlobalArrowhead={(arrowHead) => applyToSelection({ arrowHead })}
+              onUpdateGlobalLeaderStyle={(leaderStyle) => applyToSelection({ leaderStyle })}
             />
-            <LabeledSelect
-              label="Arrowhead"
-              value={typeof annotation.data.arrowHead === 'string' ? annotation.data.arrowHead : 'open'}
-              onChange={(val) => applyToSelection({ arrowHead: val })}
-              options={[
-                { label: 'Open Arrow', value: 'open' },
-                { label: 'Filled Arrow', value: 'filled' },
-                { label: 'Circle (Dot)', value: 'circle' },
-                { label: 'Square', value: 'square' },
-                { label: 'Slash (Tick)', value: 'slash' },
-                { label: 'Diamond', value: 'diamond' },
-                { label: 'None', value: 'none' },
-              ]}
-            />
-          </div>
-        </Section>
+          </Section>
+        </>
       )}
 
       {isLineLike && (
@@ -1027,6 +1250,135 @@ const LabeledSelect: React.FC<{
     </select>
   </LabeledInputShell>
 );
+
+interface CalloutLeadersSectionProps {
+  annotation: PdfAnnotation & { type: 'callout' };
+  onUpdateLeaders: (leaders: CalloutLeaderBranch[]) => void;
+  onUpdateGlobalArrowhead: (arrowHead: string) => void;
+  onUpdateGlobalLeaderStyle: (leaderStyle: string) => void;
+}
+
+const CalloutLeadersSection: React.FC<CalloutLeadersSectionProps> = ({
+  annotation,
+  onUpdateLeaders,
+  onUpdateGlobalArrowhead,
+  onUpdateGlobalLeaderStyle,
+}) => {
+  const currentLeaders: CalloutLeaderBranch[] = (annotation.data.leaders && annotation.data.leaders.length > 0)
+    ? annotation.data.leaders
+    : annotation.data.anchor
+      ? [{
+          id: 'primary',
+          anchor: annotation.data.anchor,
+          knee: annotation.data.knee,
+          leaderStyle: (annotation.data.leaderStyle as CalloutLeaderBranch['leaderStyle']) ?? 'elbow',
+          arrowHead: (annotation.data.arrowHead as CalloutLeaderBranch['arrowHead']) ?? 'open',
+        }]
+      : [];
+
+  const handleAddLeader = () => {
+    const newId = `leader-${Date.now()}`;
+    const baseAnchor = currentLeaders[currentLeaders.length - 1]?.anchor ?? {
+      x: annotation.rect.x - 40,
+      y: annotation.rect.y + annotation.rect.height / 2,
+    };
+    const newLeader: CalloutLeaderBranch = {
+      id: newId,
+      anchor: { x: baseAnchor.x, y: baseAnchor.y + 40 },
+      knee: null,
+      leaderStyle: 'elbow',
+      arrowHead: 'open',
+    };
+    onUpdateLeaders([...currentLeaders, newLeader]);
+  };
+
+  const handleRemoveLeader = (id: string) => {
+    if (currentLeaders.length <= 1) return;
+    const next = currentLeaders.filter((l) => l.id !== id);
+    onUpdateLeaders(next);
+  };
+
+  const handleUpdateBranch = (id: string, patch: Partial<CalloutLeaderBranch>) => {
+    const next = currentLeaders.map((l) => (l.id === id ? { ...l, ...patch } : l));
+    onUpdateLeaders(next);
+  };
+
+  return (
+    <div className="space-y-3" data-testid="callout-leaders-inspector">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          Branches ({currentLeaders.length})
+        </span>
+        <button
+          type="button"
+          data-testid="callout-add-leader-btn"
+          onClick={handleAddLeader}
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 hover:bg-blue-100 transition-colors"
+        >
+          <Plus className="w-3 h-3" />
+          <span>Add Leader</span>
+        </button>
+      </div>
+
+      {currentLeaders.map((branch, index) => (
+        <div
+          key={branch.id}
+          data-testid={`callout-leader-row-${branch.id}`}
+          className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 space-y-2 text-xs"
+        >
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-slate-600 dark:text-slate-400">
+              Leader {index + 1}
+            </span>
+            {currentLeaders.length > 1 && (
+              <button
+                type="button"
+                data-testid={`callout-remove-leader-${branch.id}`}
+                onClick={() => handleRemoveLeader(branch.id)}
+                className="p-0.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors"
+                title="Remove leader"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <LabeledSelect
+              label="Arrowhead"
+              value={branch.arrowHead ?? 'open'}
+              onChange={(val) => {
+                handleUpdateBranch(branch.id, { arrowHead: val as CalloutLeaderBranch['arrowHead'] });
+                if (index === 0) onUpdateGlobalArrowhead(val);
+              }}
+              options={[
+                { label: 'Open', value: 'open' },
+                { label: 'Filled', value: 'filled' },
+                { label: 'Dot', value: 'circle' },
+                { label: 'Square', value: 'square' },
+                { label: 'Slash', value: 'slash' },
+                { label: 'Diamond', value: 'diamond' },
+                { label: 'None', value: 'none' },
+              ]}
+            />
+            <LabeledSelect
+              label="Style"
+              value={branch.leaderStyle ?? 'elbow'}
+              onChange={(val) => {
+                handleUpdateBranch(branch.id, { leaderStyle: val as CalloutLeaderBranch['leaderStyle'] });
+                if (index === 0) onUpdateGlobalLeaderStyle(val);
+              }}
+              options={[
+                { label: 'Elbow', value: 'elbow' },
+                { label: 'Straight', value: 'straight' },
+              ]}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const LabeledTextarea: React.FC<{
   label: string;

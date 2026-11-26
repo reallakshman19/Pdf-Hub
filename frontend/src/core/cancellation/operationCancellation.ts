@@ -37,9 +37,10 @@ export async function raceWithAbort<T>(
     void operationPromise.catch(() => undefined);
     try {
       onAbort?.();
-    } finally {
-      throw new OperationCancelledError(operation, signal.reason);
+    } catch {
+      // Cancellation error supersedes cleanup error
     }
+    throw new OperationCancelledError(operation, signal.reason);
   }
   if (!signal) return operationPromise;
 

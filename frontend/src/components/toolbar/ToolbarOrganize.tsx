@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Layers,
   PlusSquare,
@@ -13,6 +14,11 @@ import {
   Redo,
   Hash,
   FileText,
+  MoreHorizontal,
+  Stamp,
+  Crop,
+  Maximize2,
+  GitMerge,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -42,8 +48,27 @@ import { ReplacePageDialog } from '../dialogs/ReplacePageDialog';
 import { InsertPdfDialog } from '../dialogs/InsertPdfDialog';
 import { PageLabelsDialog } from '../dialogs/PageLabelsDialog';
 import { HeaderFooterDialog } from '../dialogs/HeaderFooterDialog';
+import { BatesNumberingDialog } from '../dialogs/BatesNumberingDialog';
+import { CropMarginsDialog } from '../dialogs/CropMarginsDialog';
+import { NormalizePageSizeDialog } from '../dialogs/NormalizePageSizeDialog';
+import { CollatePdfDialog } from '../dialogs/CollatePdfDialog';
+import {
+  consumePendingOrganizeAction,
+  executeBatesNumbering,
+  executeCollateWithDonor,
+  executeCropPdfMargins,
+  executeNormalizePageDimensions,
+  peekPendingOrganizeAction,
+  type OrganizeQuickAction,
+} from '@/core/pdf-mutation/organizeWorkflowActions';
+import type { BatesNumberingOptions } from '@/core/pdf-mutation/pdfBatesNumbering';
+import type { CollationMode } from '@/core/pdf-mutation/pdfCollation';
+import type { CropMarginOptions } from '@/core/pdf-mutation/pdfMarginCropping';
+import type { NormalizeOptions } from '@/core/pdf-mutation/pdfNormalization';
 import type { PageLabelRange } from '@/core/pages/types';
 import type { HeaderFooterTemplate } from '@/core/header-footer/types';
+
+export type { OrganizeQuickAction };
 
 export const ToolbarOrganize: React.FC = () => {
   const [isBlankPageDialogOpen, setIsBlankPageDialogOpen] = useState(false);
@@ -51,8 +76,17 @@ export const ToolbarOrganize: React.FC = () => {
   const [isInsertPdfDialogOpen, setIsInsertPdfDialogOpen] = useState(false);
   const [isPageLabelsDialogOpen, setIsPageLabelsDialogOpen] = useState(false);
   const [isHeaderFooterDialogOpen, setIsHeaderFooterDialogOpen] = useState(false);
+  const [isBatesDialogOpen, setIsBatesDialogOpen] = useState(false);
+  const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
+  const [isNormalizeDialogOpen, setIsNormalizeDialogOpen] = useState(false);
+  const [isCollateDialogOpen, setIsCollateDialogOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [moreMenuPosition, setMoreMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [replaceDonorSet, setReplaceDonorSet] = useState<AdmittedDonorSet | null>(null);
   const [insertDonorSet, setInsertDonorSet] = useState<AdmittedDonorSet | null>(null);
+  const [collateDonorSet, setCollateDonorSet] = useState<AdmittedDonorSet | null>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const donorOperationRef = useRef<{
     controller: AbortController;
     documentKey: string;
@@ -98,6 +132,8 @@ export const ToolbarOrganize: React.FC = () => {
     setReplaceDonorSet(null);
     setIsInsertPdfDialogOpen(false);
     setInsertDonorSet(null);
+    setIsCollateDialogOpen(false);
+    setCollateDonorSet(null);
     const operation = {
       controller: new AbortController(),
       documentKey: expectedDocumentKey,
@@ -124,6 +160,15 @@ export const ToolbarOrganize: React.FC = () => {
     donorOperationRef.current = null;
     setIsInsertPdfDialogOpen(false);
     setInsertDonorSet(null);
+    setIsCollateDialogOpen(false);
+    setCollateDonorSet(null);
+  };
+
+  const closeCollateDonor = () => {
+    donorOperationRef.current?.controller.abort('collate dialog closed');
+    donorOperationRef.current = null;
+    setIsCollateDialogOpen(false);
+    setCollateDonorSet(null);
   };
 
   useEffect(() => {
@@ -565,6 +610,171 @@ export const ToolbarOrganize: React.FC = () => {
     }
   };
 
+  const handleCollatePdf = async () => {
+    const admitted = await admitDonorSelection(false, 'INSERT_PAGES');
+    if (!admitted) return;
+    if (donorOperationRef.current !== admitted.operation) return;
+    setCollateDonorSet(admitted.admitted);
+    setIsCollateDialogOpen(true);
+  };
+
+  const confirmCollatePdf = async (config: {
+    mode: CollationMode;
+    donorPageIndices?: number[];
+  }) => {
+    const operation = donorOperationRef.current;
+    const staged = collateDonorSet;
+    const donor = staged?.donors[0];
+    if (!workingBytes || !documentKey || !operation || !staged || !donor) return;
+
+    try {
+      assertAdmittedDonorSetDispatchAllowed(staged, {
+        signal: operation.controller.signal,
+        ownerDocumentKey: operation.documentKey,
+        isContextCurrent: () => useSessionStore.getState().documentKey === operation.documentKey,
+      });
+      await executeCollateWithDonor({
+        workingBytes,
+        documentKey,
+        donor,
+        donorDocumentKey: operation.documentKey,
+        config,
+        signal: operation.controller.signal,
+        addToast,
+      });
+    } catch (error) {
+      if (!isOperationCancelledError(error) && !operation.controller.signal.aborted) {
+        addToast({
+          type: 'error',
+          title: 'Collation Failed',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } finally {
+      operation.controller.abort('collate operation completed');
+      finishDonorOperation(operation);
+      setCollateDonorSet(null);
+      setIsCollateDialogOpen(false);
+    }
+  };
+
+  const confirmBatesNumbering = async (options: BatesNumberingOptions) => {
+    if (!workingBytes || !documentKey) return;
+    await executeBatesNumbering({
+      workingBytes,
+      documentKey,
+      pageCount,
+      options,
+      addToast,
+    });
+    setIsBatesDialogOpen(false);
+  };
+
+  const confirmCropMargins = async (options: CropMarginOptions) => {
+    if (!workingBytes || !documentKey) return;
+    await executeCropPdfMargins({
+      workingBytes,
+      documentKey,
+      pageCount,
+      options,
+      addToast,
+    });
+    setIsCropDialogOpen(false);
+  };
+
+  const confirmNormalizeDimensions = async (options: NormalizeOptions) => {
+    if (!workingBytes || !documentKey) return;
+    await executeNormalizePageDimensions({
+      workingBytes,
+      documentKey,
+      pageCount,
+      options,
+      addToast,
+    });
+    setIsNormalizeDialogOpen(false);
+  };
+
+  useEffect(() => {
+    if (!isMoreMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        moreMenuRef.current?.contains(target)
+        || moreButtonRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setIsMoreMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isMoreMenuOpen]);
+
+  const organizeActionRef = useRef<(action: OrganizeQuickAction) => void>(() => {});
+  useEffect(() => {
+    organizeActionRef.current = (action: OrganizeQuickAction) => {
+      setIsMoreMenuOpen(false);
+      if (!workingBytes || !documentKey) {
+        addToast({
+          type: 'info',
+          title: 'Open a PDF First',
+          message: 'Open a PDF document before running page organization tools.',
+        });
+        return;
+      }
+      if (action === 'bates') setIsBatesDialogOpen(true);
+      else if (action === 'crop') setIsCropDialogOpen(true);
+      else if (action === 'normalize') setIsNormalizeDialogOpen(true);
+      else if (action === 'collate') void handleCollatePdf();
+    };
+  });
+
+  useEffect(() => {
+    const onOrganizeAction = (event: Event) => {
+      const action = (event as CustomEvent<OrganizeQuickAction | undefined>).detail;
+      if (!action) return;
+      organizeActionRef.current(action);
+    };
+    document.addEventListener('pdf-hub:organize-action', onOrganizeAction);
+    const pending = peekPendingOrganizeAction();
+    const timer = pending
+      ? window.setTimeout(() => {
+          const next = consumePendingOrganizeAction();
+          if (next) organizeActionRef.current(next);
+        }, 0)
+      : null;
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      document.removeEventListener('pdf-hub:organize-action', onOrganizeAction);
+    };
+  }, []);
+
+  const toggleMoreMenu = () => {
+    if (isMoreMenuOpen) {
+      setIsMoreMenuOpen(false);
+      return;
+    }
+    const rect = moreButtonRef.current?.getBoundingClientRect();
+    setMoreMenuPosition(
+      rect
+        ? {
+            top: rect.bottom + 4,
+            left: Math.max(8, Math.min(rect.left, window.innerWidth - 220)),
+          }
+        : { top: 88, left: 16 },
+    );
+    setIsMoreMenuOpen(true);
+  };
+
   return (
     <>
       <InsertBlankPageDialog
@@ -609,6 +819,48 @@ export const ToolbarOrganize: React.FC = () => {
           onApply={handlePageLabelsApply}
         />
       )}
+      {isBatesDialogOpen && (
+        <BatesNumberingDialog
+          isOpen={isBatesDialogOpen}
+          totalDocumentPages={pageCount}
+          selectedPages={selectedPages}
+          currentPage={viewState.currentPage}
+          onClose={() => setIsBatesDialogOpen(false)}
+          onConfirm={confirmBatesNumbering}
+        />
+      )}
+      {isCropDialogOpen && (
+        <CropMarginsDialog
+          isOpen={isCropDialogOpen}
+          totalDocumentPages={pageCount}
+          selectedPages={selectedPages}
+          currentPage={viewState.currentPage}
+          onClose={() => setIsCropDialogOpen(false)}
+          onConfirm={confirmCropMargins}
+        />
+      )}
+      {isNormalizeDialogOpen && (
+        <NormalizePageSizeDialog
+          isOpen={isNormalizeDialogOpen}
+          totalDocumentPages={pageCount}
+          selectedPages={selectedPages}
+          currentPage={viewState.currentPage}
+          onClose={() => setIsNormalizeDialogOpen(false)}
+          onConfirm={confirmNormalizeDimensions}
+        />
+      )}
+      {isCollateDialogOpen && collateDonorSet?.donors[0] && (
+        <CollatePdfDialog
+          isOpen={isCollateDialogOpen}
+          primaryFileName={fileName ?? 'document.pdf'}
+          primaryPageCount={pageCount}
+          donorFileName={collateDonorSet.donors[0].fileName}
+          donorPageCount={collateDonorSet.donors[0].pageCount}
+          onClose={closeCollateDonor}
+          onConfirm={confirmCollatePdf}
+        />
+      )}
+
       <div className="flex items-center space-x-1">
         <Tooltip content={peekUndo() ? `Undo: ${peekUndo()?.label}` : "Undo"}>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void applyUndo()} disabled={!canUndo() || !workingBytes}>
@@ -711,7 +963,84 @@ export const ToolbarOrganize: React.FC = () => {
           </Button>
         </Tooltip>
 
+        <Tooltip content="More organize tools (Bates, Crop, Normalize, Collate)">
+          <Button
+            ref={moreButtonRef}
+            variant="ghost"
+            size="icon"
+            aria-label="More organize tools"
+            aria-haspopup="menu"
+            aria-expanded={isMoreMenuOpen}
+            data-testid="toolbar-organize-more-btn"
+            className="h-8 w-8"
+            onClick={toggleMoreMenu}
+            disabled={!workingBytes}
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </Button>
+        </Tooltip>
+
       </div>
+
+      {isMoreMenuOpen && moreMenuPosition && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={moreMenuRef}
+              role="menu"
+              aria-label="More organize tools"
+              data-testid="toolbar-organize-more-menu"
+              style={{
+                position: 'fixed',
+                top: moreMenuPosition.top,
+                left: moreMenuPosition.left,
+                zIndex: 70,
+              }}
+              className="w-56 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1 text-xs"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="organize-menu-bates"
+                onClick={() => organizeActionRef.current('bates')}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 bg-transparent border-none cursor-pointer"
+              >
+                <Stamp className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>Bates Numbering…</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="organize-menu-crop"
+                onClick={() => organizeActionRef.current('crop')}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 bg-transparent border-none cursor-pointer"
+              >
+                <Crop className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>Crop Margins…</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="organize-menu-normalize"
+                onClick={() => organizeActionRef.current('normalize')}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 bg-transparent border-none cursor-pointer"
+              >
+                <Maximize2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>Normalize Page Size…</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="organize-menu-collate"
+                onClick={() => organizeActionRef.current('collate')}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 bg-transparent border-none cursor-pointer"
+              >
+                <GitMerge className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>Collate with PDF…</span>
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 };
