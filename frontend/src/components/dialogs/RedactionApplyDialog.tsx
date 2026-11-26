@@ -13,6 +13,7 @@ export interface RedactionApplyDialogProps {
     saveAsCopy: boolean;
     outputFileName: string;
     downloadAuditManifest: boolean;
+    scrubMetadata?: boolean;
   }) => Promise<void> | void;
 }
 
@@ -25,6 +26,7 @@ export const RedactionApplyDialog: React.FC<RedactionApplyDialogProps> = ({
 }) => {
   const [saveAsCopy, setSaveAsCopy] = useState(true);
   const [downloadAuditManifest, setDownloadAuditManifest] = useState(true);
+  const [scrubMetadata, setScrubMetadata] = useState(false);
 
   const cleanBase = useMemo(() => {
     return documentName.replace(/\.[^/.]+$/, '').trim() || 'document';
@@ -64,6 +66,7 @@ export const RedactionApplyDialog: React.FC<RedactionApplyDialogProps> = ({
         saveAsCopy,
         outputFileName: finalName,
         downloadAuditManifest,
+        ...(scrubMetadata ? { scrubMetadata: true } : {}),
       });
       onClose();
     } finally {
@@ -174,6 +177,24 @@ export const RedactionApplyDialog: React.FC<RedactionApplyDialogProps> = ({
               </span>
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                 Generates a verifiable report containing document hashes, purged character counts, and timestamps.
+              </span>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-2.5 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              data-testid="redaction-scrub-metadata-checkbox"
+              checked={scrubMetadata}
+              onChange={(e) => setScrubMetadata(e.target.checked)}
+              className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <div className="text-xs">
+              <span className="font-semibold text-slate-800 dark:text-slate-200 block">
+                Scrub PDF document metadata (/Info &amp; XMP)
+              </span>
+              <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                Strips Title, Author, Subject, Keywords, and embedded XMP metadata packets from the redacted output.
               </span>
             </div>
           </label>

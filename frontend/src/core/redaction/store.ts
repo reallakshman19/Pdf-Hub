@@ -37,7 +37,12 @@ export function getState(): RedactionState {
   };
 }
 
-export function addRegion(pageNumber: number, rect: PdfRect, reason?: string): RedactionRegion {
+export function addRegion(
+  pageNumber: number,
+  rect: PdfRect,
+  reason?: string,
+  options?: { sourceAnnotationId?: string },
+): RedactionRegion {
   const id = `r${state.nextId++}`;
   const region: RedactionRegion = {
     id,
@@ -45,6 +50,7 @@ export function addRegion(pageNumber: number, rect: PdfRect, reason?: string): R
     rect: { ...rect },
     reason,
     status: 'preview',
+    ...(options?.sourceAnnotationId ? { sourceAnnotationId: options.sourceAnnotationId } : {}),
   };
   state.regions.push(region);
   notify();
@@ -67,6 +73,17 @@ export function updateRegion(
   return region;
 }
 
+export function updateRegionByAnnotationId(
+  annotationId: string,
+  rect: PdfRect,
+): RedactionRegion | undefined {
+  const region = state.regions.find((r) => r.sourceAnnotationId === annotationId);
+  if (!region) return undefined;
+  region.rect = { ...rect };
+  notify();
+  return region;
+}
+
 export function deleteRegions(regionIds: string[]): number {
   let removed = 0;
   for (const id of regionIds) {
@@ -76,6 +93,21 @@ export function deleteRegions(regionIds: string[]): number {
       removed++;
     }
   }
+  if (removed > 0) notify();
+  return removed;
+}
+
+export function deleteRegionsByAnnotationIds(annotationIds: readonly string[]): number {
+  if (annotationIds.length === 0) return 0;
+  const targets = new Set(annotationIds);
+  const before = state.regions.length;
+  for (let i = state.regions.length - 1; i >= 0; i--) {
+    const sourceId = state.regions[i].sourceAnnotationId;
+    if (sourceId && targets.has(sourceId)) {
+      state.regions.splice(i, 1);
+    }
+  }
+  const removed = before - state.regions.length;
   if (removed > 0) notify();
   return removed;
 }

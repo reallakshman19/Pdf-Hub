@@ -3,6 +3,8 @@ import {
   exportPdfHubWriterProject,
   importPdfHubWriterProject,
 } from '../writer-v2/export/projectZip';
+import { writeNativePdfAnnotations } from '../pdf-annotations/nativeAnnotationWriter';
+import { exportPdfA } from '../pdfa/pdfaExporter';
 import type {
   ExportWorkerRequest,
   ExportWorkerResponse,
@@ -139,6 +141,51 @@ export function createExportWorkerMessageHandler(
           input.postMessage({
             requestId: request.requestId,
             type: 'UNPACK_RESULT',
+            payload: { result },
+          });
+        } finally {
+          state.activeRequests.delete(request.requestId);
+        }
+        return;
+      }
+
+      if (request.type === 'SERIALIZE_ANNOTATIONS') {
+        const controller = new AbortController();
+        state.activeRequests.set(request.requestId, controller);
+
+        try {
+          const result = await writeNativePdfAnnotations(
+            request.payload.pdfBytes,
+            request.payload.annotations,
+            request.payload.options,
+          );
+
+          input.postMessage({
+            requestId: request.requestId,
+            type: 'SERIALIZE_RESULT',
+            payload: {
+              bytes: result.bytes,
+              annotationCount: result.annotationCount,
+            },
+          });
+        } finally {
+          state.activeRequests.delete(request.requestId);
+        }
+        return;
+      }
+
+      if (request.type === 'EXPORT_PDFA') {
+        const controller = new AbortController();
+        state.activeRequests.set(request.requestId, controller);
+
+        try {
+          const result = await exportPdfA(request.payload, {
+            signal: controller.signal,
+          });
+
+          input.postMessage({
+            requestId: request.requestId,
+            type: 'PDFA_RESULT',
             payload: { result },
           });
         } finally {

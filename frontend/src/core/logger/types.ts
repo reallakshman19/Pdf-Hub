@@ -1,5 +1,5 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-export type LogSource = 'system' | 'capabilities' | 'session' | 'pdf-renderer' | 'ocr' | 'annotation' | 'macro' | 'writer' | 'history';
+export type LogSource = 'system' | 'capabilities' | 'session' | 'pdf-renderer' | 'ocr' | 'annotation' | 'macro' | 'writer' | 'history' | 'pdfa';
 
 export interface AppLogEntry {
   id: string;

@@ -24,7 +24,7 @@ export default defineConfig({
                                '@lexical/table', '@lexical/list', '@lexical/link',
                                '@lexical/html', '@lexical/utils', '@lexical/selection',
                                '@lexical/history', '@lexical/code'],
-            'vendor-pdf':     ['pdf-lib', 'pdfjs-dist'],
+            'vendor-pdf':     ['pdf-lib', '@pdf-lib/fontkit', 'pdfjs-dist'],
             'vendor-canvas':  ['konva', 'react-konva', 'html2canvas'],
             'vendor-docs':    ['docx', 'jszip', 'fflate'],
           };

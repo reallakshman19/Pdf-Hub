@@ -7,12 +7,19 @@ import type {
   ExportPdfHubProjectResult,
   ImportPdfHubProjectResult,
 } from '../writer-v2/export/projectZip';
+import type { PdfAnnotation } from '../annotations/types';
+import type {
+  ExportPdfAInput,
+  ExportPdfAResult,
+} from '../pdfa/types';
 
 export type ExportWorkerRequestType =
   | 'PING'
   | 'FLATTEN_PDF'
   | 'PACK_PROJECT_ZIP'
   | 'UNPACK_PROJECT_ZIP'
+  | 'SERIALIZE_ANNOTATIONS'
+  | 'EXPORT_PDFA'
   | 'CANCEL_REQUEST';
 
 export type ExportWorkerResponseType =
@@ -20,6 +27,8 @@ export type ExportWorkerResponseType =
   | 'FLATTEN_RESULT'
   | 'PACK_RESULT'
   | 'UNPACK_RESULT'
+  | 'SERIALIZE_RESULT'
+  | 'PDFA_RESULT'
   | 'REQUEST_CANCELLED'
   | 'ERROR';
 
@@ -49,6 +58,22 @@ export interface ExportWorkerUnpackProjectZipRequest extends ExportWorkerBaseReq
   };
 }
 
+export interface ExportWorkerSerializeAnnotationsRequest extends ExportWorkerBaseRequest {
+  type: 'SERIALIZE_ANNOTATIONS';
+  payload: {
+    pdfBytes: Uint8Array;
+    annotations: PdfAnnotation[];
+    options?: {
+      replaceManagedAnnotations?: boolean;
+    };
+  };
+}
+
+export interface ExportWorkerPdfARequest extends ExportWorkerBaseRequest {
+  type: 'EXPORT_PDFA';
+  payload: ExportPdfAInput;
+}
+
 export interface ExportWorkerCancelRequest extends ExportWorkerBaseRequest {
   type: 'CANCEL_REQUEST';
   targetRequestId: string;
@@ -59,6 +84,8 @@ export type ExportWorkerRequest =
   | ExportWorkerFlattenPdfRequest
   | ExportWorkerPackProjectZipRequest
   | ExportWorkerUnpackProjectZipRequest
+  | ExportWorkerSerializeAnnotationsRequest
+  | ExportWorkerPdfARequest
   | ExportWorkerCancelRequest;
 
 export interface ExportWorkerBaseResponse {
@@ -95,6 +122,21 @@ export interface ExportWorkerUnpackResultResponse extends ExportWorkerBaseRespon
   };
 }
 
+export interface ExportWorkerSerializeResultResponse extends ExportWorkerBaseResponse {
+  type: 'SERIALIZE_RESULT';
+  payload: {
+    bytes: Uint8Array;
+    annotationCount: number;
+  };
+}
+
+export interface ExportWorkerPdfAResultResponse extends ExportWorkerBaseResponse {
+  type: 'PDFA_RESULT';
+  payload: {
+    result: ExportPdfAResult;
+  };
+}
+
 export interface ExportWorkerRequestCancelledResponse extends ExportWorkerBaseResponse {
   type: 'REQUEST_CANCELLED';
   payload: {
@@ -116,6 +158,8 @@ export type ExportWorkerResponse =
   | ExportWorkerFlattenResultResponse
   | ExportWorkerPackResultResponse
   | ExportWorkerUnpackResultResponse
+  | ExportWorkerSerializeResultResponse
+  | ExportWorkerPdfAResultResponse
   | ExportWorkerRequestCancelledResponse
   | ExportWorkerErrorResponse;
 

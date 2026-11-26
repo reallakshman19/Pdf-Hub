@@ -64,6 +64,12 @@ export async function generateRedactionAuditManifest(
     totalRedactionsApplied: sanitizationResult.appliedRedactionCount,
     purgedTextCharacterCount: sanitizationResult.purgedTextCharacterCount,
     purgedAnnotationsCount: sanitizationResult.purgedAnnotationsCount,
+    ...(typeof sanitizationResult.purgedImagesCount === 'number'
+      ? { purgedImagesCount: sanitizationResult.purgedImagesCount }
+      : {}),
+    ...(typeof sanitizationResult.metadataScrubbed === 'boolean'
+      ? { metadataScrubbed: sanitizationResult.metadataScrubbed }
+      : {}),
     redactedPages: [...sanitizationResult.redactedPages],
     records: sanitizationResult.records.map((r) => ({ ...r })),
   };
