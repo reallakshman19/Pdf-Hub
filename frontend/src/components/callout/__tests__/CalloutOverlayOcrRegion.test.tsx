@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
-import { WriterOverlay } from '../WriterOverlay';
+import { CalloutOverlay } from '../CalloutOverlay';
 import { useEditorStore } from '@/core/editor/store';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import { useSessionStore } from '@/core/session/store';
-import { useWriterStore } from '@/core/writer/store';
+import { useCalloutStore } from '@/core/callout/store';
 
 const viewport = {
   width: 300,
@@ -18,10 +18,10 @@ const viewport = {
   },
 };
 
-describe('WriterOverlay OCR area selection', () => {
+describe('CalloutOverlay OCR area selection', () => {
   beforeEach(() => {
     useOcrStore.getState().clearOcr();
-    useWriterStore.setState({
+    useCalloutStore.setState({
       elements: [],
       activeTool: 'ocr-region',
       selectedIds: [],
@@ -39,7 +39,7 @@ describe('WriterOverlay OCR area selection', () => {
 
   it('creates an OCR review region from a drag on the real page after mode choice', () => {
     render(
-      <WriterOverlay
+      <CalloutOverlay
         pageNumber={1}
         scale={1}
         pageDimensions={{ width: 300, height: 400 }}
@@ -96,7 +96,7 @@ describe('WriterOverlay OCR area selection', () => {
 
   it('does not create a region when the mode picker is cancelled', () => {
     render(
-      <WriterOverlay
+      <CalloutOverlay
         pageNumber={2}
         scale={1}
         pageDimensions={{ width: 300, height: 400 }}

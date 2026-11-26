@@ -1,6 +1,6 @@
-import type { PlacedElement, WriterStyles } from './types';
+import type { CalloutStyles, PlacedElement } from './types';
 
-export function normalizeWriterElement(
+export function normalizeCalloutElement(
   element: Partial<PlacedElement> & Pick<PlacedElement, 'id' | 'type' | 'pageNumber'>,
 ): PlacedElement {
   return {
@@ -12,7 +12,7 @@ export function normalizeWriterElement(
     width: positiveOr(element.width, 120),
     height: positiveOr(element.height, 40),
     content: element.content ?? '',
-    styles: normalizeWriterStyles(element.styles ?? element.style),
+    styles: normalizeCalloutStyles(element.styles ?? element.style),
     style: element.style ?? element.styles,
     contentModel: element.contentModel,
     zIndex: Number.isFinite(element.zIndex) ? Number(element.zIndex) : 0,
@@ -23,7 +23,7 @@ export function normalizeWriterElement(
   };
 }
 
-export function normalizeWriterStyles(styles?: WriterStyles): WriterStyles {
+export function normalizeCalloutStyles(styles?: CalloutStyles): CalloutStyles {
   return {
     fontSize: finiteOptional(styles?.fontSize),
     fontFamily: styles?.fontFamily,
@@ -40,33 +40,33 @@ export function normalizeWriterStyles(styles?: WriterStyles): WriterStyles {
   };
 }
 
-export function visibleWriterElementsForExport(
+export function visibleCalloutElementsForExport(
   elements: PlacedElement[],
 ): PlacedElement[] {
   return elements
     .filter((element) => !element.hidden)
-    .map((element) => normalizeWriterElement(element))
+    .map((element) => normalizeCalloutElement(element))
     .sort((a, b) => {
       if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
       return (a.zIndex ?? 0) - (b.zIndex ?? 0);
     });
 }
 
-export function writerElementDisplayName(element: PlacedElement): string {
+export function calloutElementDisplayName(element: PlacedElement): string {
   if (element.name?.trim()) return element.name.trim();
 
   if (element.type === 'rich-text') return 'Text';
   if (element.type === 'image') return 'Image';
   if (element.type === 'table') return 'Table';
 
-  return 'Writer object';
+  return 'Callout object';
 }
 
-export function cloneWriterElement(
+export function cloneCalloutElement(
   element: PlacedElement,
   overrides: Partial<PlacedElement> = {},
 ): PlacedElement {
-  return normalizeWriterElement({
+  return normalizeCalloutElement({
     ...element,
     ...overrides,
     id: overrides.id ?? element.id,

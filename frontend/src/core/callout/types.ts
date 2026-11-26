@@ -1,4 +1,4 @@
-export type WriterTool =
+export type CalloutTool =
   | 'select'
   | 'place-text'
   | 'place-image'
@@ -12,6 +12,9 @@ export type WriterTool =
   | 'header-footer'
   | 'inspect'
   | 'object-list';
+
+/** @deprecated Use CalloutTool */
+export type WriterTool = CalloutTool;
 
 export type TransformHandle = 'nw' | 'ne' | 'se' | 'sw' | 'move';
 
@@ -35,9 +38,11 @@ export interface WriterStyles {
  *
  * Canonical repo name remains WriterStyles for existing app compatibility.
  */
+export type CalloutStyles = WriterStyles;
 export type WriterElementStyle = WriterStyles;
+export type CalloutElementStyle = WriterStyles;
 
-export interface WriterCellStyle {
+export interface CalloutCellStyle {
   backgroundColor?: string;
   textAlign?: 'left' | 'center' | 'right';
   align?: 'left' | 'center' | 'right';
@@ -47,26 +52,26 @@ export interface WriterCellStyle {
   color?: string;
 }
 
-export interface WriterTableCell {
+export interface CalloutTableCell {
   id: string;
   text: string;
   colspan?: number;
   rowspan?: number;
-  style?: WriterCellStyle;
+  style?: CalloutCellStyle;
 }
 
-export interface WriterTableRow {
+export interface CalloutTableRow {
   id: string;
-  cells: WriterTableCell[];
+  cells: CalloutTableCell[];
 }
 
-export interface WriterTableColumn {
+export interface CalloutTableColumn {
   id: string;
   label?: string;
   width?: number;
 }
 
-export interface WriterTableStyle {
+export interface CalloutTableStyle {
   borderColor?: string;
   headerBg?: string;
   headerBackgroundColor?: string;
@@ -78,61 +83,62 @@ export interface WriterTableStyle {
 /**
  * Canonical repo table shape.
  */
-export interface WriterTableData {
-  rows: WriterTableRow[];
-  columns: WriterTableColumn[];
-  style: WriterTableStyle;
+export interface CalloutTableData {
+  rows: CalloutTableRow[];
+  columns: CalloutTableColumn[];
+  style: CalloutTableStyle;
 }
 
 /**
  * Compatibility name used by newer enhancement code.
  */
-export type WriterTableModel = WriterTableData;
+export type CalloutTableModel = CalloutTableData;
+export type WriterTableModel = CalloutTableData;
 
-export interface WriterRichTextRun {
+export interface CalloutRichTextRun {
   id?: string;
   text: string;
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
-  style?: WriterStyles;
+  style?: CalloutStyles;
 }
 
-export interface WriterRichTextBlock {
+export interface CalloutRichTextBlock {
   id?: string;
   type?: 'paragraph' | 'heading' | 'list-item';
-  runs?: WriterRichTextRun[];
+  runs?: CalloutRichTextRun[];
   text?: string;
   align?: 'left' | 'center' | 'right' | 'justify';
 }
 
-export interface WriterRichTextModel {
+export interface CalloutRichTextModel {
   kind: 'rich-text';
-  blocks: WriterRichTextBlock[];
+  blocks: CalloutRichTextBlock[];
 }
 
-export interface WriterImageCrop {
+export interface CalloutImageCrop {
   x: number;
   y: number;
   width: number;
   height: number;
 }
 
-export interface WriterImageModel {
+export interface CalloutImageModel {
   kind: 'image';
   src: string;
   alt?: string;
   opacity?: number;
   rotation?: number;
-  crop?: WriterImageCrop;
+  crop?: CalloutImageCrop;
 }
 
-export type WriterContentModel =
-  | WriterRichTextModel
-  | (WriterTableModel & { kind?: 'table' })
-  | WriterImageModel;
+export type CalloutContentModel =
+  | CalloutRichTextModel
+  | (CalloutTableModel & { kind?: 'table' })
+  | CalloutImageModel;
 
-export interface WriterSourceMeta {
+export interface CalloutSourceMeta {
   source?: 'manual' | 'paste' | 'template' | 'import' | string;
   importedAt?: string;
   mimeType?: string;
@@ -159,19 +165,21 @@ export interface PlacedElement {
   /**
    * Existing app contract.
    */
-  styles: WriterStyles;
+  styles: CalloutStyles;
+
+  /** Canonical style contract alias */
 
   /**
    * Compatibility property used by some enhanced writer code.
    * Keep optional. Do not migrate existing app code blindly from styles -> style.
    */
-  style?: WriterElementStyle;
+  style?: CalloutElementStyle;
 
   /**
    * Compatibility model field used by enhanced code.
    * Existing app can keep using content.
    */
-  contentModel?: WriterContentModel;
+  contentModel?: CalloutContentModel;
 
   zIndex: number;
   locked: boolean;
@@ -181,16 +189,21 @@ export interface PlacedElement {
    */
   hidden?: boolean;
   name?: string;
-  sourceMeta?: WriterSourceMeta;
+  sourceMeta?: CalloutSourceMeta;
 }
 
-export interface WriterSelectionState {
+export interface CalloutSelectionState {
   selectedElementId: string | null;
-  selectedTool: WriterTool;
+  selectedTool: CalloutTool;
 }
 
-export interface WriterStoreSnapshot {
-  tool: WriterTool;
+export interface CalloutStoreSnapshot {
+  tool: CalloutTool;
   elements: PlacedElement[];
   selectedElementId: string | null;
 }
+export type CalloutElement = PlacedElement;
+export type WriterTableStyle = CalloutTableStyle;
+export type WriterTableRow = CalloutTableRow;
+export type WriterTableCell = CalloutTableCell;
+export type WriterTableColumn = CalloutTableColumn;

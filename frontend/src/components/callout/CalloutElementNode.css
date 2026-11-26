@@ -1,4 +1,4 @@
-.writer-element-node {
+.callout-element-node {
   position: absolute;
   pointer-events: all;
   box-sizing: border-box;
@@ -6,23 +6,23 @@
   overflow: hidden;
 }
 
-.writer-element-node-selected {
+.callout-element-node-selected {
   outline: 1.5px dashed #3b82f6;
 }
 
-.writer-element-node-unselected {
+.callout-element-node-unselected {
   outline: 1px solid transparent;
 }
 
-.writer-element-node-locked {
+.callout-element-node-locked {
   cursor: default;
 }
 
-.writer-element-node-unlocked {
+.callout-element-node-unlocked {
   cursor: move;
 }
 
-.writer-resize-handle {
+.callout-resize-handle {
   position: absolute;
   background: #3b82f6;
   border: 1.5px solid white;
@@ -30,7 +30,7 @@
   pointer-events: all;
 }
 
-.writer-context-menu-container {
+.callout-context-menu-container {
   position: absolute;
   background: white;
   border: 0.5px solid #e2e8f0;
@@ -42,24 +42,24 @@
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
-.writer-context-menu-item {
+.callout-context-menu-item {
   padding: 5px 12px;
   cursor: pointer;
   font-size: 13px;
   color: #1e293b;
 }
 
-.writer-context-menu-item-danger {
+.callout-context-menu-item-danger {
   color: #ef4444;
 }
 
-.writer-context-menu-divider {
+.callout-context-menu-divider {
   height: 1px;
   background: #e2e8f0;
   margin: 2px 0;
 }
 
-.writer-context-menu-backdrop {
+.callout-context-menu-backdrop {
   position: fixed;
   inset: 0;
   z-index: 998;

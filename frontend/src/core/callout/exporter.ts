@@ -1,25 +1,25 @@
 import { PdfEditAdapter } from '../../adapters/pdf-edit/PdfEditAdapter';
-import type { PlacedElement, WriterTableData } from './types';
-import { visibleWriterElementsForExport } from './writerObjects';
+import type { CalloutTableData, PlacedElement } from './types';
+import { visibleCalloutElementsForExport } from './calloutObjects';
 
-export interface WriterExportWarning {
+export interface CalloutExportWarning {
   elementId: string;
   pageNumber: number;
   reason: string;
   fallback: 'raster' | 'skipped';
 }
 
-export interface WriterExportOptions {
+export interface CalloutExportOptions {
   preferSemantic?: boolean;
   allowRasterFallback?: boolean;
-  collectWarnings?: (warnings: WriterExportWarning[]) => void;
+  collectWarnings?: (warnings: CalloutExportWarning[]) => void;
 }
 
-/** @deprecated Use WriterExportOptions */
-export interface BakeWriterElementsOptions {
+/** @deprecated Use CalloutExportOptions */
+export interface BakeCalloutElementsOptions {
   preferSemantic?: boolean;
   allowRasterFallback?: boolean;
-  collectWarnings?: (warnings: WriterExportWarning[]) => void;
+  collectWarnings?: (warnings: CalloutExportWarning[]) => void;
 }
 
 function escapeHtml(value: string): string {
@@ -31,7 +31,7 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#039;');
 }
 
-export function sanitizeWriterHtml(html: string): string {
+export function sanitizeCalloutHtml(html: string): string {
   // Strip script, style, iframe, object, embed, form tags and event attributes
   return html
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
@@ -45,7 +45,7 @@ export function sanitizeWriterHtml(html: string): string {
 }
 
 export function buildTableHtml(
-  data: WriterTableData,
+  data: CalloutTableData,
   width: number,
   scale: number,
 ): string {
@@ -77,7 +77,7 @@ async function drawRichTextElement(
   element: PlacedElement,
   container: HTMLDivElement,
 ): Promise<void> {
-  container.innerHTML = sanitizeWriterHtml(element.content);
+  container.innerHTML = sanitizeCalloutHtml(element.content);
 }
 
 async function drawTableElement(
@@ -85,13 +85,13 @@ async function drawTableElement(
   container: HTMLDivElement,
   renderScale: number,
 ): Promise<void> {
-  const tableData = JSON.parse(element.content || '{"rows":[],"columns":[],"style":{}}') as WriterTableData & {
+  const tableData = JSON.parse(element.content || '{"rows":[],"columns":[],"style":{}}') as CalloutTableData & {
     headers?: string[];
     borderColor?: string;
     headerBg?: string;
   };
   // Handle migration from old schema
-  let parsedData: WriterTableData = tableData as WriterTableData;
+  let parsedData: CalloutTableData = tableData as CalloutTableData;
   if ('headers' in tableData && Array.isArray(tableData.headers)) {
     parsedData = {
       columns: tableData.headers.map((_h: string, i: number) => ({ id: `col-${i}` })),
@@ -116,8 +116,8 @@ async function drawTableElement(
 /**
  * Bakes all PlacedElements into the PDF as embedded images.
  *
- * This is the ONLY export path for writer elements.
- * Called from ToolbarWriter "Bake & export" button.
+ * This is the ONLY export path for callout elements.
+ * Called from ToolbarFile / commit pipeline export.
  * Also called by Agent E's place_rich_textbox executor (single-element variant).
  *
  * Process per element:
@@ -126,12 +126,12 @@ async function drawTableElement(
  *   3. html2canvas capture → PNG Uint8Array
  *   4. PdfEditAdapter.insertImage at element coordinates
  */
-export async function bakeWriterElementsIntoPdf(
+export async function bakeCalloutElementsIntoPdf(
   baseBytes: Uint8Array,
   elements: PlacedElement[],
-  options: WriterExportOptions = {},
+  options: CalloutExportOptions = {},
 ): Promise<Uint8Array> {
-  const exportElements = visibleWriterElementsForExport(elements);
+  const exportElements = visibleCalloutElementsForExport(elements);
   if (exportElements.length === 0) return baseBytes;
 
   // Group by page, sort by zIndex within page
@@ -143,7 +143,7 @@ export async function bakeWriterElementsIntoPdf(
   }
 
   let currentBytes = baseBytes;
-  const warnings: WriterExportWarning[] = [];
+  const warnings: CalloutExportWarning[] = [];
 
   for (const [pageNumber, pageElements] of byPage) {
     const sorted = pageElements.sort((a, b) => a.zIndex - b.zIndex);
@@ -254,5 +254,5 @@ async function captureElementToPng(element: PlacedElement): Promise<Uint8Array> 
 }
 
 export {
-  visibleWriterElementsForExport,
-} from './writerObjects';
+  visibleCalloutElementsForExport,
+} from './calloutObjects';

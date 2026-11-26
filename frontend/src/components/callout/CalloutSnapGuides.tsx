@@ -1,5 +1,5 @@
 import React from 'react';
-import type { SnapGuide } from '../../core/writer/geometry';
+import type { SnapGuide } from '../../core/callout/geometry';
 
 interface Props {
   guides: SnapGuide[];
@@ -7,7 +7,7 @@ interface Props {
   pageDimensions: { width: number; height: number };
 }
 
-export const WriterSnapGuides: React.FC<Props> = ({ guides, scale, pageDimensions }) => {
+export const CalloutSnapGuides: React.FC<Props> = ({ guides, scale, pageDimensions }) => {
   if (guides.length === 0) return null;
 
   const w = pageDimensions.width * scale;

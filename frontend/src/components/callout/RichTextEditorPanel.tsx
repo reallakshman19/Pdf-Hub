@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { useWriterStore } from '../../core/writer/store';
-import type { PlacedElement } from '../../core/writer/types';
+import { useCalloutStore } from '../../core/callout/store';
+import type { PlacedElement } from '../../core/callout/types';
 import {
   AlignCenter,
   AlignJustify,
@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { sanitizeHtml, sanitizeHtmlWithReport } from '../../core/writer/htmlSanitizer';
+import { sanitizeHtml, sanitizeHtmlWithReport } from '../../core/callout/htmlSanitizer';
 import { useToastStore } from '@/core/toast/store';
 
 interface Props {
@@ -28,7 +28,7 @@ interface Props {
 }
 
 export const RichTextEditorPanel: React.FC<Props> = ({ element, scale, onClose }) => {
-  const { updateElement } = useWriterStore();
+  const { updateElement } = useCalloutStore();
   const addToast = useToastStore((state) => state.addToast);
   const editorRef = useRef<HTMLDivElement>(null);
   const [selectedImage, setSelectedImage] = useState<HTMLImageElement | null>(null);

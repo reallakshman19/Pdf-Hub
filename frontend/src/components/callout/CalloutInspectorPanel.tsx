@@ -1,11 +1,11 @@
 import React from 'react';
-import { useWriterStore } from '@/core/writer/store';
+import { useCalloutStore } from '@/core/callout/store';
 import { Lock, Unlock, ArrowUpToLine, ArrowDownToLine, PenTool, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 
-export const WriterInspectorPanel: React.FC = () => {
-  const { elements, selectedIds, activeId, updateSelectedElements, bringToFront, sendToBack } = useWriterStore();
+export const CalloutInspectorPanel: React.FC = () => {
+  const { elements, selectedIds, activeId, updateSelectedElements, bringToFront, sendToBack } = useCalloutStore();
 
   const activeElement = elements.find(e => e.id === activeId);
 
@@ -16,7 +16,7 @@ export const WriterInspectorPanel: React.FC = () => {
           <Settings className="w-6 h-6 text-slate-300" />
         </div>
         <p className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">No selection</p>
-        <p className="text-xs">Select a writer element to edit its properties.</p>
+        <p className="text-xs">Select a callout element to edit its properties.</p>
       </div>
     );
   }
@@ -41,7 +41,7 @@ export const WriterInspectorPanel: React.FC = () => {
         <div>
           <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <PenTool className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            Writer Element
+            Callout Element
             {isMultiple && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px]">{selectedIds.length}</span>}
           </h3>
           <p className="text-xs text-slate-500 font-mono mt-0.5">{activeElement.type}</p>

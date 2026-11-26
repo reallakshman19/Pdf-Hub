@@ -1,13 +1,13 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { useWriterStore } from '../../core/writer/store';
+import { useCalloutStore } from '../../core/callout/store';
 import { RichTextEditorPanel } from './RichTextEditorPanel';
 import { TableEditorPanel } from './TableEditorPanel';
-import type { PlacedElement, TransformHandle, WriterTableData } from '../../core/writer/types';
-import { buildTableHtml } from '../../core/writer/exporter';
-import { calculateSnaps, type SnapGuide } from '../../core/writer/geometry';
-import { sanitizeHtml } from '../../core/writer/htmlSanitizer';
+import type { PlacedElement, TransformHandle, CalloutTableData } from '../../core/callout/types';
+import { buildTableHtml } from '../../core/callout/exporter';
+import { calculateSnaps, type SnapGuide } from '../../core/callout/geometry';
+import { sanitizeHtml } from '../../core/callout/htmlSanitizer';
 import { error as logError } from '../../core/logger/service';
-import './WriterElementNode.css';
+import './CalloutElementNode.css';
 
 type LegacyTableJson = {
   headers?: string[];
@@ -16,8 +16,8 @@ type LegacyTableJson = {
   headerBg?: string;
 };
 
-function toWriterTableData(content: string | undefined): WriterTableData {
-  const fallback: WriterTableData = {
+function toCalloutTableData(content: string | undefined): CalloutTableData {
+  const fallback: CalloutTableData = {
     columns: [],
     rows: [],
     style: {},
@@ -25,15 +25,15 @@ function toWriterTableData(content: string | undefined): WriterTableData {
   if (!content) return fallback;
 
   try {
-    const parsed = JSON.parse(content) as WriterTableData | LegacyTableJson;
+    const parsed = JSON.parse(content) as CalloutTableData | LegacyTableJson;
     if (
       typeof parsed === 'object' &&
       parsed !== null &&
-      Array.isArray((parsed as WriterTableData).columns) &&
-      Array.isArray((parsed as WriterTableData).rows) &&
-      typeof (parsed as WriterTableData).style === 'object'
+      Array.isArray((parsed as CalloutTableData).columns) &&
+      Array.isArray((parsed as CalloutTableData).rows) &&
+      typeof (parsed as CalloutTableData).style === 'object'
     ) {
-      return parsed as WriterTableData;
+      return parsed as CalloutTableData;
     }
 
     const legacy = parsed as LegacyTableJson;
@@ -79,7 +79,7 @@ interface Props {
  *
  * All drag operations use setPointerCapture for reliable tracking outside the element bounds.
  */
-export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensions, onGuidesChange }) => {
+export const CalloutElementNode: React.FC<Props> = ({ element, scale, pageDimensions, onGuidesChange }) => {
   const {
     updateElement,
     commitElementTransform,
@@ -90,7 +90,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
     activeId,
     bringForward,
     sendBackward
-  } = useWriterStore();
+  } = useCalloutStore();
 
   const isSelected = selectedIds.includes(element.id);
   const isActive = activeId === element.id;
@@ -130,7 +130,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
       }
 
       // Capture the exact layout before any dragging occurs
-      const currentElements = useWriterStore.getState().elements;
+      const currentElements = useCalloutStore.getState().elements;
       const isGroupMove = isSelected;
 
       const groupOffsets: Record<string, { x: number, y: number }> = {};
@@ -168,7 +168,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
       const dy = toPdf(e.clientY - startY);
 
       if (handle === 'move') {
-        useWriterStore.setState(s => {
+        useCalloutStore.setState(s => {
           const isGroupMove = s.selectedIds.includes(element.id);
           const elementsToMove = isGroupMove ? s.selectedIds : [element.id];
 
@@ -226,7 +226,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
         if (handle === 'ne') patch = { y: origY + dy, width: Math.max(minSize, origW + dx), height: Math.max(minSize, origH - dy) };
         if (handle === 'nw') patch = { x: origX + dx, y: origY + dy, width: Math.max(minSize, origW - dx), height: Math.max(minSize, origH - dy) };
 
-        useWriterStore.setState(s => ({
+        useCalloutStore.setState(s => ({
           elements: s.elements.map(el => el.id === element.id ? { ...el, ...patch } : el),
         }));
       }
@@ -275,9 +275,9 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
     [element.content],
   );
   const parsedTableData = React.useMemo(() => {
-    const parsed = toWriterTableData(element.content);
+    const parsed = toCalloutTableData(element.content);
     if (element.content && parsed.columns.length === 0 && parsed.rows.length === 0) {
-      logError('system', 'Failed to parse writer table content', {
+      logError('system', 'Failed to parse callout table content', {
         elementId: element.id,
         error: 'Invalid table payload format',
       });
@@ -288,7 +288,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
   return (
     <>
       <div
-        className={`writer-element-node ${isSelected ? 'writer-element-node-selected' : 'writer-element-node-unselected'} ${isActive ? 'writer-element-node-active' : ''} ${element.locked ? 'writer-element-node-locked' : 'writer-element-node-unlocked'}`}
+        className={`callout-element-node ${isSelected ? 'callout-element-node-selected' : 'callout-element-node-unselected'} ${isActive ? 'callout-element-node-active' : ''} ${element.locked ? 'callout-element-node-locked' : 'callout-element-node-unlocked'}`}
         style={{
           left:         sx,
           top:          sy,
@@ -337,7 +337,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
       {isSelected && (
         <>
           <div
-            className="writer-resize-handle"
+            className="callout-resize-handle"
             style={{
               width: HANDLE_SIZE, height: HANDLE_SIZE, zIndex: element.zIndex + 1, cursor: 'nw-resize',
               left: sx - HANDLE_SIZE / 2, top: sy - HANDLE_SIZE / 2,
@@ -347,7 +347,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
             onPointerUp={handlePointerUp}
           />
           <div
-             className="writer-resize-handle"
+             className="callout-resize-handle"
             style={{
               width: HANDLE_SIZE, height: HANDLE_SIZE, zIndex: element.zIndex + 1, cursor: 'ne-resize',
               left: sx + sw - HANDLE_SIZE / 2, top: sy - HANDLE_SIZE / 2,
@@ -357,7 +357,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
             onPointerUp={handlePointerUp}
           />
           <div
-             className="writer-resize-handle"
+             className="callout-resize-handle"
             style={{
               width: HANDLE_SIZE, height: HANDLE_SIZE, zIndex: element.zIndex + 1, cursor: 'se-resize',
               left: sx + sw - HANDLE_SIZE / 2, top: sy + sh - HANDLE_SIZE / 2,
@@ -367,7 +367,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
             onPointerUp={handlePointerUp}
           />
           <div
-             className="writer-resize-handle"
+             className="callout-resize-handle"
             style={{
               width: HANDLE_SIZE, height: HANDLE_SIZE, zIndex: element.zIndex + 1, cursor: 'sw-resize',
               left: sx - HANDLE_SIZE / 2, top: sy + sh - HANDLE_SIZE / 2,
@@ -382,7 +382,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
       {/* Context menu */}
       {showContextMenu && isSelected && (
         <div
-          className="writer-context-menu-container"
+          className="callout-context-menu-container"
           style={{ left: sx, top: sy + sh + 4 }}
           onPointerDown={e => e.stopPropagation()}
         >
@@ -393,10 +393,10 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
             { label: 'Delete',         action: () => removeElement(element.id) },
           ].map((item, i) => (
             item.label === '──'
-              ? <div key={i} className="writer-context-menu-divider" />
+              ? <div key={i} className="callout-context-menu-divider" />
               : <div
                   key={i}
-                  className={`writer-context-menu-item ${item.label === 'Delete' ? 'writer-context-menu-item-danger' : ''}`}
+                  className={`callout-context-menu-item ${item.label === 'Delete' ? 'callout-context-menu-item-danger' : ''}`}
                   onClick={() => { item.action(); setShowContextMenu(false); }}
                 >
                   {item.label}
@@ -408,7 +408,7 @@ export const WriterElementNode: React.FC<Props> = ({ element, scale, pageDimensi
       {/* Dismiss context menu on outside click */}
       {showContextMenu && (
         <div
-          className="writer-context-menu-backdrop"
+          className="callout-context-menu-backdrop"
           onClick={() => setShowContextMenu(false)}
         />
       )}

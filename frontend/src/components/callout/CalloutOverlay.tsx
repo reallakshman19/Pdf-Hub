@@ -1,9 +1,9 @@
 import React, { useCallback, useState } from 'react';
-import { useWriterStore } from '../../core/writer/store';
-import { WriterElementNode } from './WriterElementNode';
-import type { PlacedElement } from '../../core/writer/types';
-import { WriterSnapGuides } from './WriterSnapGuides';
-import type { SnapGuide } from '../../core/writer/geometry';
+import { useCalloutStore } from '../../core/callout/store';
+import { CalloutElementNode } from './CalloutElementNode';
+import type { PlacedElement } from '../../core/callout/types';
+import { CalloutSnapGuides } from './CalloutSnapGuides';
+import type { SnapGuide } from '../../core/callout/geometry';
 import { useToastStore } from '../../core/toast/store';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import type { OcrRegionMode } from '@/core/ocr/ocrRegionModel';
@@ -26,7 +26,7 @@ function nextId(): string {
   return `wel-${crypto.randomUUID()}`;
 }
 
-function isWriterPlacementTool(tool: string): boolean {
+function isCalloutPlacementTool(tool: string): boolean {
   return tool === 'place-text' || tool === 'place-image' || tool === 'place-table';
 }
 
@@ -35,14 +35,14 @@ function isWriterPlacementTool(tool: string): boolean {
  *
  * Behaviour:
  * - Interaction layer captures pointer events only for placement/OCR/marquee.
- * - Element layer keeps writer nodes interactive while preserving pass-through
+ * - Element layer keeps callout nodes interactive while preserving pass-through
  *   to the base workspace when no capture mode is active.
  *
  * z-index: 10 (above canvas z-0, below annotations z-20).
  */
-export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensions, ocrViewport }) => {
-  const { elements, activeTool, addElement, setActiveTool, setSelectedId, setSelection, clearSelection, toggleSelection } =
-    useWriterStore();
+export const CalloutOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensions, ocrViewport }) => {
+  const { elements, activeTool, pendingOcrRegion, addElement, setActiveTool, setPendingOcrRegion, setSelectedId, setSelection, clearSelection, toggleSelection } =
+    useCalloutStore();
 
   const pageElements = elements
     .filter(e => e.pageNumber === pageNumber)
@@ -58,15 +58,10 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
   // Marquee selection state
   const [marqueeStart, setMarqueeStart] = useState<{ x: number, y: number } | null>(null);
   const [marqueeCurrent, setMarqueeCurrent] = useState<{ x: number, y: number } | null>(null);
-  const [pendingOcrRect, setPendingOcrRect] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
+  const pendingOcrRect = pendingOcrRegion?.pageNumber === pageNumber ? pendingOcrRegion.rect : null;
 
   // Snap guides state (passed down from store or managed locally during drag)
-  // To keep it simple, WriterElementNode will push active guides up via a custom event or callback,
+  // To keep it simple, CalloutElementNode will push active guides up via a custom event or callback,
   // but an easier React way is lifting state up, or we can just render the guides inside the overlay
   // by observing a small local state since drag updates happen very fast.
   const [activeGuides, setActiveGuides] = useState<SnapGuide[]>([]);
@@ -75,9 +70,9 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
   const [isShiftDown, setIsShiftDown] = useState(false);
 
   const isPlacing = activeTool !== 'select';
-  const isPlacementTool = isWriterPlacementTool(activeTool);
+  const isPlacementTool = isCalloutPlacementTool(activeTool);
   const isOcr = activeTool === 'ocr-region';
-  const isWriterCaptureMode = isPlacementTool || isOcr || isShiftDown;
+  const isCalloutCaptureMode = isPlacementTool || isOcr || isShiftDown;
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Shift') setIsShiftDown(true); };
@@ -94,7 +89,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
     // If not select tool or OCR tool, allow click handling to process
     if (isPlacing && !isOcr) return;
 
-    // Only capture if clicking directly on the overlay, not on a child WriterElementNode
+    // Only capture if clicking directly on the overlay, not on a child CalloutElementNode
     if (e.target !== e.currentTarget) return;
 
     // Clear selection if we click empty space (unless holding modifier)
@@ -148,12 +143,15 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
              message: 'The PDF page viewport is not ready. Please select the area again.',
            });
          } else {
-           setPendingOcrRect(viewportSelectionToPdfRect(ocrViewport, {
-             x: Math.min(marqueeStart.x, marqueeCurrent.x),
-             y: Math.min(marqueeStart.y, marqueeCurrent.y),
-             width: Math.abs(marqueeCurrent.x - marqueeStart.x),
-             height: Math.abs(marqueeCurrent.y - marqueeStart.y),
-           }));
+           setPendingOcrRegion({
+             pageNumber,
+             rect: viewportSelectionToPdfRect(ocrViewport, {
+               x: Math.min(marqueeStart.x, marqueeCurrent.x),
+               y: Math.min(marqueeStart.y, marqueeCurrent.y),
+               width: Math.abs(marqueeCurrent.x - marqueeStart.x),
+               height: Math.abs(marqueeCurrent.y - marqueeStart.y),
+             }),
+           });
          }
          setActiveTool('select');
        } else {
@@ -182,7 +180,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
 
     setMarqueeStart(null);
     setMarqueeCurrent(null);
-  }, [marqueeStart, marqueeCurrent, pageElements, scale, setSelection, toggleSelection, isOcr, setActiveTool, ocrViewport, addToast]);
+  }, [marqueeStart, marqueeCurrent, pageElements, pageNumber, scale, setSelection, toggleSelection, isOcr, setActiveTool, setPendingOcrRegion, ocrViewport, addToast]);
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -248,7 +246,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
         title: 'OCR Area Not Saved',
         message: 'Open OCR for this document before creating a review area.',
       });
-      setPendingOcrRect(null);
+      setPendingOcrRegion(null);
       return;
     }
 
@@ -279,7 +277,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
       label: `OCR ${mode} area`,
     });
     setSidebarTab('ocr');
-    setPendingOcrRect(null);
+    setPendingOcrRegion(null);
     addToast({
       type: 'success',
       title: 'OCR Area Added',
@@ -293,8 +291,8 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
     ? pdfRectToViewportSelection(ocrViewport, pendingOcrRect)
     : null;
 
-  const captureLayerEnabled = isWriterCaptureMode;
-  const captureCursor = isWriterCaptureMode ? 'crosshair' : 'default';
+  const captureLayerEnabled = isCalloutCaptureMode;
+  const captureCursor = isCalloutCaptureMode ? 'crosshair' : 'default';
 
   return (
     <div
@@ -389,7 +387,7 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
             <button
               type="button"
               className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-              onClick={() => setPendingOcrRect(null)}
+              onClick={() => setPendingOcrRegion(null)}
             >
               Cancel
             </button>
@@ -399,11 +397,11 @@ export const WriterOverlay: React.FC<Props> = ({ pageNumber, scale, pageDimensio
 
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
         {activeGuides.length > 0 && pageDimensions && (
-           <WriterSnapGuides guides={activeGuides} scale={scale} pageDimensions={pageDimensions} />
+           <CalloutSnapGuides guides={activeGuides} scale={scale} pageDimensions={pageDimensions} />
         )}
 
         {pageElements.map(element => (
-          <WriterElementNode
+          <CalloutElementNode
             key={element.id}
             element={element}
             scale={scale}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useWriterStore } from '../../core/writer/store';
-import type { PlacedElement } from '../../core/writer/types';
+import { useCalloutStore } from '../../core/callout/store';
+import type { PlacedElement } from '../../core/callout/types';
 import { Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -11,12 +11,12 @@ interface Props {
   onClose: () => void;
 }
 
-import type { WriterTableData } from '../../core/writer/types';
+import type { CalloutTableData } from '../../core/callout/types';
 
 export const TableEditorPanel: React.FC<Props> = ({ element, scale, onClose }) => {
-  const { updateElement } = useWriterStore();
+  const { updateElement } = useCalloutStore();
 
-  const [data, setData] = useState<WriterTableData>(() => {
+  const [data, setData] = useState<CalloutTableData>(() => {
     try {
       const parsed = JSON.parse(element.content || '{"rows":[],"columns":[],"style":{}}');
       // Migration logic from old structure if necessary
@@ -33,7 +33,7 @@ export const TableEditorPanel: React.FC<Props> = ({ element, scale, onClose }) =
             style: { borderColor: parsed.borderColor || '#d1d5db', headerBg: parsed.headerBg || '#f1f5f9' }
          }
       }
-      return parsed as WriterTableData;
+      return parsed as CalloutTableData;
     } catch {
       return { rows: [], columns: [], style: { borderColor: '#d1d5db', headerBg: '#f1f5f9' } };
     }
@@ -42,7 +42,7 @@ export const TableEditorPanel: React.FC<Props> = ({ element, scale, onClose }) =
   const [selectedCol, setSelectedCol] = useState<number | null>(null);
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
 
-  const updateTable = (newData: WriterTableData) => {
+  const updateTable = (newData: CalloutTableData) => {
     setData(newData);
     updateElement(element.id, { content: JSON.stringify(newData) });
   };

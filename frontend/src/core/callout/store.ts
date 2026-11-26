@@ -1,23 +1,29 @@
 import { create } from 'zustand';
-import type { PlacedElement, WriterTool } from './types';
+import type { CalloutTool, PlacedElement } from './types';
 import { useSessionStore } from '@/core/session/store';
 
 const MAX_UNDO_DEPTH = 50;
 
-function markWriterDirty(): void {
+function markCalloutDirty(): void {
   useSessionStore.getState().setDirty(true);
 }
 
-interface WriterState {
-  elements:    PlacedElement[];
-  activeTool:  WriterTool;
-  selectedIds: string[];
-  activeId:    string | null;
-  undoStack:   PlacedElement[][];
-  redoStack:   PlacedElement[][];
+export interface PendingOcrRegion {
+  pageNumber: number;
+  rect: { x: number; y: number; width: number; height: number };
 }
 
-interface WriterActions {
+export interface CalloutState {
+  elements:         PlacedElement[];
+  activeTool:       CalloutTool;
+  pendingOcrRegion?: PendingOcrRegion | null;
+  selectedIds:      string[];
+  activeId:         string | null;
+  undoStack:        PlacedElement[][];
+  redoStack:        PlacedElement[][];
+}
+
+export interface CalloutActions {
   addElement:              (element: PlacedElement) => void;
   updateElement:           (id: string, patch: Partial<PlacedElement>) => void;
   updateSelectedElements:  (patch: Partial<PlacedElement>) => void;
@@ -25,7 +31,8 @@ interface WriterActions {
   removeElement:           (id: string) => void;
   removeSelection:         () => void;
   duplicateSelection:      () => void;
-  setActiveTool:           (tool: WriterTool) => void;
+  setActiveTool:           (tool: CalloutTool) => void;
+  setPendingOcrRegion:     (region: PendingOcrRegion | null) => void;
   setSelectedId:           (id: string | null) => void;
   toggleSelection:         (id: string) => void;
   setSelection:            (ids: string[]) => void;
@@ -48,16 +55,17 @@ function snapshot(elements: PlacedElement[], undoStack: PlacedElement[][]): Plac
   return next.slice(0, MAX_UNDO_DEPTH);
 }
 
-export const useWriterStore = create<WriterState & WriterActions>((set, get) => ({
-  elements:    [],
-  activeTool:  'select',
-  selectedIds: [],
-  activeId:    null,
-  undoStack:   [],
-  redoStack:   [],
+export const useCalloutStore = create<CalloutState & CalloutActions>((set, get) => ({
+  elements:         [],
+  activeTool:       'select',
+  pendingOcrRegion: null,
+  selectedIds:      [],
+  activeId:         null,
+  undoStack:        [],
+  redoStack:        [],
 
   addElement: (element) => set(s => {
-    markWriterDirty();
+    markCalloutDirty();
     return {
       elements:    [...s.elements, element],
       selectedIds: [element.id],
@@ -68,7 +76,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
   }),
 
   updateElement: (id, patch) => set(s => {
-    markWriterDirty();
+    markCalloutDirty();
     return {
       elements: s.elements.map(e => e.id === id ? { ...e, ...patch } : e),
       undoStack: snapshot(s.elements, s.undoStack),
@@ -78,7 +86,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
 
   updateSelectedElements: (patch) => set(s => {
     if (s.selectedIds.length === 0) return {};
-    markWriterDirty();
+    markCalloutDirty();
     return {
       elements: s.elements.map(e => s.selectedIds.includes(e.id) ? { ...e, ...patch } : e),
       undoStack: snapshot(s.elements, s.undoStack),
@@ -87,7 +95,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
   }),
 
   commitElementTransform: (preDragElements) => set(s => {
-    markWriterDirty();
+    markCalloutDirty();
     // We snapshot the explicitly provided PRE-drag elements.
     // The current s.elements is already the POST-drag elements.
     const newUndoStack = snapshot(preDragElements, s.undoStack);
@@ -98,7 +106,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
   }),
 
   removeElement: (id) => set(s => {
-    markWriterDirty();
+    markCalloutDirty();
     return {
       elements:    s.elements.filter(e => e.id !== id),
       selectedIds: s.selectedIds.filter(selected => selected !== id),
@@ -109,7 +117,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
   }),
 
   removeSelection: () => set(s => {
-    markWriterDirty();
+    markCalloutDirty();
     return {
       elements:    s.elements.filter(e => !s.selectedIds.includes(e.id)),
       selectedIds: [],
@@ -121,7 +129,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
 
   duplicateSelection: () => set(s => {
     if (s.selectedIds.length === 0) return {};
-    markWriterDirty();
+    markCalloutDirty();
 
     const newElements: PlacedElement[] = [];
     const newIds: string[] = [];
@@ -149,7 +157,12 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
     };
   }),
 
-  setActiveTool: (tool) => set({ activeTool: tool }),
+  setActiveTool: (tool) => set((s) => ({
+    activeTool: tool,
+    pendingOcrRegion: tool === 'ocr-region' ? null : s.pendingOcrRegion,
+  })),
+
+  setPendingOcrRegion: (region) => set({ pendingOcrRegion: region }),
 
   setSelectedId: (id) => set({
     selectedIds: id ? [id] : [],
@@ -178,7 +191,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
   }),
 
   clearPage: (pageNumber) => set(s => {
-    markWriterDirty();
+    markCalloutDirty();
     return {
       elements:  s.elements.filter(e => e.pageNumber !== pageNumber),
       undoStack: snapshot(s.elements, s.undoStack),
@@ -187,9 +200,10 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
   }),
 
   clearElements: () => {
-    markWriterDirty();
+    markCalloutDirty();
     set({
       elements: [],
+      pendingOcrRegion: null,
       selectedIds: [],
       activeId: null,
       undoStack: [],
@@ -205,7 +219,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
 
   undo: () => set(s => {
     if (s.undoStack.length === 0) return {};
-    markWriterDirty();
+    markCalloutDirty();
     const [prev, ...rest] = s.undoStack;
     return {
       elements:  prev,
@@ -216,7 +230,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
 
   redo: () => set(s => {
     if (s.redoStack.length === 0) return {};
-    markWriterDirty();
+    markCalloutDirty();
     const [next, ...rest] = s.redoStack;
     return {
       elements:  next,
@@ -225,15 +239,15 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
     };
   }),
 
-  bringForward:  (id) => set(s => { markWriterDirty(); return { elements: s.elements.map(e => e.id === id ? { ...e, zIndex: e.zIndex + 1 } : e) }; }),
-  sendBackward:  (id) => set(s => { markWriterDirty(); return { elements: s.elements.map(e => e.id === id ? { ...e, zIndex: Math.max(0, e.zIndex - 1) } : e) }; }),
+  bringForward:  (id) => set(s => { markCalloutDirty(); return { elements: s.elements.map(e => e.id === id ? { ...e, zIndex: e.zIndex + 1 } : e) }; }),
+  sendBackward:  (id) => set(s => { markCalloutDirty(); return { elements: s.elements.map(e => e.id === id ? { ...e, zIndex: Math.max(0, e.zIndex - 1) } : e) }; }),
   bringToFront:  (id) => set(s => {
-    markWriterDirty();
+    markCalloutDirty();
     const maxZ = Math.max(0, ...s.elements.map(e => e.zIndex));
     return { elements: s.elements.map(e => e.id === id ? { ...e, zIndex: maxZ + 1 } : e) };
   }),
   sendToBack:    (id) => set(s => {
-    markWriterDirty();
+    markCalloutDirty();
     return {
       elements: s.elements.map(e =>
         e.id === id ? { ...e, zIndex: 0 } : { ...e, zIndex: e.zIndex + 1 }
@@ -244,6 +258,7 @@ export const useWriterStore = create<WriterState & WriterActions>((set, get) => 
   clearElementsAfterCommit: () =>
     set({
       elements: [],
+      pendingOcrRegion: null,
       selectedIds: [],
       activeId: null,
       undoStack: [],
