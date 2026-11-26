@@ -1,4 +1,5 @@
 import type { PdfAnnotation, Point2D } from '@/core/annotations/types';
+import { getAnnotationPagePoints } from '@/core/annotations/pointsSpace';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import {
   deletionKey, isValidNativeDeletionTombstone,
@@ -2312,7 +2313,7 @@ function registerCopiedNativeAnnotation(
   for (const key of sourceDict.keys()) {
     const name = key.decodeText();
     if (['P', 'NM', 'Rect', 'Popup', 'Parent', 'IRT', 'RT', 'State', 'StateModel', 'PDFHubData', 'PDFHubType', 'PDFHubVersion', 'AP', STAMP_AP_FINGERPRINT_KEY, STAMP_ROTATION_FINGERPRINT_KEY, BOX_GENERATED_AP_FINGERPRINT_KEY, BOX_GENERATED_AP_ORIENTATION_KEY, MARKUP_GENERATED_AP_KEY, 'PDFHubMarkupPreviewOffset', 'PDFHubMarkupPreviewFingerprint'].includes(name)
-      || (['stamp', 'textbox', 'callout'].includes(annotation.type) && ['PDFHubBaseAP', 'PDFHubBaseRect', 'PDFHubBaseRD', 'PDFHubBaseCL', 'PDFHubRotation'].includes(name))) continue;
+      || (['stamp', 'textbox', 'callout'].includes(annotation.type) && ['PDFHubBaseAP', 'PDFHubBaseRect', 'PDFHubBaseRD', 'PDFHubBaseCL', 'PDFHubRotation', 'PDFHubShelfStyle', 'PDFHubShelfLength', 'PDFHubLeaders'].includes(name))) continue;
     const value = sourceDict.get(key);
     if (value) dict.set(key, value);
   }
@@ -2591,7 +2592,7 @@ async function registerNativeAnnotation(
       : sourceRect;
   const rectMatchesSource = Boolean(sourceBody && numberArraysEquivalent(sourceBody, geometry.rect, 1e-4));
   const expanded = annotation.type === 'callout' && !rectMatchesSource
-    ? enclosingCalloutRect(geometry.rect, calloutCoordinates(annotation, geometry) ?? null)
+    ? enclosingCalloutRect(geometry.rect, calloutAllPoints(annotation, geometry))
     : null;
   let appearanceRect: PdfRect = expanded?.rect ?? (rectMatchesSource && sourceRect
     ? sourceRect as PdfRect : geometry.rect);
@@ -2601,7 +2602,7 @@ async function registerNativeAnnotation(
 
   const base: PdfLiteralDict = {
     Type: 'Annot',
-    Subtype: subtypeFor(annotation.type),
+    Subtype: subtypeFor(annotation),
     Rect: preservedRect,
     P: page.ref,
     NM: lib.PDFString.of(annotation.data.nativeOriginalName ?? annotation.id),
@@ -2825,7 +2826,7 @@ async function registerNativeAnnotation(
       if (leader && leader.some((value, index) => index % 2 === 0
         ? value < appearanceRect[0] || value > appearanceRect[2]
         : value < appearanceRect[1] || value > appearanceRect[3])) {
-        const normalized = enclosingCalloutRect(geometry.rect, leader);
+        const normalized = enclosingCalloutRect(geometry.rect, calloutAllPoints(annotation, geometry));
         appearanceRect = normalized.rect;
         dict.set(lib.PDFName.of('Rect'), doc.context.obj(normalized.rect));
         dict.set(lib.PDFName.of('RD'), doc.context.obj(normalized.rd));
@@ -3105,6 +3106,15 @@ function addSubtypeFields(
           const calloutLine = calloutCoordinates(annotation, geometry);
           if (calloutLine) target.CL = calloutLine;
         }
+        if (annotation.data.shelfStyle) {
+          target.PDFHubShelfStyle = lib.PDFString.of(annotation.data.shelfStyle);
+        }
+        if (typeof annotation.data.shelfLength === 'number') {
+          target.PDFHubShelfLength = annotation.data.shelfLength;
+        }
+        if (Array.isArray(annotation.data.leaders) && annotation.data.leaders.length > 0) {
+          target.PDFHubLeaders = lib.PDFString.of(JSON.stringify(annotation.data.leaders));
+        }
         const leStyle = annotation.data.arrowHead;
         if (typeof leStyle === 'string') {
           const map: Record<string, string> = {
@@ -3170,10 +3180,11 @@ function addSubtypeFields(
       return;
 
     case 'shape-polygon':
+    case 'area-takeoff':
       target.Vertices = polygonVertices(annotation, geometry);
       if (sourceDict?.get(lib.PDFName.of('IT'))) {
         target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
-      } else if (annotation.data?.isAreaTakeoff) {
+      } else if (annotation.type === 'area-takeoff' || annotation.data?.isAreaTakeoff) {
         target.IT = lib.PDFName.of('PolygonDimension');
       }
       colorField('C', annotation.data.borderColor, stroke);
@@ -3191,14 +3202,30 @@ function addSubtypeFields(
       opacityField();
       return;
 
+    case 'perimeter-takeoff':
     case 'line':
     case 'arrow': {
-      target.L = lineCoordinates(annotation, geometry, sourceDict, lib);
+      const pagePoints = getAnnotationPagePoints(annotation);
+      const isPolyLine =
+        annotation.type === 'perimeter-takeoff' ||
+        (annotation.type === 'line' && pagePoints.length > 4);
+      if (isPolyLine) {
+        target.Vertices = polylineVertices(annotation, geometry);
+        if (sourceDict?.get(lib.PDFName.of('IT'))) {
+          target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
+        } else if (annotation.type === 'perimeter-takeoff' || annotation.data?.dimensionScale !== undefined) {
+          target.IT = lib.PDFName.of('PolyLineDimension');
+        }
+      } else {
+        target.L = lineCoordinates(annotation, geometry, sourceDict, lib);
+      }
       if (sourceDict?.get(lib.PDFName.of('IC'))) target.IC = sourceDict.get(lib.PDFName.of('IC'))!;
-      if (sourceDict?.get(lib.PDFName.of('IT'))) {
-        target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
-      } else if (annotation.data?.isDimension || annotation.data?.dimensionScale !== undefined) {
-        target.IT = lib.PDFName.of('LineDimension');
+      if (!isPolyLine) {
+        if (sourceDict?.get(lib.PDFName.of('IT'))) {
+          target.IT = sourceDict.get(lib.PDFName.of('IT'))!;
+        } else if (annotation.data?.isDimension || annotation.data?.dimensionScale !== undefined) {
+          target.IT = lib.PDFName.of('LineDimension');
+        }
       }
       const endings = lineEndingsValue(
         annotation,
@@ -3264,8 +3291,8 @@ function addSubtypeFields(
   }
 }
 
-function subtypeFor(type: PdfAnnotation['type']): string {
-  switch (type) {
+function subtypeFor(annotation: PdfAnnotation): string {
+  switch (annotation.type) {
     case 'comment':
     case 'sticky-note':
       return 'Text';
@@ -3287,8 +3314,12 @@ function subtypeFor(type: PdfAnnotation['type']): string {
     case 'shape-ellipse':
       return 'Circle';
     case 'shape-polygon':
+    case 'area-takeoff':
       return 'Polygon';
+    case 'perimeter-takeoff':
+      return 'PolyLine';
     case 'line':
+      return getAnnotationPagePoints(annotation).length > 4 ? 'PolyLine' : 'Line';
     case 'arrow':
       return 'Line';
     case 'ink':
@@ -3297,8 +3328,6 @@ function subtypeFor(type: PdfAnnotation['type']): string {
       return 'Stamp';
     case 'piping-support':
     case 'piping-valve':
-    case 'perimeter-takeoff':
-    case 'area-takeoff':
     default:
       return 'Square';
   }
@@ -3655,15 +3684,13 @@ function polygonVertices(
   annotation: PdfAnnotation,
   geometry: AnnotationGeometry,
 ): number[] {
-  const points = Array.isArray(annotation.data.points)
-    ? annotation.data.points
-    : [];
+  const points = getAnnotationPagePoints(annotation);
 
   if (points.length >= 6 && points.length % 2 === 0) {
     const result: number[] = [];
     for (let index = 0; index < points.length; index += 2) {
-      const px = Number(points[index]);
-      const py = Number(points[index + 1]);
+      const px = points[index];
+      const py = points[index + 1];
       if (!Number.isFinite(px) || !Number.isFinite(py)) continue;
       const point = annotationPointToPdf(px, py, geometry);
       result.push(point.x, point.y);
@@ -3679,18 +3706,43 @@ function polygonVertices(
   ];
 }
 
+function polylineVertices(
+  annotation: PdfAnnotation,
+  geometry: AnnotationGeometry,
+): number[] {
+  const points = getAnnotationPagePoints(annotation);
+  if (points.length >= 4 && points.length % 2 === 0) {
+    const result: number[] = [];
+    for (let index = 0; index < points.length; index += 2) {
+      const point = annotationPointToPdf(points[index], points[index + 1], geometry);
+      result.push(point.x, point.y);
+    }
+    if (result.length >= 4) return result;
+  }
+
+  const start = annotationPointToPdf(annotation.rect.x, annotation.rect.y + annotation.rect.height / 2, geometry);
+  const end = annotationPointToPdf(annotation.rect.x + annotation.rect.width, annotation.rect.y + annotation.rect.height / 2, geometry);
+  return [start.x, start.y, end.x, end.y];
+}
+
 function lineCoordinates(
   annotation: PdfAnnotation,
   geometry: AnnotationGeometry,
   sourceDict: PDFDict | null,
   lib: PdfLibModule,
 ): PdfLiteral {
+  const pagePoints = getAnnotationPagePoints(annotation);
   const points =
-    Array.isArray(annotation.data.points) && annotation.data.points.length >= 4
-      ? annotation.data.points
-      : [0, annotation.rect.height / 2, annotation.rect.width, annotation.rect.height / 2];
-  const first = annotationPointToPdf(annotation.rect.x + finite(points[0], 0), annotation.rect.y + finite(points[1], annotation.rect.height / 2), geometry);
-  const second = annotationPointToPdf(annotation.rect.x + finite(points[2], annotation.rect.width), annotation.rect.y + finite(points[3], annotation.rect.height / 2), geometry);
+    pagePoints.length >= 4
+      ? pagePoints
+      : [
+          annotation.rect.x,
+          annotation.rect.y + annotation.rect.height / 2,
+          annotation.rect.x + annotation.rect.width,
+          annotation.rect.y + annotation.rect.height / 2,
+        ];
+  const first = annotationPointToPdf(finite(points[0], annotation.rect.x), finite(points[1], annotation.rect.y + annotation.rect.height / 2), geometry);
+  const second = annotationPointToPdf(finite(points[2], annotation.rect.x + annotation.rect.width), finite(points[3], annotation.rect.y + annotation.rect.height / 2), geometry);
   const coordinates = [first.x, first.y, second.x, second.y];
   const sourceObject = sourceDict?.get(lib.PDFName.of('L'));
   const sourceLine = sourceDict ? readPdfNumberArray(sourceDict, 'L', lib) : null;
@@ -3726,10 +3778,13 @@ function calloutCoordinates(
   annotation: PdfAnnotation,
   geometry: AnnotationGeometry,
 ): number[] | undefined {
-  const anchor = readPoint(annotation.data.anchor);
+  const primaryLeader = Array.isArray(annotation.data.leaders) && annotation.data.leaders.length > 0
+    ? annotation.data.leaders[0]
+    : null;
+  const anchor = readPoint(primaryLeader?.anchor ?? annotation.data.anchor);
   if (!anchor) return undefined;
 
-  const knee = readPoint(annotation.data.knee);
+  const knee = readPoint(primaryLeader?.knee ?? annotation.data.knee);
   const end = closestRectPoint(annotation.rect, knee ?? anchor);
 
   const first = annotationPointToPdf(anchor.x, anchor.y, geometry);
@@ -3743,6 +3798,36 @@ function calloutCoordinates(
   const last = annotationPointToPdf(end.x, end.y, geometry);
   coordinates.push(last.x, last.y);
   return coordinates;
+}
+
+function calloutAllPoints(
+  annotation: PdfAnnotation,
+  geometry: AnnotationGeometry,
+): number[] {
+  const points: number[] = [];
+  const primary = calloutCoordinates(annotation, geometry);
+  if (primary) points.push(...primary);
+
+  if (Array.isArray(annotation.data.leaders)) {
+    for (const leader of annotation.data.leaders) {
+      if (leader.anchor) {
+        const a = annotationPointToPdf(leader.anchor.x, leader.anchor.y, geometry);
+        points.push(a.x, a.y);
+      }
+      if (leader.knee) {
+        const k = annotationPointToPdf(leader.knee.x, leader.knee.y, geometry);
+        points.push(k.x, k.y);
+      }
+    }
+  }
+
+  if (annotation.data.shelfStyle === 'underline') {
+    const p1 = annotationPointToPdf(annotation.rect.x, annotation.rect.y + annotation.rect.height, geometry);
+    const p2 = annotationPointToPdf(annotation.rect.x + annotation.rect.width, annotation.rect.y + annotation.rect.height, geometry);
+    points.push(p1.x, p1.y, p2.x, p2.y);
+  }
+
+  return points;
 }
 
 function closestRectPoint(

@@ -58,6 +58,7 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
   const endEditingWriterElement = useWriterV2Store((state) => state.endEditingWriterElement);
 
   const [draftRectState, setDraftRectState] = React.useState<{ rectKey: string; rect: PdfRect } | null>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
   const dragRef = React.useRef<DragState | null>(null);
   // Timestamp of the last non-drag pointerup, used to detect double-clicks
   // manually. The native `dblclick` event is unreliable on an element that also
@@ -116,6 +117,7 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
       // in endDrag without capturing and consuming the pointer events.
       captured: mode === 'resize',
     };
+    setIsDragging(true);
 
     if (mode === 'resize') {
       // Capture immediately so pointer events route to the box even when the
@@ -155,25 +157,44 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
     let nextViewportRect: ViewportRect;
 
     if (drag.mode === 'move') {
+      const vpW = Math.max(drag.startViewportRect.width, viewport.pdfWidth * viewport.scale);
+      const vpH = Math.max(drag.startViewportRect.height, viewport.pdfHeight * viewport.scale);
       nextViewportRect = {
         ...drag.startViewportRect,
-        x: drag.startViewportRect.x + dx,
-        y: drag.startViewportRect.y + dy,
+        x: Math.max(0, Math.min(vpW - drag.startViewportRect.width, drag.startViewportRect.x + dx)),
+        y: Math.max(0, Math.min(vpH - drag.startViewportRect.height, drag.startViewportRect.y + dy)),
       };
     } else {
       const { x, y, width, height } = drag.startViewportRect;
       const handle = drag.handle ?? 'se';
+      const vpW = Math.max(12, viewport.pdfWidth * viewport.scale);
+      const vpH = Math.max(12, viewport.pdfHeight * viewport.scale);
+      const minSize = 12;
 
-      // Compute new rect depending on which edge/corner is being dragged
+      // Pin opposite edges during n/w drags and clamp inside viewport bounds.
       let newX = x;
       let newY = y;
       let newW = width;
       let newH = height;
 
-      if (handle.includes('e')) { newW = Math.max(12, width + dx); }
-      if (handle.includes('w')) { newX = x + dx; newW = Math.max(12, width - dx); }
-      if (handle.includes('s')) { newH = Math.max(12, height + dy); }
-      if (handle.includes('n')) { newY = y + dy; newH = Math.max(12, height - dy); }
+      if (handle.includes('e')) {
+        newW = Math.max(minSize, Math.min(vpW - x, width + dx));
+      }
+      if (handle.includes('w')) {
+        const rightEdge = x + width;
+        const clampedX = Math.max(0, Math.min(rightEdge - minSize, x + dx));
+        newX = clampedX;
+        newW = rightEdge - clampedX;
+      }
+      if (handle.includes('s')) {
+        newH = Math.max(minSize, Math.min(vpH - y, height + dy));
+      }
+      if (handle.includes('n')) {
+        const bottomEdge = y + height;
+        const clampedY = Math.max(0, Math.min(bottomEdge - minSize, y + dy));
+        newY = clampedY;
+        newH = bottomEdge - clampedY;
+      }
 
       nextViewportRect = { x: newX, y: newY, width: newW, height: newH };
     }
@@ -216,6 +237,7 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
     const finalRect = draftRect ?? element.rect;
     dragRef.current = null;
     setDraftRectState(null);
+    setIsDragging(false);
 
     // A pointerdown that never moved is a click/double-click, not a drag —
     // don't emit a no-op move/resize command. Detect the double-click here
@@ -275,6 +297,7 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
 
     dragRef.current = null;
     setDraftRectState(null);
+    setIsDragging(false);
     lastClickAtRef.current = 0;
     lastPointerDownAtRef.current = 0;
     beginEditingWriterElement(element.id);
@@ -311,6 +334,7 @@ export const WriterElementBox: React.FC<WriterElementBoxProps> = ({
     onClick: undefined,
     onDoubleClick: openEditor,
     viewportRect,
+    isDragging,
     onSave: handleSave,
     onCancel: endEditingWriterElement,
   };

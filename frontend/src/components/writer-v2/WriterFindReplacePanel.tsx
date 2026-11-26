@@ -59,11 +59,14 @@ export const WriterFindReplacePanel: React.FC<{ onClose: () => void }> = ({
   const activeEditor = useActiveEditorStore((s) => s.activeEditor);
   // The panel is a gesture belonging to its opening editor, not the next editor.
   const [owner] = React.useState(() => activeEditor ? { editor: activeEditor, binding: currentRichEditorBinding(activeEditor) } : null);
-  const isCurrent = () => !!owner?.binding && useActiveEditorStore.getState().activeEditor === owner.editor
-    && currentRichEditorBinding(owner.editor) === owner.binding;
+  const isCurrent = React.useCallback(
+    () => !!owner?.binding && useActiveEditorStore.getState().activeEditor === owner.editor
+      && currentRichEditorBinding(owner.editor) === owner.binding,
+    [owner],
+  );
   React.useEffect(() => {
     if (activeEditor !== owner?.editor || !isCurrent()) onClose();
-  }, [activeEditor, owner, onClose]);
+  }, [activeEditor, owner, isCurrent, onClose]);
 
   const [search, setSearch] = React.useState('');
   const [replacement, setReplacement] = React.useState('');
@@ -72,11 +75,19 @@ export const WriterFindReplacePanel: React.FC<{ onClose: () => void }> = ({
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [lastReplaceAll, setLastReplaceAll] = React.useState<number | null>(null);
 
+  const searchActive = Boolean(activeEditor && search && owner?.binding);
+  const [prevSearchActive, setPrevSearchActive] = React.useState(searchActive);
+  if (searchActive !== prevSearchActive) {
+    setPrevSearchActive(searchActive);
+    if (!searchActive) {
+      setMatchCount(0);
+      setCurrentIndex(0);
+    }
+  }
+
   // Recount against committed editor state, including edits outside this panel.
   React.useEffect(() => {
     if (!activeEditor || !search || !isCurrent()) {
-      setMatchCount(0);
-      setCurrentIndex(0);
       return;
     }
     const recount = () => {
@@ -89,7 +100,7 @@ export const WriterFindReplacePanel: React.FC<{ onClose: () => void }> = ({
     };
     recount();
     return activeEditor.registerUpdateListener(recount);
-  }, [activeEditor, owner, search, caseSensitive]);
+  }, [activeEditor, owner, search, caseSensitive, isCurrent]);
 
   const navigateTo = (delta: 1 | -1) => {
     if (!activeEditor || !isCurrent() || !search || !matchCount) return;

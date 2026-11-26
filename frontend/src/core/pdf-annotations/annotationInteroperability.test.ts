@@ -16,6 +16,18 @@ import { readNativePdfAnnotations } from './nativeAnnotationReader';
 
 // Native text entries may be literal strings, hex strings or PDF names.
 // Required lookups fail explicitly; optional lookups retain missing-value semantics.
+interface TestPdfNode extends PDFObject {
+  size(): number;
+  get(keyOrIndex: PDFName | number): TestPdfNode & PDFRef;
+  lookup(keyOrIndex: PDFName | number): TestPdfNode;
+  lookup<T extends PDFObject>(keyOrIndex: PDFName | number, type: { prototype: T }): T;
+  lookupMaybe<T extends PDFObject>(keyOrIndex: PDFName | number, type: { prototype: T }): T | undefined;
+  keys(): Iterable<PDFName>;
+  delete(key: PDFName): boolean;
+  set(key: PDFName, value: PDFObject): void;
+  push(value: PDFObject): void;
+}
+
 function optionalPdfText(value: PDFObject | undefined): string | undefined {
   return value instanceof PDFString || value instanceof PDFHexString || value instanceof PDFName
     ? value.decodeText() : undefined;
@@ -172,11 +184,11 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     // annotation count is not equal to the 17 application roots.
     const doc = await PDFDocument.load(save2.bytes);
     const page = doc.getPage(0);
-    const annotsArray = page.node.lookup(PDFName.of('Annots')) as any;
+    const annotsArray = page.node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     const annotationNames: string[] = [];
 
     for (let index = 0; index < annotsArray.size(); index += 1) {
-      const dict = annotsArray.lookup(index) as PDFDict;
+      const dict = annotsArray.lookup(index) as unknown as TestPdfNode;
       const nm = optionalPdfText(dict.lookup(PDFName.of('NM')));
       if (typeof nm === 'string') annotationNames.push(nm);
     }
@@ -197,16 +209,16 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const externalDoc = await PDFDocument.load(save1.bytes);
     const externalPage = externalDoc.getPage(0);
-    const externalAnnots = externalPage.node.lookup(PDFName.of('Annots')) as any;
+    const externalAnnots = externalPage.node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
 
     expect(externalAnnots.size()).toBe(3);
 
     let rootRef: PDFRef | null = null;
-    let rootDict: any = null;
+    let rootDict: TestPdfNode | null = null;
     let replyRef: PDFRef | null = null;
-    let replyDict: any = null;
+    let replyDict: TestPdfNode | null = null;
     let stateRef: PDFRef | null = null;
-    let stateDict: any = null;
+    let stateDict: TestPdfNode | null = null;
 
     for (let index = 0; index < externalAnnots.size(); index += 1) {
       const ref = externalAnnots.get(index);
@@ -229,19 +241,19 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(rootRef).toBeInstanceOf(PDFRef);
     expect(replyRef).toBeInstanceOf(PDFRef);
     expect(stateRef).toBeInstanceOf(PDFRef);
-    expect(rootDict.get(PDFName.of('StateModel'))).toBeUndefined();
-    expect(rootDict.get(PDFName.of('State'))).toBeUndefined();
+    expect(rootDict!.get(PDFName.of('StateModel'))).toBeUndefined();
+    expect(rootDict!.get(PDFName.of('State'))).toBeUndefined();
 
-    expect(replyDict.get(PDFName.of('IRT'))).toBeInstanceOf(PDFRef);
-    expect(replyDict.get(PDFName.of('IRT')).toString()).toBe(rootRef?.toString());
-    expect(requiredPdfText(replyDict.lookup(PDFName.of('NM')))).toBe(
+    expect(replyDict!.get(PDFName.of('IRT'))).toBeInstanceOf(PDFRef);
+    expect(replyDict!.get(PDFName.of('IRT')).toString()).toBe(rootRef?.toString());
+    expect(requiredPdfText(replyDict!.lookup(PDFName.of('NM')))).toBe(
       `${root.id}:reply:phase10-review-reply-1`,
     );
 
-    expect(stateDict.get(PDFName.of('IRT'))).toBeInstanceOf(PDFRef);
-    expect(stateDict.get(PDFName.of('IRT')).toString()).toBe(rootRef?.toString());
-    expect(requiredPdfText(stateDict.lookup(PDFName.of('StateModel')))).toBe('Review');
-    expect(requiredPdfText(stateDict.lookup(PDFName.of('State')))).toBe('Completed');
+    expect(stateDict!.get(PDFName.of('IRT'))).toBeInstanceOf(PDFRef);
+    expect(stateDict!.get(PDFName.of('IRT')).toString()).toBe(rootRef?.toString());
+    expect(requiredPdfText(stateDict!.lookup(PDFName.of('StateModel')))).toBe('Review');
+    expect(requiredPdfText(stateDict!.lookup(PDFName.of('State')))).toBe('Completed');
 
     // Simulate a standards-capable external writer that preserves standard
     // annotation fields but strips every PDF Hub private key.
@@ -254,8 +266,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       }
     }
 
-    rootDict.set(PDFName.of('Contents'), PDFString.of('Externally revised review text'));
-    stateDict.set(PDFName.of('State'), PDFString.of('Rejected'));
+    rootDict!.set(PDFName.of('Contents'), PDFString.of('Externally revised review text'));
+    stateDict!.set(PDFName.of('State'), PDFString.of('Rejected'));
 
     const externallyEdited = new Uint8Array(await externalDoc.save());
     const returned = await readNativePdfAnnotations(externallyEdited);
@@ -284,7 +296,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     );
 
     const doc2 = await PDFDocument.load(save2.bytes);
-    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     expect(annots2.size()).toBe(3);
 
     let rootRef2: PDFRef | null = null;
@@ -330,7 +342,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     );
 
     const doc3 = await PDFDocument.load(save3.bytes);
-    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     expect(annots3.size()).toBe(3);
   });
 
@@ -340,7 +352,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save1 = await writeNativePdfAnnotations(baseBytes, [root]);
     const externalDoc = await PDFDocument.load(save1.bytes);
-    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
 
     let rootRef: PDFRef | null = null;
     let firstStateRef: PDFRef | null = null;
@@ -383,7 +395,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     // rather than collapsing the external history to one state object.
     const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
     const doc2 = await PDFDocument.load(save2.bytes);
-    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     expect(annots2.size()).toBe(4);
 
     let rootRef2: PDFRef | null = null;
@@ -406,12 +418,12 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const firstStateDict2 = annots2.lookup(
       [...Array(annots2.size()).keys()].find(
         (index) => annots2.get(index).toString() === firstStateRef2?.toString(),
-      ),
+      ) ?? -1,
     );
     const secondStateDict2 = annots2.lookup(
       [...Array(annots2.size()).keys()].find(
         (index) => annots2.get(index).toString() === secondStateRef2?.toString(),
-      ),
+      ) ?? -1,
     );
 
     expect(firstStateDict2.get(PDFName.of('IRT')).toString()).toBe(rootRef2?.toString());
@@ -432,7 +444,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(read3.annotations[0].data.review?.statusAuthor).toBe('Current User');
 
     const doc3 = await PDFDocument.load(save3.bytes);
-    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     expect(annots3.size()).toBe(5);
 
     let rootRef3: PDFRef | null = null;
@@ -468,7 +480,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(read4.annotations[0].data.review?.statusAuthor).toBe('Current User');
 
     const doc4 = await PDFDocument.load(save4.bytes);
-    const annots4 = doc4.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const annots4 = doc4.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     expect(annots4.size()).toBe(6);
 
     let rootRef4: PDFRef | null = null;
@@ -492,7 +504,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save5 = await writeNativePdfAnnotations(save4.bytes, read4.annotations);
     const doc5 = await PDFDocument.load(save5.bytes);
-    const annots5 = doc5.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const annots5 = doc5.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     expect(annots5.size()).toBe(6);
   });
 
@@ -502,7 +514,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save1 = await writeNativePdfAnnotations(baseBytes, [root]);
     const externalDoc = await PDFDocument.load(save1.bytes);
-    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
 
     let rootRef: PDFRef | null = null;
     let firstReplyRef: PDFRef | null = null;
@@ -593,7 +605,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(nestedReply2?.parentReplyId).toBe('phase10-review-reply-1');
 
     const doc2 = await PDFDocument.load(save2.bytes);
-    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     expect(annots2.size()).toBe(6);
 
     let rootRef2: PDFRef | null = null;
@@ -653,7 +665,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     expect(read3.annotations[0].data.review?.status).toBe('resolved');
 
     const doc3 = await PDFDocument.load(save3.bytes);
-    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     expect(annots3.size()).toBe(6);
 
     let rootRef3: PDFRef | null = null;
@@ -689,9 +701,9 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save1 = await writeNativePdfAnnotations(baseBytes, [textbox]);
     const externalDoc = await PDFDocument.load(save1.bytes);
-    const externalAnnots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    const externalAnnots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     const oldRootRef = externalAnnots.get(0) as PDFRef;
-    const rootDict = externalAnnots.lookup(0) as PDFDict;
+    const rootDict = externalAnnots.lookup(0) as unknown as TestPdfNode;
 
     const richText = '<body><p>Rich text baseline</p></body>';
     const defaultStyle = 'font: 14pt Helvetica; color: #000000';
@@ -721,7 +733,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       Rect: [220, 620, 420, 760],
       Parent: oldRootRef,
       Open: false,
-    }) as PDFDict;
+    }) as unknown as TestPdfNode;
     const popupRef = externalDoc.context.register(popupDict);
     externalAnnots.push(popupRef);
     rootDict.set(PDFName.of('Popup'), popupRef);
@@ -748,11 +760,11 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const findManagedRoot = (
       doc: PDFDocument,
-    ): { ref: PDFRef; dict: PDFDict; annots: any } => {
-      const annots = doc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
+    ): { ref: PDFRef; dict: TestPdfNode; annots: TestPdfNode } => {
+      const annots = doc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
       for (let index = 0; index < annots.size(); index += 1) {
         const ref = annots.get(index);
-        const dict = annots.lookup(index) as PDFDict;
+        const dict = annots.lookup(index) as unknown as TestPdfNode;
         const nm = optionalPdfText(dict.lookup(PDFName.of('NM')));
         if (nm === 'phase10-rich-text-root-1') {
           expect(ref).toBeInstanceOf(PDFRef);
@@ -842,11 +854,11 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const save1 = await writeNativePdfAnnotations(baseBytes, [root]);
 
     const externalDoc = await PDFDocument.load(save1.bytes);
-    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    let replyDict: PDFDict | null = null;
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    let replyDict: TestPdfNode | null = null;
 
     for (let index = 0; index < annots.size(); index += 1) {
-      const dict = annots.lookup(index) as PDFDict;
+      const dict = annots.lookup(index) as unknown as TestPdfNode;
       const nm = optionalPdfText(dict.lookup(PDFName.of('NM')));
       if (nm === `${root.id}:reply:phase10-review-reply-1`) {
         replyDict = dict;
@@ -875,10 +887,10 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save2 = await writeNativePdfAnnotations(externallySaved, returned.annotations);
     const doc2 = await PDFDocument.load(save2.bytes);
-    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    let savedReply: PDFDict | null = null;
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    let savedReply: TestPdfNode | null = null;
     for (let index = 0; index < annots2.size(); index += 1) {
-      const dict = annots2.lookup(index) as PDFDict;
+      const dict = annots2.lookup(index) as unknown as TestPdfNode;
       const nm = optionalPdfText(dict.lookup(PDFName.of('NM')));
       if (nm === `${root.id}:reply:phase10-review-reply-1`) {
         savedReply = dict;
@@ -951,8 +963,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save1 = await writeNativePdfAnnotations(baseBytes, [textbox]);
     const externalDoc = await PDFDocument.load(save1.bytes);
-    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const dict = annots.lookup(0) as PDFDict;
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const dict = annots.lookup(0) as unknown as TestPdfNode;
 
     const externalDa = '/ExternalFont 19 Tf 0.2 0.4 0.6 rg';
     dict.set(PDFName.of('DA'), PDFString.of(externalDa));
@@ -978,8 +990,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
     const doc2 = await PDFDocument.load(save2.bytes);
-    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const dict2 = annots2.lookup(0) as PDFDict;
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const dict2 = annots2.lookup(0) as unknown as TestPdfNode;
     expect(requiredPdfText(dict2.lookup(PDFName.of('DA')))).toBe(externalDa);
     expect(dict2.lookup(PDFName.of('AP'))).toBeInstanceOf(PDFDict);
 
@@ -995,8 +1007,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save3 = await writeNativePdfAnnotations(save2.bytes, [locallyEdited]);
     const doc3 = await PDFDocument.load(save3.bytes);
-    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const dict3 = annots3.lookup(0) as PDFDict;
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const dict3 = annots3.lookup(0) as unknown as TestPdfNode;
     const da3 = requiredPdfText(dict3.lookup(PDFName.of('DA')));
 
     expect(da3).toContain('/ExternalFont 23 Tf');
@@ -1016,8 +1028,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save1 = await writeNativePdfAnnotations(baseBytes, [highlight]);
     const externalDoc = await PDFDocument.load(save1.bytes);
-    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const dict = annots.lookup(0) as PDFDict;
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const dict = annots.lookup(0) as unknown as TestPdfNode;
 
     // Fixture Rect is x=50..250 and app y=120..138 on an 800pt page,
     // so PDF-space y=680..662. Two separate markup quads exercise the
@@ -1061,9 +1073,9 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
     const doc2 = await PDFDocument.load(save2.bytes);
-    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const dict2 = annots2.lookup(0) as PDFDict;
-    const quadArray2 = dict2.lookup(PDFName.of('QuadPoints')) as any;
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const dict2 = annots2.lookup(0) as unknown as TestPdfNode;
+    const quadArray2 = dict2.lookup(PDFName.of('QuadPoints')) as unknown as TestPdfNode;
     const rawQuads2 = Array.from(
       { length: quadArray2.size() },
       (_, index) => requiredPdfNumber(quadArray2.lookup(index)),
@@ -1084,9 +1096,9 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save3 = await writeNativePdfAnnotations(save2.bytes, [movedAndResized]);
     const doc3 = await PDFDocument.load(save3.bytes);
-    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const dict3 = annots3.lookup(0) as PDFDict;
-    const quadArray3 = dict3.lookup(PDFName.of('QuadPoints')) as any;
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const dict3 = annots3.lookup(0) as unknown as TestPdfNode;
+    const quadArray3 = dict3.lookup(PDFName.of('QuadPoints')) as unknown as TestPdfNode;
     const rawQuads3 = Array.from(
       { length: quadArray3.size() },
       (_, index) => requiredPdfNumber(quadArray3.lookup(index)),
@@ -1133,8 +1145,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save1 = await writeNativePdfAnnotations(baseBytes, [textbox]);
     const externalDoc = await PDFDocument.load(save1.bytes);
-    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const dict = annots.lookup(0) as PDFDict;
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const dict = annots.lookup(0) as unknown as TestPdfNode;
 
     dict.delete(PDFName.of('IT'));
     dict.set(
@@ -1160,14 +1172,14 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
     const doc2 = await PDFDocument.load(save2.bytes);
-    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const dict2 = annots2.lookup(0) as PDFDict;
+    const annots2 = doc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const dict2 = annots2.lookup(0) as unknown as TestPdfNode;
 
     expect(requiredPdfNumber(dict2.lookup(PDFName.of('Q')))).toBe(2);
     expect(requiredPdfNumber(dict2.lookup(PDFName.of('F')))).toBe(132);
-    const border2 = dict2.lookup(PDFName.of('Border')) as any;
+    const border2 = dict2.lookup(PDFName.of('Border')) as unknown as TestPdfNode;
     expect(requiredPdfNumber(border2.lookup(2))).toBe(4);
-    const dash2 = border2.lookup(3) as any;
+    const dash2 = border2.lookup(3) as unknown as TestPdfNode;
     expect(requiredPdfNumber(dash2.lookup(0))).toBe(3);
     expect(requiredPdfNumber(dash2.lookup(1))).toBe(2);
     expect(requiredPdfText(dict2.lookup(PDFName.of('IT')))).toBe('FreeTextCallout');
@@ -1186,14 +1198,14 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save3 = await writeNativePdfAnnotations(save2.bytes, [locallyEdited]);
     const doc3 = await PDFDocument.load(save3.bytes);
-    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const dict3 = annots3.lookup(0) as PDFDict;
+    const annots3 = doc3.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const dict3 = annots3.lookup(0) as unknown as TestPdfNode;
 
     expect(requiredPdfNumber(dict3.lookup(PDFName.of('Q')))).toBe(1);
     expect(requiredPdfNumber(dict3.lookup(PDFName.of('F')))).toBe(4);
-    const border3 = dict3.lookup(PDFName.of('Border')) as any;
+    const border3 = dict3.lookup(PDFName.of('Border')) as unknown as TestPdfNode;
     expect(requiredPdfNumber(border3.lookup(2))).toBe(2);
-    const dash3 = border3.lookup(3) as any;
+    const dash3 = border3.lookup(3) as unknown as TestPdfNode;
     expect(requiredPdfNumber(dash3.lookup(0))).toBe(1);
     expect(requiredPdfNumber(dash3.lookup(1))).toBe(1);
 
@@ -1213,8 +1225,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     });
     const lineSave = await writeNativePdfAnnotations(baseBytes, [line]);
     const lineDoc = await PDFDocument.load(lineSave.bytes);
-    const lineAnnots = lineDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const lineDict = lineAnnots.lookup(0) as PDFDict;
+    const lineAnnots = lineDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const lineDict = lineAnnots.lookup(0) as unknown as TestPdfNode;
     lineDict.set(
       PDFName.of('LE'),
       lineDoc.context.obj([
@@ -1231,9 +1243,9 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const lineSave2 = await writeNativePdfAnnotations(externalLine, lineRead.annotations);
     const lineDoc2 = await PDFDocument.load(lineSave2.bytes);
-    const lineDict2 = (lineDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
-      .lookup(0) as PDFDict;
-    const endings2 = lineDict2.lookup(PDFName.of('LE')) as any;
+    const lineDict2 = (lineDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode)
+      .lookup(0) as unknown as TestPdfNode;
+    const endings2 = lineDict2.lookup(PDFName.of('LE')) as unknown as TestPdfNode;
     expect(requiredPdfText(endings2.lookup(0))).toBe('Circle');
     expect(requiredPdfText(endings2.lookup(1))).toBe('ClosedArrow');
 
@@ -1242,8 +1254,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     });
     const rectSave = await writeNativePdfAnnotations(baseBytes, [rect]);
     const rectDoc = await PDFDocument.load(rectSave.bytes);
-    const rectAnnots = rectDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const rectDict = rectAnnots.lookup(0) as PDFDict;
+    const rectAnnots = rectDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const rectDict = rectAnnots.lookup(0) as unknown as TestPdfNode;
     rectDict.set(
       PDFName.of('BE'),
       rectDoc.context.obj({
@@ -1258,9 +1270,9 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const cloudSave2 = await writeNativePdfAnnotations(externalCloud, cloudRead.annotations);
     const cloudDoc2 = await PDFDocument.load(cloudSave2.bytes);
-    const cloudDict2 = (cloudDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
-      .lookup(0) as PDFDict;
-    const be2 = cloudDict2.lookup(PDFName.of('BE')) as PDFDict;
+    const cloudDict2 = (cloudDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode)
+      .lookup(0) as unknown as TestPdfNode;
+    const be2 = cloudDict2.lookup(PDFName.of('BE')) as unknown as TestPdfNode;
     expect(requiredPdfText(be2.lookup(PDFName.of('S')))).toBe('C');
     expect(requiredPdfNumber(be2.lookup(PDFName.of('I')))).toBe(2.5);
   });
@@ -1277,8 +1289,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     });
     const stickySave = await writeNativePdfAnnotations(baseBytes, [sticky]);
     const stickyDoc = await PDFDocument.load(stickySave.bytes);
-    const stickyAnnots = stickyDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const stickyDict = stickyAnnots.lookup(0) as PDFDict;
+    const stickyAnnots = stickyDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const stickyDict = stickyAnnots.lookup(0) as unknown as TestPdfNode;
     stickyDict.set(PDFName.of('Name'), PDFName.of('Key'));
     stickyDict.set(PDFName.of('Open'), stickyDoc.context.obj(true));
 
@@ -1292,8 +1304,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       stickyRead.annotations,
     );
     const stickyDoc2 = await PDFDocument.load(stickySave2.bytes);
-    const stickyDict2 = (stickyDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
-      .lookup(0) as PDFDict;
+    const stickyDict2 = (stickyDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode)
+      .lookup(0) as unknown as TestPdfNode;
     expect(requiredPdfText(stickyDict2.lookup(PDFName.of('Name')))).toBe('Key');
     expect(stickyDict2.lookup(PDFName.of('Open'), PDFBool).toString()).toBe('true');
 
@@ -1307,10 +1319,10 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     };
     const stickySave3 = await writeNativePdfAnnotations(stickySave2.bytes, [collapsed]);
     const stickyDoc3 = await PDFDocument.load(stickySave3.bytes);
-    const stickyAnnots3 = stickyDoc3.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    let stickyDict3: PDFDict | null = null;
+    const stickyAnnots3 = stickyDoc3.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    let stickyDict3: TestPdfNode | null = null;
     for (let index = 0; index < stickyAnnots3.size(); index += 1) {
-      const candidate = stickyAnnots3.lookup(index) as PDFDict;
+      const candidate = stickyAnnots3.lookup(index) as unknown as TestPdfNode;
       if (optionalPdfText(candidate.lookup(PDFName.of('NM'))) === sticky.id) {
         stickyDict3 = candidate;
         break;
@@ -1323,10 +1335,10 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const reviewComment = createDeterministicReviewThreadFixture();
     const commentSave = await writeNativePdfAnnotations(baseBytes, [reviewComment]);
     const commentDoc = await PDFDocument.load(commentSave.bytes);
-    const commentAnnots = commentDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    let commentRoot: PDFDict | null = null;
+    const commentAnnots = commentDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    let commentRoot: TestPdfNode | null = null;
     for (let index = 0; index < commentAnnots.size(); index += 1) {
-      const candidate = commentAnnots.lookup(index) as PDFDict;
+      const candidate = commentAnnots.lookup(index) as unknown as TestPdfNode;
       if (optionalPdfText(candidate.lookup(PDFName.of('NM'))) === reviewComment.id) {
         commentRoot = candidate;
         break;
@@ -1345,10 +1357,10 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
       commentRead.annotations,
     );
     const commentDoc2 = await PDFDocument.load(commentSave2.bytes);
-    const commentAnnots2 = commentDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    let commentRoot2: PDFDict | null = null;
+    const commentAnnots2 = commentDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    let commentRoot2: TestPdfNode | null = null;
     for (let index = 0; index < commentAnnots2.size(); index += 1) {
-      const candidate = commentAnnots2.lookup(index) as PDFDict;
+      const candidate = commentAnnots2.lookup(index) as unknown as TestPdfNode;
       if (optionalPdfText(candidate.lookup(PDFName.of('NM'))) === reviewComment.id) {
         commentRoot2 = candidate;
         break;
@@ -1362,8 +1374,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     });
     const stampSave = await writeNativePdfAnnotations(baseBytes, [stamp]);
     const stampDoc = await PDFDocument.load(stampSave.bytes);
-    const stampAnnots = stampDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const stampDict = stampAnnots.lookup(0) as PDFDict;
+    const stampAnnots = stampDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const stampDict = stampAnnots.lookup(0) as unknown as TestPdfNode;
     stampDict.set(PDFName.of('Name'), PDFName.of('ExternalCustomStamp'));
 
     const externalStamp = new Uint8Array(await stampDoc.save());
@@ -1372,8 +1384,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const stampSave2 = await writeNativePdfAnnotations(externalStamp, stampRead.annotations);
     const stampDoc2 = await PDFDocument.load(stampSave2.bytes);
-    const stampDict2 = (stampDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
-      .lookup(0) as PDFDict;
+    const stampDict2 = (stampDoc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode)
+      .lookup(0) as unknown as TestPdfNode;
     expect(requiredPdfText(stampDict2.lookup(PDFName.of('Name')))).toBe(
       'ExternalCustomStamp',
     );
@@ -1404,8 +1416,8 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save1 = await writeNativePdfAnnotations(baseBytes, [rect]);
     const externalDoc = await PDFDocument.load(save1.bytes);
-    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as any;
-    const dict = annots.lookup(0) as PDFDict;
+    const annots = externalDoc.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
+    const dict = annots.lookup(0) as unknown as TestPdfNode;
 
     // Border deliberately disagrees with BS. PDF semantics require BS to win.
     dict.set(
@@ -1429,12 +1441,12 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save2 = await writeNativePdfAnnotations(externallyEdited, returned.annotations);
     const doc2 = await PDFDocument.load(save2.bytes);
-    const dict2 = (doc2.getPage(0).node.lookup(PDFName.of('Annots')) as any)
-      .lookup(0) as PDFDict;
-    const bs2 = dict2.lookup(PDFName.of('BS')) as PDFDict;
+    const dict2 = (doc2.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode)
+      .lookup(0) as unknown as TestPdfNode;
+    const bs2 = dict2.lookup(PDFName.of('BS')) as unknown as TestPdfNode;
     expect(requiredPdfNumber(bs2.lookup(PDFName.of('W')))).toBe(3);
     expect(requiredPdfText(bs2.lookup(PDFName.of('S')))).toBe('D');
-    const dash2 = bs2.lookup(PDFName.of('D')) as any;
+    const dash2 = bs2.lookup(PDFName.of('D')) as unknown as TestPdfNode;
     expect(requiredPdfNumber(dash2.lookup(0))).toBe(4);
     expect(requiredPdfNumber(dash2.lookup(1))).toBe(2);
 
@@ -1450,9 +1462,9 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
 
     const save3 = await writeNativePdfAnnotations(save2.bytes, [locallyEdited]);
     const doc3 = await PDFDocument.load(save3.bytes);
-    const dict3 = (doc3.getPage(0).node.lookup(PDFName.of('Annots')) as any)
-      .lookup(0) as PDFDict;
-    const bs3 = dict3.lookup(PDFName.of('BS')) as PDFDict;
+    const dict3 = (doc3.getPage(0).node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode)
+      .lookup(0) as unknown as TestPdfNode;
+    const bs3 = dict3.lookup(PDFName.of('BS')) as unknown as TestPdfNode;
     expect(requiredPdfNumber(bs3.lookup(PDFName.of('W')))).toBe(5);
     expect(requiredPdfText(bs3.lookup(PDFName.of('S')))).toBe('S');
 
@@ -1492,7 +1504,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const saved = await writeNativePdfAnnotations(baseBytes, [annot]);
     const doc = await PDFDocument.load(saved.bytes);
     const page = doc.getPage(0);
-    const annots = page.node.lookup(PDFName.of('Annots')) as any;
+    const annots = page.node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
 
     expect(annots).toBeTruthy();
     expect(annots.size()).toBe(1);
@@ -1509,7 +1521,7 @@ describe('TEST-10-01: Native Annotation Interoperability Fixtures & Semantic Ora
     const saved = await writeNativePdfAnnotations(baseBytes, [mask]);
     const doc = await PDFDocument.load(saved.bytes);
     const page = doc.getPage(0);
-    const annots = page.node.lookup(PDFName.of('Annots')) as any;
+    const annots = page.node.lookup(PDFName.of('Annots')) as unknown as TestPdfNode;
     const dict = annots.lookup(0);
     const subtype = requiredPdfText(dict.lookup(PDFName.of('Subtype')));
 

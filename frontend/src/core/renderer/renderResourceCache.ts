@@ -94,12 +94,15 @@ export class ByteBoundedLruCache<K, T> {
     return true;
   }
 
-  deleteWhere(predicate: (key: K, value: T) => boolean): number {
+  deleteWhere(
+    predicate: (key: K, value: T) => boolean,
+    options: { force?: boolean } = {},
+  ): number {
     const keys = Array.from(this.entries.entries())
-      .filter(([key, entry]) => entry.refCount === 0 && predicate(key, entry.value))
+      .filter(([key, entry]) => (options.force === true || entry.refCount === 0) && predicate(key, entry.value))
       .map(([key]) => key);
 
-    for (const key of keys) this.delete(key);
+    for (const key of keys) this.delete(key, options);
     return keys.length;
   }
 

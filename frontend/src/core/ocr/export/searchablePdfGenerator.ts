@@ -1,4 +1,5 @@
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
+import { loadArchivalFontkit } from '@/core/pdfa/lazyFontkit';
 import type { PdfRect } from '../../writer-v2/types';
 import type {
   OcrDocumentResult,
@@ -38,6 +39,13 @@ export interface SearchablePdfGeneratorOptions {
    * Disables object streams for easier inspection and broader compatibility.
    */
   disableObjectStreams?: boolean;
+
+  /**
+   * Default: false.
+   * When true, subset-embeds OFL Liberation Sans TTF via @pdf-lib/fontkit
+   * for ISO 19005 (PDF/A) compatibility instead of unembedded Helvetica.
+   */
+  archivalFontMode?: boolean;
 }
 
 export interface GenerateSearchablePdfInput {
@@ -78,7 +86,14 @@ export async function generateSearchablePdf(
   const lib = await pdfLib();
   const doc = await lib.PDFDocument.load(input.pdfBytes);
   const pages = doc.getPages();
-  const font = await doc.embedFont(lib.StandardFonts.Helvetica);
+  let font: import('pdf-lib').PDFFont;
+  if (input.options?.archivalFontMode) {
+    doc.registerFontkit(await loadArchivalFontkit());
+    const { loadArchivalFontAsset } = await import('@/core/pdfa/assets/archivalFontBundle');
+    font = await doc.embedFont(loadArchivalFontAsset('sansRegular'), { subset: true });
+  } else {
+    font = await doc.embedFont(lib.StandardFonts.Helvetica);
+  }
 
   const visibilityMode = input.options?.visibilityMode ?? 'invisible';
   const layerMode = input.options?.layerMode ?? 'word';

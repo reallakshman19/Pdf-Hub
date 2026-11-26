@@ -20,6 +20,7 @@ export interface WriterRichElementBoxProps {
   onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => void;
   viewportRect: { x: number; y: number; width: number; height: number };
+  isDragging?: boolean;
   onSave?: (payload: WriterEditorSavePayload) => void | Promise<boolean>;
   onCancel?: () => void;
 }
@@ -34,6 +35,7 @@ export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
   onClick,
   onDoubleClick,
   viewportRect,
+  isDragging = false,
   onSave,
   onCancel,
 }) => {
@@ -73,7 +75,7 @@ export const WriterRichElementBox: React.FC<WriterRichElementBoxProps> = ({
         height: viewportRect.height,
         boxSizing: 'border-box',
         pointerEvents: 'auto',
-        cursor: isEditing ? 'text' : element.locked ? 'not-allowed' : 'move',
+        cursor: isEditing ? 'text' : element.locked ? 'not-allowed' : isDragging ? 'grabbing' : 'grab',
         zIndex: element.style.zIndex,
         background: element.style.backgroundColor ?? 'rgba(255,255,255,0.88)',
         border:

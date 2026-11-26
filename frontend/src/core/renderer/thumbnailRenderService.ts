@@ -94,3 +94,39 @@ export async function acquireScheduledThumbnail(
   }
   return lease;
 }
+
+/**
+ * Explicitly evicts a page's cached thumbnail bitmap so subsequent renders recreate it.
+ */
+export function invalidateThumbnailPage(
+  documentKey: string,
+  pageNumber: number,
+): void {
+  const prefix = `${documentKey}:${pageNumber}:`;
+  thumbnailRenderCache.deleteWhere((key) => key.startsWith(prefix), { force: true });
+}
+
+/**
+ * Synchronously retrieves a cached thumbnail image URL if present in cache, or null.
+ */
+export function getCachedThumbnailUrl(
+  documentKey: string,
+  pageNumber: number,
+  targetWidth = 150,
+): string | null {
+  const cacheKey = getThumbnailRenderCacheKey(documentKey, pageNumber, targetWidth);
+  const cached = thumbnailRenderCache.get(cacheKey);
+  return cached?.imageUrl ?? null;
+}
+
+/**
+ * Invalidates all cached thumbnails for a document or globally.
+ */
+export function invalidateAllThumbnails(documentKey?: string): void {
+  if (documentKey) {
+    const prefix = `${documentKey}:`;
+    thumbnailRenderCache.deleteWhere((key) => key.startsWith(prefix), { force: true });
+  } else {
+    thumbnailRenderCache.clear({ force: true });
+  }
+}

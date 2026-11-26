@@ -11,6 +11,7 @@ import {
 } from '@/core/cancellation/operationCancellation';
 import type { DocumentSource } from '@/core/document-source/types';
 import { error } from '@/core/logger/service';
+import { getPdfPasswordForDocumentKey } from '@/core/pdf/passwordRegistry';
 import {
   PdfJsDocumentSourceTransport,
   type PdfJsRangeTransportDiagnostics,
@@ -33,6 +34,11 @@ export interface AcquirePdfDocumentSourceInput {
   readonly source: DocumentSource;
   readonly cacheKey: string;
   readonly signal?: AbortSignal;
+  readonly password?: string;
+}
+
+export interface AcquirePdfDocumentOptions {
+  readonly password?: string;
 }
 
 export interface PdfDocumentSourceCacheDiagnostics
@@ -95,10 +101,11 @@ export class PdfDocumentLeaseCache {
 
   async acquireDocument(
     buffer: Uint8Array | ArrayBuffer,
+    options?: AcquirePdfDocumentOptions,
   ): Promise<PdfDocumentLease> {
     const key = await this.keyForBuffer(buffer);
     const entry = this.documentCache.get(key)
-      ?? this.createByteEntry(key, buffer);
+      ?? this.createByteEntry(key, buffer, options?.password);
     return this.acquireEntry(entry);
   }
 
@@ -134,6 +141,7 @@ export class PdfDocumentLeaseCache {
           publicKey,
           input.source,
           size,
+          input.password,
         );
     }
 
@@ -211,10 +219,13 @@ export class PdfDocumentLeaseCache {
   private createByteEntry(
     key: string,
     buffer: Uint8Array | ArrayBuffer,
+    explicitPassword?: string,
   ): PdfDocumentCacheEntry {
     const entry = this.emptyEntry(key, key, null);
+    const password = explicitPassword ?? getPdfPasswordForDocumentKey(key);
     const task = getDocument({
       data: clonePdfBytes(buffer),
+      ...(password !== undefined ? { password } : {}),
     });
     entry.loadingTask = task;
     entry.docPromise = this.trackLoad(
@@ -229,6 +240,7 @@ export class PdfDocumentLeaseCache {
     publicKey: string,
     source: DocumentSource,
     size: number,
+    explicitPassword?: string,
   ): PdfDocumentCacheEntry {
     const key = this.sourceCacheKey(publicKey);
     let rejectFatal!: (error: Error) => void;
@@ -271,12 +283,14 @@ export class PdfDocumentLeaseCache {
       transport,
     );
 
+    const password = explicitPassword ?? getPdfPasswordForDocumentKey(publicKey);
     task = getDocument({
       range: transport,
       rangeChunkSize: 64 * 1024,
       disableRange: false,
       disableStream: true,
       disableAutoFetch: true,
+      ...(password !== undefined ? { password } : {}),
     });
     entry.loadingTask = task;
     void task.promise.catch(() => undefined);

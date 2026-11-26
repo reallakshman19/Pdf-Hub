@@ -29,7 +29,7 @@ import { WriterKeyboardHandler } from './WriterKeyboardHandler';
 import {
   Type, MessageSquareDot, Stamp, Tag, NotebookPen, Scan,
   FileDown, FileText, FolderArchive, FolderOpen,
-  ListChecks, Table as TableIcon,
+  ListChecks, Table as TableIcon, MoreHorizontal, SlidersHorizontal,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { WriterExportPreflightDialog } from './WriterExportPreflightDialog';
@@ -105,6 +105,8 @@ export const WriterV2ToolbarControls: React.FC = () => {
   } | null>(null);
   const standaloneImportGenerationRef = React.useRef(0);
   const [blankDialogOpen, setBlankDialogOpen] = React.useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
+  const moreMenuRef = React.useRef<HTMLDivElement | null>(null);
   const [pendingPreflight, setPendingPreflight] = React.useState<{
     label: string;
     result: WriterExportPreflightResult;
@@ -115,6 +117,8 @@ export const WriterV2ToolbarControls: React.FC = () => {
   const setActiveWriterTool = useWriterV2Store((state) => state.setActiveWriterTool);
   const createBlankWriterDocument = useWriterV2Store((state) => state.createBlankWriterDocument);
   const documentMeta = useWriterV2Store((state) => state.documentMeta);
+  const toolsHubOpen = useWriterV2Store((state) => state.toolsHubOpen);
+  const toggleToolsHub = useWriterV2Store((state) => state.toggleToolsHub);
   const setActiveMode = useEditorStore((state) => state.setActiveMode);
 
   const workingBytes = useSessionStore((state) => state.workingBytes);
@@ -320,6 +324,17 @@ export const WriterV2ToolbarControls: React.FC = () => {
       standaloneImportRef.current = null;
     };
   }, []);
+
+  React.useEffect(() => {
+    if (!moreMenuOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [moreMenuOpen]);
 
   const importProjectFile = async (file: File) => {
     beginExportOperation('Opening editable Writer project…');
@@ -566,15 +581,6 @@ export const WriterV2ToolbarControls: React.FC = () => {
       />
       <ResponsiveBtn
         icon={FileText}
-        label="Editable PDF"
-        disabled={!sourceBytes}
-        onClick={() => {
-          void runWithWriterPreflight('Editable PDF', exportEditablePdf);
-        }}
-        title="Save as editable .pdf - flattened for viewing, re-openable for editing in PDF Hub"
-      />
-      <ResponsiveBtn
-        icon={FileText}
         label="DOCX"
         disabled={!hasWriterSurface}
         onClick={() => {
@@ -592,24 +598,6 @@ export const WriterV2ToolbarControls: React.FC = () => {
         title="Export Writer PDF (view-only, smaller)"
       />
       <ResponsiveBtn
-        icon={ListChecks}
-        label="Comments CSV"
-        onClick={() => exportCommentSummary('csv')}
-        title="Export Writer comments/review objects as CSV"
-      />
-      <ResponsiveBtn
-        icon={ListChecks}
-        label="Comments MD"
-        onClick={() => exportCommentSummary('markdown')}
-        title="Export Writer comments/review objects as Markdown"
-      />
-      <ResponsiveBtn
-        icon={ListChecks}
-        label="Comments JSON"
-        onClick={() => exportCommentSummary('json')}
-        title="Export Writer comments/review objects as JSON"
-      />
-      <ResponsiveBtn
         icon={FolderArchive}
         label="Save Project"
         disabled={!hasWriterSurface}
@@ -619,11 +607,93 @@ export const WriterV2ToolbarControls: React.FC = () => {
         title="Export editable PDF Hub project (.pdfhub.zip)"
       />
       <ResponsiveBtn
-        icon={FolderOpen}
-        label="Open Project"
-        onClick={() => fileInputRef.current?.click()}
-        title="Open an editable .pdf or .pdfhub.zip project"
+        icon={SlidersHorizontal}
+        label="Tools"
+        active={toolsHubOpen}
+        onClick={toggleToolsHub}
+        title="Toggle Writer Objects, Templates, and Search Hub"
       />
+      <div className="relative" ref={moreMenuRef}>
+        <ResponsiveBtn
+          icon={MoreHorizontal}
+          label="More"
+          active={moreMenuOpen}
+          onClick={() => setMoreMenuOpen((prev) => !prev)}
+          title="More Writer exports, comments, and project import"
+        />
+        {moreMenuOpen && (
+          <div
+            role="menu"
+            aria-label="More Writer tools and exports"
+            className="absolute right-0 top-full mt-1 w-52 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1 z-50"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              disabled={!sourceBytes}
+              onClick={() => {
+                setMoreMenuOpen(false);
+                void runWithWriterPreflight('Editable PDF', exportEditablePdf);
+              }}
+              className="w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+              title="Save as editable .pdf - flattened for viewing, re-openable for editing in PDF Hub"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Editable PDF</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMoreMenuOpen(false);
+                fileInputRef.current?.click();
+              }}
+              className="w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              title="Open an editable .pdf or .pdfhub.zip project"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span>Open Project</span>
+            </button>
+            <div className="my-1 border-t border-slate-200 dark:border-slate-800" />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMoreMenuOpen(false);
+                exportCommentSummary('csv');
+              }}
+              className="w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <ListChecks className="w-3.5 h-3.5" />
+              <span>Comments CSV</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMoreMenuOpen(false);
+                exportCommentSummary('markdown');
+              }}
+              className="w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <ListChecks className="w-3.5 h-3.5" />
+              <span>Comments MD</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMoreMenuOpen(false);
+                exportCommentSummary('json');
+              }}
+              className="w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <ListChecks className="w-3.5 h-3.5" />
+              <span>Comments JSON</span>
+            </button>
+          </div>
+        )}
+      </div>
 
       <input
         ref={fileInputRef}

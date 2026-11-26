@@ -126,7 +126,13 @@ export const WriterRibbon: React.FC = () => {
   const [linkUrl, setLinkUrl] = React.useState('');
   const [activeLink, setActiveLink] = React.useState(false);
   const linkOwnerRef = React.useRef<LexicalEditor | null>(null);
-  React.useEffect(() => { setLinkPopover(false); setLinkUrl(''); linkOwnerRef.current = null; }, [activeEditor]);
+  const [prevLinkEditor, setPrevLinkEditor] = React.useState(activeEditor);
+  if (activeEditor !== prevLinkEditor) {
+    setPrevLinkEditor(activeEditor);
+    setLinkPopover(false);
+    setLinkUrl('');
+  }
+  React.useEffect(() => { linkOwnerRef.current = null; }, [activeEditor]);
 
   // Table insertion inline popover state
   const [tablePopover, setTablePopover] = React.useState(false);
@@ -576,8 +582,9 @@ export const WriterRibbon: React.FC = () => {
         overflowX: 'auto',
         gap: '4px',
         padding: '4px 12px',
-        background: '#ffffff',
-        borderBottom: '1px solid #cbd5e1',
+        background: 'var(--writer-surface, #ffffff)',
+        color: 'var(--writer-text, #0f172a)',
+        borderBottom: '1px solid var(--writer-border, #cbd5e1)',
         minHeight: '34px',
         position: 'relative',
       }}
@@ -602,7 +609,7 @@ export const WriterRibbon: React.FC = () => {
         />
       </div>
 
-      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+      <div style={{ width: 1, height: 18, background: 'var(--writer-border, #cbd5e1)', margin: '0 4px' }} className="dark:bg-slate-800" />
 
       {/* Group 2: Font Selection */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -615,9 +622,10 @@ export const WriterRibbon: React.FC = () => {
           style={{
             height: '26px',
             borderRadius: '5px',
-            border: '1px solid #cbd5e1',
+            border: '1px solid var(--writer-border, #cbd5e1)',
             fontSize: '11px',
-            background: '#ffffff',
+            background: 'var(--writer-surface, #ffffff)',
+            color: 'var(--writer-text, #0f172a)',
             cursor: documentFingerprint ? 'pointer' : 'not-allowed',
             padding: '0 4px',
             width: '110px',
@@ -637,9 +645,10 @@ export const WriterRibbon: React.FC = () => {
           style={{
             height: '26px',
             borderRadius: '5px',
-            border: '1px solid #cbd5e1',
+            border: '1px solid var(--writer-border, #cbd5e1)',
             fontSize: '11px',
-            background: '#ffffff',
+            background: 'var(--writer-surface, #ffffff)',
+            color: 'var(--writer-text, #0f172a)',
             cursor: documentFingerprint ? 'pointer' : 'not-allowed',
             padding: '0 4px',
             width: '46px',
@@ -656,7 +665,7 @@ export const WriterRibbon: React.FC = () => {
         </div>
       </div>
 
-      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+      <div style={{ width: 1, height: 18, background: 'var(--writer-border, #cbd5e1)', margin: '0 4px' }} className="dark:bg-slate-800" />
 
       {/* Group 3: Style Buttons */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -703,7 +712,7 @@ export const WriterRibbon: React.FC = () => {
         />
       </div>
 
-      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+      <div style={{ width: 1, height: 18, background: 'var(--writer-border, #cbd5e1)', margin: '0 4px' }} className="dark:bg-slate-800" />
 
       {/* Group 4: Headings */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -742,7 +751,7 @@ export const WriterRibbon: React.FC = () => {
         />
       </div>
 
-      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+      <div style={{ width: 1, height: 18, background: 'var(--writer-border, #cbd5e1)', margin: '0 4px' }} className="dark:bg-slate-800" />
 
       {/* Group 5: Alignment */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -778,7 +787,7 @@ export const WriterRibbon: React.FC = () => {
         />
       </div>
 
-      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+      <div style={{ width: 1, height: 18, background: 'var(--writer-border, #cbd5e1)', margin: '0 4px' }} className="dark:bg-slate-800" />
 
       {/* Group 6: Lists */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -799,7 +808,7 @@ export const WriterRibbon: React.FC = () => {
         />
       </div>
 
-      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+      <div style={{ width: 1, height: 18, background: 'var(--writer-border, #cbd5e1)', margin: '0 4px' }} className="dark:bg-slate-800" />
 
       {/* Group: Blocks */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -828,7 +837,7 @@ export const WriterRibbon: React.FC = () => {
         />
       </div>
 
-      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+      <div style={{ width: 1, height: 18, background: 'var(--writer-border, #cbd5e1)', margin: '0 4px' }} className="dark:bg-slate-800" />
 
       {/* Group: Spacing & transform */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
@@ -848,8 +857,9 @@ export const WriterRibbon: React.FC = () => {
               top: '100%',
               right: 0,
               zIndex: 50,
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
+              background: 'var(--writer-surface, #ffffff)',
+              color: 'var(--writer-text, #0f172a)',
+              border: '1px solid var(--writer-border, #cbd5e1)',
               borderRadius: 8,
               padding: '12px 14px',
               boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
@@ -860,52 +870,52 @@ export const WriterRibbon: React.FC = () => {
             }}
             className="dark:bg-slate-900 dark:border-slate-700"
           >
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--writer-text-muted, #64748b)', textTransform: 'uppercase' }}>
               Typography
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ fontSize: 11, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ fontSize: 11, color: 'var(--writer-text-secondary, #374151)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 Line height
                 <select
                   value={lineHeight}
                   onChange={(e) => applyLineHeight(e.target.value)}
-                  style={{ width: 80, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 11, background: '#fff' }}
+                  style={{ width: 80, border: '1px solid var(--writer-border, #cbd5e1)', borderRadius: 4, padding: '2px 4px', fontSize: 11, background: 'var(--writer-surface, #ffffff)', color: 'var(--writer-text, #0f172a)' }}
                 >
                   {LINE_HEIGHTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </label>
               
-              <label style={{ fontSize: 11, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ fontSize: 11, color: 'var(--writer-text-secondary, #374151)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 Letter spacing
                 <select
                   value={letterSpacing}
                   onChange={(e) => applyLetterSpacing(e.target.value)}
-                  style={{ width: 80, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 11, background: '#fff' }}
+                  style={{ width: 80, border: '1px solid var(--writer-border, #cbd5e1)', borderRadius: 4, padding: '2px 4px', fontSize: 11, background: 'var(--writer-surface, #ffffff)', color: 'var(--writer-text, #0f172a)' }}
                 >
                   {LETTER_SPACINGS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </label>
               
-              <label style={{ fontSize: 11, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ fontSize: 11, color: 'var(--writer-text-secondary, #374151)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 Text transform
                 <select
                   value={textTransform}
                   onChange={(e) => applyTextTransform(e.target.value)}
-                  style={{ width: 80, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 11, background: '#fff' }}
+                  style={{ width: 80, border: '1px solid var(--writer-border, #cbd5e1)', borderRadius: 4, padding: '2px 4px', fontSize: 11, background: 'var(--writer-surface, #ffffff)', color: 'var(--writer-text, #0f172a)' }}
                 >
                   {TEXT_TRANSFORMS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </label>
             </div>
 
-            <div style={{ height: 1, background: '#cbd5e1' }} />
+            <div style={{ height: 1, background: 'var(--writer-border, #cbd5e1)' }} />
 
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--writer-text-muted, #64748b)', textTransform: 'uppercase' }}>
               Paragraph Spacing (px)
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ fontSize: 11, color: '#374151', display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+              <label style={{ fontSize: 11, color: 'var(--writer-text-secondary, #374151)', display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
                 Before
                 <input
                   type="number"
@@ -913,10 +923,10 @@ export const WriterRibbon: React.FC = () => {
                   max={200}
                   value={spaceBefore}
                   onChange={(e) => setSpaceBefore(Math.max(0, Number(e.target.value)))}
-                  style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 11 }}
+                  style={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--writer-border, #cbd5e1)', background: 'var(--writer-surface, #ffffff)', color: 'var(--writer-text, #0f172a)', borderRadius: 4, padding: '2px 4px', fontSize: 11 }}
                 />
               </label>
-              <label style={{ fontSize: 11, color: '#374151', display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+              <label style={{ fontSize: 11, color: 'var(--writer-text-secondary, #374151)', display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
                 After
                 <input
                   type="number"
@@ -924,7 +934,7 @@ export const WriterRibbon: React.FC = () => {
                   max={200}
                   value={spaceAfter}
                   onChange={(e) => setSpaceAfter(Math.max(0, Number(e.target.value)))}
-                  style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 4px', fontSize: 11 }}
+                  style={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--writer-border, #cbd5e1)', background: 'var(--writer-surface, #ffffff)', color: 'var(--writer-text, #0f172a)', borderRadius: 4, padding: '2px 4px', fontSize: 11 }}
                 />
               </label>
             </div>
@@ -956,7 +966,7 @@ export const WriterRibbon: React.FC = () => {
         )}
       </div>
 
-      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+      <div style={{ width: 1, height: 18, background: 'var(--writer-border, #cbd5e1)', margin: '0 4px' }} className="dark:bg-slate-800" />
 
       {/* Group: Link */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px', position: 'relative' }}>
@@ -984,8 +994,9 @@ export const WriterRibbon: React.FC = () => {
               top: '100%',
               left: 0,
               zIndex: 50,
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
+              background: 'var(--writer-surface, #ffffff)',
+              color: 'var(--writer-text, #0f172a)',
+              border: '1px solid var(--writer-border, #cbd5e1)',
               borderRadius: 8,
               padding: '10px 12px',
               boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
@@ -996,7 +1007,7 @@ export const WriterRibbon: React.FC = () => {
             }}
             className="dark:bg-slate-900 dark:border-slate-700"
           >
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--writer-text-muted, #64748b)' }}>
               Insert / Edit Link
             </div>
             <input
@@ -1010,7 +1021,9 @@ export const WriterRibbon: React.FC = () => {
               }}
               autoFocus
               style={{
-                border: '1px solid #cbd5e1',
+                border: '1px solid var(--writer-border, #cbd5e1)',
+                background: 'var(--writer-surface, #ffffff)',
+                color: 'var(--writer-text, #0f172a)',
                 borderRadius: 4,
                 padding: '4px 8px',
                 fontSize: 12,
@@ -1049,7 +1062,7 @@ export const WriterRibbon: React.FC = () => {
         )}
       </div>
 
-      <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+      <div style={{ width: 1, height: 18, background: 'var(--writer-border, #cbd5e1)', margin: '0 4px' }} className="dark:bg-slate-800" />
 
       {/* Group 7: Inserts */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px', position: 'relative' }}>
@@ -1074,8 +1087,9 @@ export const WriterRibbon: React.FC = () => {
               top: '100%',
               left: 0,
               zIndex: 50,
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
+              background: 'var(--writer-surface, #ffffff)',
+              color: 'var(--writer-text, #0f172a)',
+              border: '1px solid var(--writer-border, #cbd5e1)',
               borderRadius: 8,
               padding: '10px 12px',
               boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
@@ -1086,11 +1100,11 @@ export const WriterRibbon: React.FC = () => {
             }}
             className="dark:bg-slate-900 dark:border-slate-700"
           >
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 2 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--writer-text-muted, #64748b)', marginBottom: 2 }}>
               Insert Table
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ fontSize: 11, color: '#374151', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <label style={{ fontSize: 11, color: 'var(--writer-text-secondary, #374151)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 Rows
                 <input
                   type="number"
@@ -1100,14 +1114,16 @@ export const WriterRibbon: React.FC = () => {
                   onChange={(e) => setTableRows(Number(e.target.value))}
                   style={{
                     width: 56,
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--writer-border, #cbd5e1)',
+                    background: 'var(--writer-surface, #ffffff)',
+                    color: 'var(--writer-text, #0f172a)',
                     borderRadius: 4,
                     padding: '2px 4px',
                     fontSize: 12,
                   }}
                 />
               </label>
-              <label style={{ fontSize: 11, color: '#374151', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <label style={{ fontSize: 11, color: 'var(--writer-text-secondary, #374151)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 Cols
                 <input
                   type="number"
@@ -1117,7 +1133,9 @@ export const WriterRibbon: React.FC = () => {
                   onChange={(e) => setTableCols(Number(e.target.value))}
                   style={{
                     width: 56,
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--writer-border, #cbd5e1)',
+                    background: 'var(--writer-surface, #ffffff)',
+                    color: 'var(--writer-text, #0f172a)',
                     borderRadius: 4,
                     padding: '2px 4px',
                     fontSize: 12,
@@ -1174,7 +1192,7 @@ export const WriterRibbon: React.FC = () => {
       {/* Group 8: Table Operations (Dynamic) */}
       {isInTable && (
         <>
-          <div style={{ width: 1, height: 18, background: '#cbd5e1', margin: '0 4px' }} className="dark:bg-slate-800" />
+          <div style={{ width: 1, height: 18, background: 'var(--writer-border, #cbd5e1)', margin: '0 4px' }} className="dark:bg-slate-800" />
           <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
             <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginRight: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Table</span>
             <RibbonBtn
@@ -1238,7 +1256,7 @@ export const WriterRibbon: React.FC = () => {
         style={{
           marginLeft: 'auto',
           fontSize: 11,
-          color: '#64748b',
+          color: 'var(--writer-text-muted, #64748b)',
           whiteSpace: 'nowrap',
           padding: '0 6px',
           userSelect: 'none',
@@ -1285,8 +1303,8 @@ const RibbonBtn: React.FC<{
         justifyContent: 'center',
         borderRadius: '5px',
         border: active ? '1px solid #2563eb' : '1px solid transparent',
-        background: active ? '#dbeafe' : 'transparent',
-        color: active ? '#1d4ed8' : '#374151',
+        background: active ? 'var(--writer-accent-bg, #dbeafe)' : 'transparent',
+        color: active ? 'var(--writer-accent-text, #1d4ed8)' : 'var(--writer-text-secondary, #374151)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.4 : 1,
         transition: 'all 0.15s ease',

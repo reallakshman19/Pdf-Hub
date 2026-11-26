@@ -18,7 +18,7 @@ import type { OpenDocumentPayload } from '@/core/session/store';
 import { beginDocumentOpenIntent, isDocumentOpenIntentCurrent } from '@/core/session/documentOpenIntent';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { readNativePdfAnnotations } from '@/core/pdf-annotations/nativeAnnotationReader';
-import { useWriterStore } from '@/core/writer/store';
+import { useCalloutStore } from '@/core/callout/store';
 import { useHistoryStore } from '@/core/document-history/store';
 import { markNativeAnnotationsHydrated } from '@/core/annotations/sessionHydration';
 import { rebindAnnotationsByPageNumber } from '@/core/annotations/pageAnchor';
@@ -386,7 +386,7 @@ export function preparePlainWriterPdfPublication(payload: OpenDocumentPayload): 
   });
   return () => {
     useHistoryStore.getState().clear();
-    useWriterStore.getState().clearElementsAfterCommit();
+    useCalloutStore.getState().clearElementsAfterCommit();
     useAnnotationStore.getState().setAnnotations([]);
     useAnnotationStore.setState({ hydratedDocumentKey: null, clipboard: [], clipboardDocumentKey: null });
     useWriterV2Store.getState().hydrateWriterSession({
@@ -428,7 +428,7 @@ export async function commitStagedWriterProjectImport(
   const ocrSnapshot = snapshotOcrImportState();
   const editorSnapshot = useEditorStore.getState();
   const annotationSnapshot = useAnnotationStore.getState().annotations;
-  const legacySnapshot = useWriterStore.getState().elements;
+  const legacySnapshot = useCalloutStore.getState().elements;
   const sourceOwner = captureDocumentMutationOwner();
   let ocrRestore: PreparedOcrProjectRestore | null = null;
 
@@ -441,7 +441,7 @@ export async function commitStagedWriterProjectImport(
       useWriterV2Store.getState().assetRecords !== writerSnapshot.assetRecords ||
       useWriterV2Store.getState().documentMeta !== writerSnapshot.documentMeta ||
       useAnnotationStore.getState().annotations !== annotationSnapshot ||
-      useWriterStore.getState().elements !== legacySnapshot
+      useCalloutStore.getState().elements !== legacySnapshot
     ) {
       throw new Error('Writer project import source session changed.');
     }
@@ -499,7 +499,7 @@ export async function commitStagedWriterProjectImport(
 
       return () => {
         useHistoryStore.getState().clear();
-        useWriterStore.getState().clearElementsAfterCommit();
+        useCalloutStore.getState().clearElementsAfterCommit();
         useWriterV2Store.getState().hydrateWriterSession({
           documentFingerprint: key,
           elements,
@@ -595,7 +595,7 @@ export async function commitStagedWriterProjectImport(
       restoreOcrImportState(ocrSnapshot);
       useEditorStore.setState(editorSnapshot, true);
       useAnnotationStore.getState().setAnnotations(annotationSnapshot);
-      useWriterStore.setState({ elements: legacySnapshot });
+      useCalloutStore.setState({ elements: legacySnapshot });
     }
     throw error;
   } finally {
@@ -614,7 +614,7 @@ export async function tryOpenEmbeddedWriterPdf(
   const owner = captureDocumentMutationOwner();
   const writer = useWriterV2Store.getState();
   const annotations = useAnnotationStore.getState().annotations;
-  const legacy = useWriterStore.getState().elements;
+  const legacy = useCalloutStore.getState().elements;
   const current = () =>
     isDocumentOpenIntentCurrent(options.openIntent) &&
     isDocumentMutationOwnerCurrent(owner) &&
@@ -622,7 +622,7 @@ export async function tryOpenEmbeddedWriterPdf(
     useWriterV2Store.getState().assetRecords === writer.assetRecords &&
     useWriterV2Store.getState().documentMeta === writer.documentMeta &&
     useAnnotationStore.getState().annotations === annotations &&
-    useWriterStore.getState().elements === legacy;
+    useCalloutStore.getState().elements === legacy;
 
   const assertCurrent = () => {
     options.assertSourceCurrent();
@@ -677,7 +677,7 @@ export async function importRoundTripPdfIntoWriterStore(
   const owner = captureDocumentMutationOwner();
   const writer = useWriterV2Store.getState();
   const annotations = useAnnotationStore.getState().annotations;
-  const legacy = useWriterStore.getState().elements;
+  const legacy = useCalloutStore.getState().elements;
   const current = () =>
     isDocumentOpenIntentCurrent(openIntent) &&
     isDocumentMutationOwnerCurrent(owner) &&
@@ -685,7 +685,7 @@ export async function importRoundTripPdfIntoWriterStore(
     useWriterV2Store.getState().assetRecords === writer.assetRecords &&
     useWriterV2Store.getState().documentMeta === writer.documentMeta &&
     useAnnotationStore.getState().annotations === annotations &&
-    useWriterStore.getState().elements === legacy;
+    useCalloutStore.getState().elements === legacy;
 
   const zip = await extractWriterProjectZipFromPdf(pdfBytes);
   if (!zip) return null;

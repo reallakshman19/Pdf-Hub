@@ -406,4 +406,61 @@ describe('primary PDF admission coordinator', () => {
     expect(firstResult.outcome).toBe('CANCELLED');
     expect(firstCommit).not.toHaveBeenCalled();
   });
+
+  it('classifies password-protected PDFs and retries cleanly when unlocked with a password', async () => {
+    const file = createFile(pdfHeaderBytes(), { name: 'encrypted.pdf' });
+    vi.spyOn(FileAdapter, 'hashBytes').mockResolvedValue('sha256:encrypted');
+    const commit = vi.fn();
+    const workingRevisionStore = new MemoryRevisionStore({
+      id: 'encrypted-revisions',
+    });
+
+    const buildPageGraph = vi.fn(async (_bytes, _key, _sig, opts?: { password?: string }) => {
+      if (opts?.password === undefined) {
+        const err = new Error('No password given') as Error & { code: number };
+        err.name = 'PasswordException';
+        err.code = 1;
+        throw err;
+      }
+      if (opts.password !== 'secret-123') {
+        const err = new Error('Incorrect Password') as Error & { code: number };
+        err.name = 'PasswordException';
+        err.code = 2;
+        throw err;
+      }
+      return pageGraph(2, 'sha256:encrypted');
+    });
+
+    const needed = await admitAndOpenPdfFile(file, 'TOOLBAR_PICKER', {
+      commit,
+      buildPageGraph,
+      workingRevisionStore,
+    });
+    expect(needed.outcome).toBe('REJECTED_INVALID_FORMAT');
+    expect(needed.evidence.diagnostics.some((d) => d.code === 'PDF_PASSWORD_REQUIRED')).toBe(true);
+
+    const incorrect = await admitAndOpenPdfFile(file, 'TOOLBAR_PICKER', {
+      commit,
+      buildPageGraph,
+      workingRevisionStore,
+      password: 'wrong',
+    });
+    expect(incorrect.outcome).toBe('REJECTED_INVALID_FORMAT');
+    expect(incorrect.evidence.diagnostics.some((d) => d.code === 'PDF_PASSWORD_INCORRECT')).toBe(true);
+
+    const unlocked = await admitAndOpenPdfFile(file, 'TOOLBAR_PICKER', {
+      commit,
+      buildPageGraph,
+      workingRevisionStore,
+      password: 'secret-123',
+    });
+    expect(unlocked.outcome).toBe('ACCEPTED');
+    if (unlocked.outcome === 'ACCEPTED') {
+      expect(unlocked.value.isEncryptedSource).toBe(true);
+    }
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(commit).toHaveBeenCalledWith(expect.objectContaining({
+      isEncryptedSource: true,
+    }));
+  });
 });

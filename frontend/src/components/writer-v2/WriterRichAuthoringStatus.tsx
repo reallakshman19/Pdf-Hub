@@ -150,11 +150,11 @@ function getStatus({
     return {
       label: 'Writer unavailable',
       detail: 'Open a PDF to use rich authoring.',
-      dot: '#94a3b8',
-      color: '#334155',
-      subtle: '#64748b',
-      border: '#cbd5e1',
-      background: '#f8fafc',
+      dot: 'var(--writer-text-faint, #94a3b8)',
+      color: 'var(--writer-text-secondary, #334155)',
+      subtle: 'var(--writer-text-muted, #64748b)',
+      border: 'var(--writer-border-strong, #cbd5e1)',
+      background: 'var(--writer-surface-subtle, #f8fafc)',
     };
   }
 
@@ -185,11 +185,11 @@ function getStatus({
   return {
     label: 'Smart authoring ready',
     detail: 'Ribbon commands will create/open a rich box.',
-    dot: '#2563eb',
-    color: '#1e3a8a',
-    subtle: '#2563eb',
-    border: '#93c5fd',
-    background: '#eff6ff',
+    dot: '#3b82f6',
+    color: 'var(--writer-accent-text, #1e3a8a)',
+    subtle: 'var(--writer-accent-text, #2563eb)',
+    border: 'var(--writer-accent-border, #93c5fd)',
+    background: 'var(--writer-accent-bg, #eff6ff)',
   };
 }
 
@@ -197,9 +197,9 @@ const buttonStyle: React.CSSProperties = {
   height: 24,
   padding: '0 8px',
   borderRadius: 6,
-  border: '1px solid #cbd5e1',
-  background: '#ffffff',
-  color: '#0f172a',
+  border: '1px solid var(--writer-border-strong, #cbd5e1)',
+  background: 'var(--writer-surface, #ffffff)',
+  color: 'var(--writer-text, #0f172a)',
   fontSize: 10,
   fontWeight: 800,
 };

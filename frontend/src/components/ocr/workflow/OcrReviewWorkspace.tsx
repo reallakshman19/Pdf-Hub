@@ -82,9 +82,10 @@ export const OcrReviewWorkspace: React.FC<OcrReviewWorkspaceProps> = ({
     [documentFingerprint, store.regions],
   );
 
-  const currentLowConfidenceWords = currentResult
-    ? store.lowConfidenceWords
-    : [];
+  const currentLowConfidenceWords = React.useMemo(
+    () => (currentResult ? store.lowConfidenceWords : []),
+    [currentResult, store.lowConfidenceWords],
+  );
 
   const currentSearchIndex = currentResult
     ? store.searchIndex

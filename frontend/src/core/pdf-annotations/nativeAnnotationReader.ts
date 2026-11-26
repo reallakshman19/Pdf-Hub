@@ -1,4 +1,4 @@
-import type { PdfAnnotation } from '@/core/annotations/types';
+import type { CalloutShelfStyle, PdfAnnotation } from '@/core/annotations/types';
 import type { NativeSourceRootEvidence } from './nativeCoverageAudit';
 import { isAnnotationType } from '@/core/annotations/annotationTypes';
 import type { ReviewMetadata, ReviewReply, ReviewStatus } from '@/core/review/types';
@@ -797,18 +797,35 @@ function nativeData(
         second.x - rect.x,
         second.y - rect.y,
       ];
+      data.coordinateSpace = 'rect-local';
+    } else {
+      const vertices = readNumberArray(dict, 'Vertices', lib);
+      if (vertices && vertices.length >= 4) {
+        const converted: number[] = [];
+        for (let index = 0; index + 1 < vertices.length; index += 2) {
+          const point = markupSpace ? pdfPointToView(vertices[index], vertices[index + 1], markupSpace) : { x: vertices[index], y: pageHeight - vertices[index + 1] };
+          converted.push(point.x, point.y);
+        }
+        data.points = converted;
+        data.coordinateSpace = 'page';
+      }
     }
   }
 
-  if (type === 'shape-polygon') {
+  if (type === 'shape-polygon' || type === 'area-takeoff' || type === 'perimeter-takeoff') {
     const vertices = readNumberArray(dict, 'Vertices', lib);
-    if (vertices && vertices.length >= 6) {
+    const minLen = type === 'perimeter-takeoff' ? 4 : 6;
+    if (vertices && vertices.length >= minLen) {
       const converted: number[] = [];
       for (let index = 0; index + 1 < vertices.length; index += 2) {
         const point = markupSpace ? pdfPointToView(vertices[index], vertices[index + 1], markupSpace) : { x: vertices[index], y: pageHeight - vertices[index + 1] };
         converted.push(point.x, point.y);
       }
       data.points = converted;
+      data.coordinateSpace = 'page';
+      if (type === 'perimeter-takeoff') {
+        data.isPipeRun = true;
+      }
     }
   }
 
@@ -854,6 +871,27 @@ function nativeData(
       else if (lower === 'slash') data.arrowHead = 'slash';
       else if (lower === 'diamond') data.arrowHead = 'diamond';
       else data.arrowHead = 'open';
+    }
+
+    const hubShelfStyle = readTextOrName(dict, 'PDFHubShelfStyle', lib);
+    if (hubShelfStyle) data.shelfStyle = hubShelfStyle as CalloutShelfStyle;
+    const hubShelfLength = readNumber(dict, 'PDFHubShelfLength', lib);
+    if (typeof hubShelfLength === 'number') data.shelfLength = hubShelfLength;
+    const hubLeaders = readTextOrName(dict, 'PDFHubLeaders', lib);
+    if (hubLeaders) {
+      try {
+        data.leaders = JSON.parse(hubLeaders);
+      } catch {
+        // Ignore malformed legacy PDFHubLeaders metadata
+      }
+    } else if (data.anchor) {
+      data.leaders = [{
+        id: 'primary',
+        anchor: data.anchor,
+        knee: data.knee ?? null,
+        leaderStyle: data.leaderStyle ?? 'elbow',
+        arrowHead: data.arrowHead ?? 'open',
+      }];
     }
   }
 
@@ -1044,6 +1082,8 @@ function annotationTypeFromSubtype(
       return 'shape-ellipse';
     case 'Polygon':
       return 'shape-polygon';
+    case 'PolyLine':
+      return 'perimeter-takeoff';
     case 'Line':
       return hasArrowEnding(dict, lib) ? 'arrow' : 'line';
     case 'Ink':

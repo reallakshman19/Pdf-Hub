@@ -1,13 +1,21 @@
 import {
   AnnotationMode,
   GlobalWorkerOptions,
+  OPS,
   type PageViewport,
   Util,
   type PDFDocumentProxy,
   type PDFPageProxy,
 } from 'pdfjs-dist';
 
-import { error } from '@/core/logger/service';
+import { debug, error } from '@/core/logger/service';
+import { extractVectorsFromOperatorList } from '@/core/cad-geometry/pdfOperatorVectorExtractor';
+import type {
+  AffineMatrix2D,
+  CadPageVectorExtractResult,
+  CadTextAnchor,
+  CadVectorExtractOptions,
+} from '@/core/cad-geometry/types';
 import {
   isOperationCancelledError,
   raceWithAbort,
@@ -183,9 +191,11 @@ export class PdfRendererAdapter {
   }
   static acquireDocument(
     buffer: Uint8Array | ArrayBuffer,
+    options?: { password?: string },
   ): Promise<PdfDocumentLease> {
     return pdfDocumentLeaseCache.acquireDocument(
       buffer,
+      options,
     );
   }
 
@@ -694,6 +704,217 @@ export class PdfRendererAdapter {
       error('pdf-renderer', 'Failed to load document outline', { error: String(err) });
       return [];
     }
+  }
+
+  static async extractPageVectors(
+    page: PDFPageProxy,
+    options: CadVectorExtractOptions = {},
+    signal?: AbortSignal,
+  ): Promise<CadPageVectorExtractResult> {
+    throwIfAborted(signal, `extract vectors from PDF page ${page.pageNumber}`);
+    const viewport = page.getViewport({ scale: 1 });
+    const opList = await raceWithAbort(
+      page.getOperatorList(),
+      signal,
+      `read operator list from PDF page ${page.pageNumber}`,
+    );
+    throwIfAborted(signal, `interpret operator list from PDF page ${page.pageNumber}`);
+
+    const ocgLayerNames: Record<string, string> = {};
+    try {
+      const pageWithOc = page as unknown as {
+        getOptionalContentConfig?: () => Promise<unknown>;
+      };
+      if (typeof pageWithOc.getOptionalContentConfig === 'function') {
+        const ocConfig = (await pageWithOc.getOptionalContentConfig()) as {
+          getOrder?: () => unknown;
+          getGroup?: (id: string) => { name?: string } | null;
+        } | null;
+        if (ocConfig && typeof ocConfig.getGroup === 'function') {
+          for (const args of opList.argsArray) {
+            if (!Array.isArray(args) || args.length < 2) continue;
+            const props = args[1];
+            const id =
+              typeof props === 'string'
+                ? props
+                : props && typeof props === 'object' && typeof (props as { id?: unknown }).id === 'string'
+                  ? (props as { id: string }).id
+                  : undefined;
+            if (id && !ocgLayerNames[id]) {
+              const grp = ocConfig.getGroup(id);
+              if (grp?.name) ocgLayerNames[id] = grp.name;
+            }
+          }
+        }
+      }
+    } catch {
+      // Optional content config unavailable or unsupported on this PDF
+    }
+
+    const opsMap: Record<string, number> = {};
+    for (const [key, val] of Object.entries(OPS)) {
+      if (typeof val === 'number') opsMap[key] = val;
+    }
+
+    const summary = extractVectorsFromOperatorList(
+      {
+        fnArray: opList.fnArray,
+        argsArray: opList.argsArray,
+        ops: opsMap,
+        ocgLayerNames,
+      },
+      {
+        pageNumber: page.pageNumber,
+        pageWidth: viewport.width,
+        pageHeight: viewport.height,
+        viewportTransform: viewport.transform as AffineMatrix2D,
+        extractOptions: options,
+      },
+    );
+
+    const textAnchors: CadTextAnchor[] = [];
+    if (options.includeTextAnchors ?? true) {
+      throwIfAborted(signal, `extract text anchors from PDF page ${page.pageNumber}`);
+      const textContent = await raceWithAbort(
+        page.getTextContent(),
+        signal,
+        `read text anchors from PDF page ${page.pageNumber}`,
+      );
+      for (let idx = 0; idx < textContent.items.length; idx++) {
+        const item = textContent.items[idx];
+        if (!isTransformItem(item) || !item.str.trim()) continue;
+        const tx = Util.transform(viewport.transform, item.transform);
+        const fontSize = Math.hypot(tx[2], tx[3]);
+        const width = Math.max(4, item.width);
+        const emHeight = Math.max(8, fontSize);
+        const height = emHeight * 1.2;
+        const x = tx[4];
+        const y = tx[5] - emHeight;
+
+        if (options.regionRect) {
+          const r = options.regionRect;
+          if (x + width < r.x || x > r.x + r.width || y + height < r.y || y > r.y + r.height) {
+            continue;
+          }
+        }
+
+        textAnchors.push({
+          id: `page-${page.pageNumber}-anchor-${idx}`,
+          text: item.str.trim(),
+          x,
+          y,
+          width,
+          height,
+          fontSize,
+          angleRad: Math.atan2(tx[1], tx[0]),
+        });
+      }
+    }
+
+    const isRasterOnlyLikely =
+      summary.imageXObjectCount > 0 &&
+      summary.geometry.lines.length === 0 &&
+      summary.geometry.beziers.length === 0;
+
+    debug('pdf-renderer', 'Extracted page vectors via OperatorList', {
+      pageNumber: page.pageNumber,
+      lines: summary.geometry.lines.length,
+      beziers: summary.geometry.beziers.length,
+      rectangles: summary.geometry.rectangles.length,
+      textAnchors: textAnchors.length,
+      imageXObjects: summary.imageXObjectCount,
+    });
+
+    return {
+      geometry: summary.geometry,
+      textAnchors,
+      layersDetected: summary.layersDetected,
+      imageXObjectCount: summary.imageXObjectCount,
+      isRasterOnlyLikely,
+      skippedOutOfRegionCount: summary.skippedOutOfRegionCount,
+    };
+  }
+
+  /**
+   * Rasterize a PDF page (or a rectangular sub-region of it) to an `ImageData`
+   * object suitable for the raster-vectorize pipeline.
+   *
+   * The render scale defaults to 1× (72 DPI = 1 PDF point per pixel), which
+   * is sufficient for pipe-run center-line detection.  Pass a higher `scale`
+   * when the page is small or fine detail is required.
+   *
+   * @param page      - Live `PDFPageProxy` from pdfjs-dist.
+   * @param options.scale      - Render scale multiplier (default `1`).
+   * @param options.regionRect - Optional crop region in unscaled top-left page
+   *                             view-space `{ x, y, width, height }` (same frame
+   *                             as `extractPageVectors`). When omitted the entire
+   *                             page is rasterized.
+   * @param options.signal     - Optional `AbortSignal`.
+   * @returns Raw RGBA `ImageData` for the requested region.
+   */
+  static async rasterizePageRegion(
+    page: PDFPageProxy,
+    options: {
+      scale?: number;
+      regionRect?: { x: number; y: number; width: number; height: number };
+      signal?: AbortSignal;
+    } = {},
+  ): Promise<ImageData> {
+    const scale = options.scale ?? 1;
+    const viewport = page.getViewport({ scale });
+
+    // Build a canvas — prefer OffscreenCanvas (worker-safe, no DOM reflow)
+    // and fall back to HTMLCanvasElement in environments that lack it.
+    const canvasW = Math.floor(viewport.width);
+    const canvasH = Math.floor(viewport.height);
+
+    let canvas: HTMLCanvasElement | OffscreenCanvas;
+    let ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+    if (typeof OffscreenCanvas !== 'undefined') {
+      canvas = new OffscreenCanvas(canvasW, canvasH);
+      ctx = canvas.getContext('2d', { willReadFrequently: true }) as OffscreenCanvasRenderingContext2D;
+    } else {
+      canvas = document.createElement('canvas');
+      (canvas as HTMLCanvasElement).width  = canvasW;
+      (canvas as HTMLCanvasElement).height = canvasH;
+      ctx = (canvas as HTMLCanvasElement).getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
+    }
+
+    if (!ctx) throw new Error('[PdfRendererAdapter] rasterizePageRegion: could not get 2D canvas context');
+
+    // Fill white background so that transparent PDFs look like printed pages.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    const renderTask = page.render({
+      // pdfjs-dist RenderParameters requires `canvas`; for OffscreenCanvas we
+      // cast because it is structurally compatible at runtime but TS types differ.
+      canvas: canvas as unknown as HTMLCanvasElement,
+      canvasContext: ctx as unknown as CanvasRenderingContext2D,
+      viewport,
+      annotationMode: AnnotationMode.DISABLE,
+    });
+
+    await raceWithAbort(
+      renderTask.promise,
+      options.signal,
+      `rasterize PDF page ${page.pageNumber}`,
+      () => renderTask.cancel(),
+    );
+
+    // If a region crop was requested, map from top-left unscaled page view-space
+    // to scaled canvas pixel space and clamp to canvas bounds.
+    if (options.regionRect) {
+      const { x: rx, y: ry, width: rw, height: rh } = options.regionRect;
+      const pxX = Math.max(0, Math.min(canvasW - 1, Math.floor(rx * scale)));
+      const pxY = Math.max(0, Math.min(canvasH - 1, Math.floor(ry * scale)));
+      const pxW = Math.max(1, Math.min(canvasW - pxX, Math.floor(rw * scale)));
+      const pxH = Math.max(1, Math.min(canvasH - pxY, Math.floor(rh * scale)));
+      return ctx.getImageData(pxX, pxY, pxW, pxH);
+    }
+
+    return ctx.getImageData(0, 0, canvasW, canvasH);
   }
 }
 

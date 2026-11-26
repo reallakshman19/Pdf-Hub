@@ -1,6 +1,6 @@
 import React from 'react';
 import type { AnnotationNodeProps, CalloutLeaderBranch, Point2D } from '../../core/annotations/types';
-import { computeMultiCalloutPaths } from '../../core/annotations/callout-geometry';
+import { computeMultiCalloutPaths, computeCadCalloutGeometry } from '../../core/annotations/callout-geometry';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { FreeTextPreview } from './shared/FreeTextPreview';
 import { InlineTextEditor } from './shared/InlineTextEditor';
@@ -10,6 +10,8 @@ interface CalloutExtras {
   kneePoint?: Point2D | null;
   onAnchorDragStart?: (e: React.PointerEvent<SVGElement>) => void;
   onKneeDragStart?: (e: React.PointerEvent<SVGElement>) => void;
+  onLeaderAnchorDragStart?: (leaderId: string, e: React.PointerEvent<SVGElement>) => void;
+  onLeaderKneeDragStart?: (leaderId: string, e: React.PointerEvent<SVGElement>) => void;
 }
 
 export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtras> = ({
@@ -27,6 +29,8 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
   kneePoint,
   onAnchorDragStart,
   onKneeDragStart,
+  onLeaderAnchorDragStart,
+  onLeaderKneeDragStart,
   pageRotation = 0,
 }) => {
   const rawBorderColor = annotation.data?.borderColor;
@@ -79,7 +83,21 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
     knee: branch.knee ? { x: branch.knee.x * scale, y: branch.knee.y * scale } : null,
   }));
 
-  const paths = computeMultiCalloutPaths(scaledLeaders, visualBox);
+  const shelfStyle = annotation.data?.shelfStyle ?? 'none';
+  const shelfLength = typeof annotation.data?.shelfLength === 'number'
+    ? annotation.data.shelfLength * scale
+    : (shelfStyle !== 'none' ? 16 * scale : 0);
+
+  const cadGeom = shelfStyle !== 'none'
+    ? computeCadCalloutGeometry(visualBox, scaledLeaders, {
+        shelfStyle,
+        shelfLength,
+        arrowHead: arrowHead as CalloutLeaderBranch['arrowHead'],
+        leaderStyle,
+      })
+    : null;
+
+  const paths = cadGeom ? cadGeom.leaders : computeMultiCalloutPaths(scaledLeaders, visualBox);
   const strokeWidth = Math.max(borderWidth * scale, 1);
 
   return (
@@ -98,6 +116,19 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
           height="100%"
           style={{ overflow: 'visible' }}
         >
+          {cadGeom && cadGeom.shelf.length > 0 && (
+            <line
+              data-testid="callout-landing-shelf"
+              x1={cadGeom.shelf.start.x}
+              y1={cadGeom.shelf.start.y}
+              x2={cadGeom.shelf.end.x}
+              y2={cadGeom.shelf.end.y}
+              stroke={borderColor}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              style={{ pointerEvents: 'none' }}
+            />
+          )}
           {paths.map((p) => {
             return (
               <React.Fragment key={p.id}>
@@ -135,7 +166,9 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
                     scale={scale}
                     cursor={onAnchorDragStart ? 'crosshair' : (isSelected ? 'move' : 'pointer')}
                     onPointerDown={(e) => {
-                      if (onAnchorDragStart) {
+                      if (onLeaderAnchorDragStart) {
+                        onLeaderAnchorDragStart(p.id, e);
+                      } else if (onAnchorDragStart) {
                         onAnchorDragStart(e);
                       } else {
                         onSelect(e as unknown as React.PointerEvent<HTMLDivElement>);
@@ -144,7 +177,7 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
                     }}
                   />
                 )}
-                {onAnchorDragStart && (
+                {(onAnchorDragStart || onLeaderAnchorDragStart) && (
                   <circle
                     cx={p.anchorPoint.x}
                     cy={p.anchorPoint.y}
@@ -152,11 +185,18 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
                     fill={borderColor}
                     cursor="crosshair"
                     data-testid="callout-anchor-handle"
+                    data-leader-id={p.id}
                     style={{ pointerEvents: 'all', touchAction: 'none' }}
-                    onPointerDown={onAnchorDragStart}
+                    onPointerDown={(e) => {
+                      if (onLeaderAnchorDragStart) {
+                        onLeaderAnchorDragStart(p.id, e);
+                      } else if (onAnchorDragStart) {
+                        onAnchorDragStart(e);
+                      }
+                    }}
                   />
                 )}
-                {onKneeDragStart && p.kneePoint && (
+                {(onKneeDragStart || onLeaderKneeDragStart) && p.kneePoint && (
                   <circle
                     cx={p.kneePoint.x}
                     cy={p.kneePoint.y}
@@ -166,8 +206,15 @@ export const CalloutNode: React.FC<AnnotationNodeProps<'callout'> & CalloutExtra
                     strokeWidth={Math.max(1.5 * scale, 1)}
                     cursor="move"
                     data-testid="callout-knee-handle"
+                    data-leader-id={p.id}
                     style={{ pointerEvents: 'all', touchAction: 'none' }}
-                    onPointerDown={onKneeDragStart}
+                    onPointerDown={(e) => {
+                      if (onLeaderKneeDragStart) {
+                        onLeaderKneeDragStart(p.id, e);
+                      } else if (onKneeDragStart) {
+                        onKneeDragStart(e);
+                      }
+                    }}
                   />
                 )}
               </React.Fragment>

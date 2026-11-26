@@ -9,6 +9,8 @@ import {
   pdfRenderScheduler,
   RENDER_PRIORITIES,
 } from '@/core/renderer/renderScheduler';
+import { CanvasDisposalManager } from '@/core/renderer/canvasDisposalManager';
+import { useScrollVelocityStore } from '@/core/renderer/scrollVelocityStore';
 
 interface UsePageRendererOptions {
   doc: PDFDocumentProxy | null;
@@ -16,6 +18,7 @@ interface UsePageRendererOptions {
   pageNumber: number;
   scale: number;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  isRapidScrolling?: boolean;
 }
 
 interface PageSize {
@@ -24,9 +27,14 @@ interface PageSize {
 }
 
 export function usePageRenderer({
-  doc, documentKey, pageNumber, scale, canvasRef,
+  doc, documentKey, pageNumber, scale, canvasRef, isRapidScrolling,
 }: UsePageRendererOptions) {
   const tokenRef = useRef<RenderToken | null>(null);
+  const rapidScrollingRef = useRef<boolean | undefined>(isRapidScrolling);
+  useLayoutEffect(() => {
+    rapidScrollingRef.current = isRapidScrolling;
+  }, [isRapidScrolling]);
+
   const [size, setSize] = useState<PageSize | null>(null);
   const [ocrViewportState, setOcrViewportState] = useState<{
     doc: PDFDocumentProxy;
@@ -35,6 +43,11 @@ export function usePageRenderer({
     viewport: OcrPdfViewport;
   } | null>(null);
   const [isRendering, setIsRendering] = useState(false);
+  const [paintedIdentity, setPaintedIdentity] = useState<{
+    doc: PDFDocumentProxy;
+    documentKey: string | null | undefined;
+    pageNumber: number;
+  } | null>(null);
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -42,16 +55,25 @@ export function usePageRenderer({
 
     const controller = new AbortController();
     const devicePixelRatio = globalThis.devicePixelRatio ?? 1;
+    const resolvedDocKey = documentKey ?? getRenderObjectId(doc, 'document');
+    const canvasId = `${resolvedDocKey}:page:${pageNumber}`;
+
+    // Register active page canvas for VRAM telemetry
+    CanvasDisposalManager.registerCanvas(canvasId, 'page', canvas);
+
     const renderKey = [
       'page',
-      documentKey ?? getRenderObjectId(doc, 'document'),
+      resolvedDocKey,
       pageNumber,
       scale.toFixed(4),
       devicePixelRatio.toFixed(2),
       getRenderObjectId(canvas, 'canvas'),
     ].join(':');
 
+    let renderStarted = false;
     const render = async () => {
+      if (renderStarted || controller.signal.aborted) return;
+      renderStarted = true;
       setIsRendering(true);
 
       try {
@@ -84,6 +106,10 @@ export function usePageRenderer({
               tokenRef.current = token;
               try {
                 await token.completed;
+                if (!signal.aborted) {
+                  CanvasDisposalManager.updateCanvas(canvasId);
+                  setPaintedIdentity({ doc, documentKey, pageNumber });
+                }
               } finally {
                 if (tokenRef.current === token) tokenRef.current = null;
               }
@@ -100,11 +126,42 @@ export function usePageRenderer({
       }
     };
 
-    void render();
+    const initialRapid =
+      rapidScrollingRef.current ?? useScrollVelocityStore.getState().isRapidScrolling;
+
+    let timeoutId: number | null = null;
+    let unsubscribeVelocity: (() => void) | null = null;
+
+    if (initialRapid) {
+      // Wait for rapid scroll to settle, or kick off immediately when velocity store settles
+      timeoutId = window.setTimeout(() => {
+        unsubscribeVelocity?.();
+        unsubscribeVelocity = null;
+        void render();
+      }, 180);
+
+      unsubscribeVelocity = useScrollVelocityStore.subscribe((state) => {
+        if (!state.isRapidScrolling && !renderStarted && !controller.signal.aborted) {
+          if (timeoutId !== null) {
+            window.clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+          unsubscribeVelocity?.();
+          unsubscribeVelocity = null;
+          void render();
+        }
+      });
+    } else {
+      void render();
+    }
+
     return () => {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      unsubscribeVelocity?.();
       controller.abort('Page renderer changed or unmounted');
       void tokenRef.current?.cancel();
       tokenRef.current = null;
+      CanvasDisposalManager.unregisterCanvas(canvasId);
     };
   }, [doc, documentKey, pageNumber, scale]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -116,5 +173,12 @@ export function usePageRenderer({
       ? ocrViewportState.viewport
       : null;
 
-  return { size, isRendering, ocrViewport };
+  const hasPaintedCurrentPage =
+    paintedIdentity?.doc === doc
+    && paintedIdentity.documentKey === documentKey
+    && paintedIdentity.pageNumber === pageNumber;
+
+  const isPlaceholderActive = !hasPaintedCurrentPage;
+
+  return { size, isRendering, isPlaceholderActive, ocrViewport };
 }

@@ -16,6 +16,7 @@ export interface WriterCalloutElementProps {
   onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => void;
   viewportRect: { x: number; y: number; width: number; height: number };
+  isDragging?: boolean;
   onSave?: (payload: import('@/core/writer-v2/editor/writerEditorState').WriterEditorSavePayload) => void | Promise<boolean>;
   onCancel?: () => void;
 }
@@ -31,6 +32,7 @@ export const WriterCalloutElement: React.FC<WriterCalloutElementProps> = ({
   onClick,
   onDoubleClick,
   viewportRect,
+  isDragging = false,
   onSave,
   onCancel,
 }) => {
@@ -129,6 +131,7 @@ export const WriterCalloutElement: React.FC<WriterCalloutElementProps> = ({
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         viewportRect={viewportRect}
+        isDragging={isDragging}
         onSave={onSave}
         onCancel={onCancel}
       />

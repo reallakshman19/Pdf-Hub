@@ -107,6 +107,47 @@ describe('WriterElementBox resize behavior', () => {
       expect(resized.rect.y).toBe(0);
     });
   });
+
+  it('pins opposite edges when resizing w/n handles past minimum size', async () => {
+    const element = makeElement();
+
+    useWriterV2Store.getState().hydrateWriterSession({
+      documentFingerprint: 'resize-doc',
+      elements: [element],
+    });
+
+    render(
+      <WriterElementBox
+        element={element}
+        viewport={viewport}
+        selected
+      />,
+    );
+
+    const box = screen.getByLabelText('Writer element resize-box-1');
+
+    fireEvent.pointerDown(screen.getByTestId('writer-v2-resize-handle-w'), {
+      pointerId: 2,
+      clientX: 10,
+      clientY: 160,
+    });
+    fireEvent.pointerMove(box, {
+      pointerId: 2,
+      clientX: 150,
+      clientY: 160,
+    });
+    fireEvent.pointerUp(box, {
+      pointerId: 2,
+      clientX: 150,
+      clientY: 160,
+    });
+
+    await waitFor(() => {
+      const resized = useWriterV2Store.getState().elements[0];
+      expect(resized.rect.width).toBe(12);
+      expect(resized.rect.x).toBe(98);
+    });
+  });
 });
 
 function makeElement(): WriterElementV2 {

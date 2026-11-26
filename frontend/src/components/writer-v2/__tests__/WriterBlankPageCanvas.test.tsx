@@ -237,6 +237,21 @@ describe('WriterBlankDocumentCanvas', () => {
 
     expect(useWriterV2Store.getState().documentMeta?.pageCount).toBe(1);
   });
+
+  it('shows mode guidance banner when switching to draw mode and lets user return to write mode', () => {
+    useWriterV2Store.getState().createBlankWriterDocument({
+      documentFingerprint: 'blank-mode-banner-doc',
+      pageSetup: WRITER_PAGE_PRESETS.A4,
+      pageCount: 1,
+    });
+    useEditorStore.setState({ activeMode: 'draw' });
+
+    render(<WriterBlankDocumentCanvas />);
+
+    expect(screen.getByTestId('writer-blank-document-mode-banner')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('writer-blank-switch-to-write-btn'));
+    expect(useEditorStore.getState().activeMode).toBe('write');
+  });
 });
 
 function makeElement(id: string, pageIndex: number) {

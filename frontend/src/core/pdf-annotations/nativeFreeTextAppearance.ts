@@ -354,6 +354,27 @@ export async function attachNativeFreeTextAppearance(
     commands.push(`${rgb(stroke)} RG`, `${f(borderWidth)} w`, `${f(body[0])} ${f(body[1])} ${f(body[2] - body[0])} ${f(body[3] - body[1])} re S`);
   }
   if (!underlay && annotation.type === 'callout') {
+    const shelfStyle = annotation.data.shelfStyle ?? 'underline';
+    if (shelfStyle === 'underline') {
+      commands.push(
+        `${rgb(stroke)} RG`,
+        `${f(Math.max(borderWidth, 0.5))} w`,
+        `${f(body[0])} ${f(body[1])} m`,
+        `${f(body[2])} ${f(body[1])} l`,
+        'S',
+      );
+    } else if (shelfStyle === 'midpoint') {
+      const midY = (body[1] + body[3]) / 2;
+      const shelfLen = typeof annotation.data.shelfLength === 'number' ? annotation.data.shelfLength : 16;
+      commands.push(
+        `${rgb(stroke)} RG`,
+        `${f(Math.max(borderWidth, 0.5))} w`,
+        `${f(body[0] - shelfLen)} ${f(midY)} m`,
+        `${f(body[0])} ${f(midY)} l`,
+        'S',
+      );
+    }
+
     const cl = numberArray(dict, 'CL', lib);
     if (cl && (cl.length === 4 || cl.length === 6)) {
       const points = Array.from({ length: cl.length / 2 }, (_, i) => [cl[i * 2] - left, cl[i * 2 + 1] - bottom]);
@@ -425,9 +446,36 @@ export async function attachNativeFreeTextAppearance(
               if (len > 1e-4) {
                 const angle = Math.atan2(dy, dx);
                 const arrowLength = Math.min(10, Math.max(4, width / 8));
-                const a = [tip.x + arrowLength * Math.cos(angle + Math.PI / 6), tip.y + arrowLength * Math.sin(angle + Math.PI / 6)];
-                const b = [tip.x + arrowLength * Math.cos(angle - Math.PI / 6), tip.y + arrowLength * Math.sin(angle - Math.PI / 6)];
-                commands.push(`${f(a[0])} ${f(a[1])} m ${f(tip.x)} ${f(tip.y)} l ${f(b[0])} ${f(b[1])} l ${branch.arrowHead === 'filled' ? 'h B' : 'S'}`);
+                const branchEnding = branch.arrowHead ?? 'open';
+                if (branchEnding === 'filled') {
+                  const a = [tip.x + arrowLength * Math.cos(angle + Math.PI / 6), tip.y + arrowLength * Math.sin(angle + Math.PI / 6)];
+                  const b = [tip.x + arrowLength * Math.cos(angle - Math.PI / 6), tip.y + arrowLength * Math.sin(angle - Math.PI / 6)];
+                  commands.push(`${f(a[0])} ${f(a[1])} m ${f(tip.x)} ${f(tip.y)} l ${f(b[0])} ${f(b[1])} l h B`);
+                } else if (branchEnding === 'circle') {
+                  const r = Math.min(4, Math.max(2, arrowLength / 2.5));
+                  const k = r * 0.5522847498;
+                  commands.push(
+                    `${f(tip.x + r)} ${f(tip.y)} m`,
+                    `${f(tip.x + r)} ${f(tip.y + k)} ${f(tip.x + k)} ${f(tip.y + r)} ${f(tip.x)} ${f(tip.y + r)} c`,
+                    `${f(tip.x - k)} ${f(tip.y + r)} ${f(tip.x - r)} ${f(tip.y + k)} ${f(tip.x - r)} ${f(tip.y)} c`,
+                    `${f(tip.x - r)} ${f(tip.y - k)} ${f(tip.x - k)} ${f(tip.y - r)} ${f(tip.x)} ${f(tip.y - r)} c`,
+                    `${f(tip.x + k)} ${f(tip.y - r)} ${f(tip.x + r)} ${f(tip.y - k)} ${f(tip.x + r)} ${f(tip.y)} c`,
+                    'h B',
+                  );
+                } else if (branchEnding === 'square') {
+                  const s = Math.min(4, Math.max(2, arrowLength / 2.5));
+                  commands.push(`${f(tip.x - s)} ${f(tip.y - s)} ${f(2 * s)} ${f(2 * s)} re h B`);
+                } else if (branchEnding === 'slash') {
+                  const s = Math.min(5, Math.max(3, arrowLength / 2));
+                  commands.push(`${f(tip.x - s)} ${f(tip.y - s)} m ${f(tip.x + s)} ${f(tip.y + s)} l S`);
+                } else if (branchEnding === 'diamond') {
+                  const s = Math.min(5, Math.max(3, arrowLength / 2));
+                  commands.push(`${f(tip.x - s)} ${f(tip.y)} m ${f(tip.x)} ${f(tip.y + s)} l ${f(tip.x + s)} ${f(tip.y)} l ${f(tip.x)} ${f(tip.y - s)} l h B`);
+                } else if (branchEnding !== 'none') {
+                  const a = [tip.x + arrowLength * Math.cos(angle + Math.PI / 6), tip.y + arrowLength * Math.sin(angle + Math.PI / 6)];
+                  const b = [tip.x + arrowLength * Math.cos(angle - Math.PI / 6), tip.y + arrowLength * Math.sin(angle - Math.PI / 6)];
+                  commands.push(`${f(a[0])} ${f(a[1])} m ${f(tip.x)} ${f(tip.y)} l ${f(b[0])} ${f(b[1])} l S`);
+                }
               }
             }
           }

@@ -1,4 +1,5 @@
 import type { PdfAnnotation, Point2D, Rect } from './types';
+import { getAnnotationPagePoints } from './pointsSpace';
 
 export interface PageDimensions {
   width: number;
@@ -126,7 +127,11 @@ export const normalizeAnnotationGeometry = (
     result.knee = normalizePoint(annotation.data.knee, dims);
   }
   if (Array.isArray(annotation.data.points)) {
-    result.points = normalizePath(annotation.data.points, dims);
+    const ptsToNormalize =
+      annotation.data.coordinateSpace === 'rect-local'
+        ? getAnnotationPagePoints(annotation)
+        : annotation.data.points;
+    result.points = normalizePath(ptsToNormalize, dims);
   }
   if (Array.isArray(annotation.data.paths)) {
     result.paths = annotation.data.paths.map(path => normalizePath(path, dims));
@@ -153,6 +158,9 @@ export const denormalizeAnnotationGeometry = (
   }
   if (geometry.points) {
     next.data.points = denormalizePath(geometry.points, dims);
+    if (annotation.data.coordinateSpace === 'rect-local') {
+      next.data.coordinateSpace = 'page';
+    }
   }
   if (geometry.paths) {
     next.data.paths = geometry.paths.map(path => denormalizePath(path, dims));

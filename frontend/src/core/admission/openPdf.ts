@@ -54,6 +54,11 @@ import { useSessionStore } from '@/core/session/store';
 import { captureDocumentMutationOwner, isDocumentMutationOwnerCurrent } from '@/core/session/mutationOwner';
 import { beginDocumentOpenIntent, isDocumentOpenIntentCurrent } from '@/core/session/documentOpenIntent';
 import { sortAdmissionDiagnostics } from './diagnostics';
+import {
+  classifyPdfPasswordError,
+  clearPdfPasswordForDocumentKey,
+  getPdfPasswordForDocumentKey,
+} from '@/core/pdf/passwordRegistry';
 import { assertAdmissionCommitAllowed } from './operation';
 import { createAdmissionPolicy, evaluateAdmissionMetric } from './policy';
 import type {
@@ -85,10 +90,13 @@ export interface OpenedPdfDocument {
   readonly pageCount: number;
   readonly pageGraph: PageGraph<PageNode>;
   readonly saveHandle: FileSystemFileHandle | null;
+  readonly isEncryptedSource?: boolean;
 }
 
 export interface OpenPdfFileOptions {
   readonly signal?: AbortSignal;
+  /** Password supplied to decrypt a password-protected PDF in PDF.js. */
+  readonly password?: string;
   /** Shared intent for a staged project or an ordinary user Open. */
   readonly openIntent?: number;
   /** Only actual user Open routes opt in; inner source admission never recurses. */
@@ -261,9 +269,26 @@ export async function admitAndOpenPdfFile(
     let pageGraph: PageGraph<PageNode>;
     try {
       const buildPageGraph = options.buildPageGraph ?? buildPageGraphFromPdfBytes;
-      pageGraph = await buildPageGraph(bytes, documentKey, options.signal);
+      pageGraph = options.password !== undefined
+        ? await buildPageGraph(bytes, documentKey, options.signal, { password: options.password })
+        : await buildPageGraph(bytes, documentKey, options.signal);
     } catch (error) {
       if (isOperationCancelledError(error)) throw error;
+      const passwordErrorKind = classifyPdfPasswordError(error);
+      if (passwordErrorKind) {
+        clearPdfPasswordForDocumentKey(documentKey);
+        diagnostics.push({
+          severity: 'error',
+          code: passwordErrorKind === 'incorrect-password'
+            ? 'PDF_PASSWORD_INCORRECT'
+            : 'PDF_PASSWORD_REQUIRED',
+          phase: 'VALIDATION',
+          message: passwordErrorKind === 'incorrect-password'
+            ? `Incorrect password for ${file.name || '(unnamed)'}. Please try again.`
+            : `File ${file.name || '(unnamed)'} is password-protected and requires a password to open.`,
+        });
+        return reject('REJECTED_INVALID_FORMAT', source, measurements, diagnostics);
+      }
       diagnostics.push({
         severity: 'error',
         code: 'PDF_PARSE_FAILED',
@@ -449,6 +474,9 @@ export async function admitAndOpenPdfFile(
     }
 
     const saveHandle = options.saveHandle ?? null;
+    const isEncryptedSource =
+      options.password !== undefined
+      || Boolean(getPdfPasswordForDocumentKey(documentKey));
 
     registerDocumentSource(documentSource);
     registeredSourceId = sourceId;
@@ -467,6 +495,7 @@ export async function admitAndOpenPdfFile(
       pageCount,
       pageGraph,
       saveHandle,
+      ...(isEncryptedSource ? { isEncryptedSource: true } : {}),
     };
     assertCurrent();
     if (options.requireHistoryJournal && (!historyJournalStoreId || !historyJournalId)) {
@@ -518,6 +547,7 @@ export async function admitAndOpenPdfFile(
       pageCount,
       pageGraph,
       saveHandle,
+      ...(isEncryptedSource ? { isEncryptedSource: true } : {}),
     });
     const evidence = createEvidence(measurements, diagnostics);
 

@@ -10,6 +10,7 @@ import {
   copySelectedWriterElementsToClipboard,
   pasteWriterClipboardElements,
 } from '@/core/writer-v2/writerClipboardActions';
+import { isWriterKeyboardHandled, markWriterKeyboardHandled } from '@/core/writer-v2/writerKeyboardGuard';
 
 /**
  * Document-level Writer V2 keyboard shortcuts.
@@ -30,7 +31,7 @@ export const WriterKeyboardHandler: React.FC = () => {
 
       const store = useWriterV2Store.getState();
 
-      if (store.editingId !== null) {
+      if (store.editingId !== null || isWriterKeyboardHandled(event)) {
         return;
       }
 
@@ -39,14 +40,26 @@ export const WriterKeyboardHandler: React.FC = () => {
       const ctrl = isMac ? event.metaKey : event.ctrlKey;
       const step = event.shiftKey ? 10 : 1;
 
+      if (event.key === 'Enter' && !ctrl && !event.altKey && store.selectedIds.length === 1) {
+        const selectedEl = store.elements.find((el) => el.id === store.selectedIds[0]);
+        if (selectedEl && !selectedEl.locked && selectedEl.type !== 'imageBox') {
+          event.preventDefault();
+          markWriterKeyboardHandled(event);
+          store.beginEditingWriterElement(selectedEl.id);
+          return;
+        }
+      }
+
       if (ctrl && event.key.toLowerCase() === 'c' && hasSelection) {
         event.preventDefault();
+        markWriterKeyboardHandled(event);
         copySelectedWriterElementsToClipboard();
         return;
       }
 
       if (ctrl && event.key.toLowerCase() === 'v') {
         event.preventDefault();
+        markWriterKeyboardHandled(event);
         void pasteWriterClipboardElements()
           .then((result) => {
             if (!result.changed) {
@@ -68,6 +81,7 @@ export const WriterKeyboardHandler: React.FC = () => {
 
         if (delta) {
           event.preventDefault();
+          markWriterKeyboardHandled(event);
           void nudgeSelectedWriterElements(delta.dx, delta.dy);
           return;
         }
@@ -75,18 +89,21 @@ export const WriterKeyboardHandler: React.FC = () => {
 
       if ((event.key === 'Delete' || event.key === 'Backspace') && hasSelection) {
         event.preventDefault();
+        markWriterKeyboardHandled(event);
         void deleteSelectedWriterElements();
         return;
       }
 
       if (ctrl && event.key.toLowerCase() === 'd' && hasSelection) {
         event.preventDefault();
+        markWriterKeyboardHandled(event);
         void duplicateSelectedWriterElements();
         return;
       }
 
       if (event.key === 'Escape' && hasSelection) {
         event.preventDefault();
+        markWriterKeyboardHandled(event);
         store.dispatchWriterCommand({
           type: 'CLEAR_WRITER_SELECTION',
         });

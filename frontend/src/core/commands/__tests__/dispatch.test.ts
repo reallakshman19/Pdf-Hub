@@ -446,7 +446,7 @@ describe('canonical command dispatch', () => {
     pdfMocks.countPages.mockResolvedValue(3);
     pdfMocks.getPageSize.mockResolvedValue({ width: 612, height: 792 });
     mutationEngineMocks.getPageMetrics.mockImplementation(
-      (_pageIndex: number) => ({
+      () => ({
         width: 612,
         height: 792,
         rotation: 0,

@@ -30,6 +30,8 @@ export interface Point2D {
   y: number;
 }
 
+export type CalloutShelfStyle = 'underline' | 'midpoint' | 'none';
+
 export interface CalloutLeaderBranch {
   id: string;
   anchor: Point2D;
@@ -99,6 +101,8 @@ export interface AnnotationData extends Record<string, unknown> {
   leaderStyle?: 'straight' | 'elbow';
   arrowHead?: 'open' | 'filled' | 'circle' | 'square' | 'slash' | 'diamond' | 'none';
   leaders?: CalloutLeaderBranch[];
+  shelfStyle?: CalloutShelfStyle;
+  shelfLength?: number;
 
   // ── dimension / calibration ───────────────────────────
   dimensionScale?: number;
@@ -117,6 +121,14 @@ export interface AnnotationData extends Record<string, unknown> {
   // ── ink / polygon / text markup ───────────────────────
   paths?: Array<number[]>;
   points?: number[];
+  /** Explicit frame for data.points: 'page' = page view-space, 'rect-local' = offset from annotation.rect origin. */
+  coordinateSpace?: 'page' | 'rect-local';
+  /** Original OCG / CAD layer name when imported or categorized from vector PDF geometry. */
+  cadLayerName?: string;
+  /** Marks annotations materialized from PDF vector extraction (Layer 1 -> Layer 2). */
+  importedFromPdfVector?: boolean;
+  /** Marks annotations produced by the Layer 5 raster auto-vectorize pipeline. */
+  importedFromRasterTrace?: boolean;
   /**
    * Text-markup quadrilateral x/y pairs normalized to the annotation Rect.
    * Values preserve native multi-quad geometry while remaining portable across
@@ -232,4 +244,7 @@ export interface AnnotationNodeProps<T extends AnnotationType = AnnotationType> 
   onTransformStart: (e: React.PointerEvent<HTMLDivElement>, mode: 'move' | 'resize' | 'move-all') => void;
   onDoubleClick?: () => void;
   onCommitEdit?: (value: string, stylePatch?: Record<string, unknown>) => void;
+  onVertexDragStart?: (e: React.PointerEvent<SVGElement>, vertexIndex: number) => void;
+  onInsertMidpointVertex?: (segmentIndex: number, midpoint: Point2D) => void;
+  onDeleteVertex?: (vertexIndex: number) => void;
 }

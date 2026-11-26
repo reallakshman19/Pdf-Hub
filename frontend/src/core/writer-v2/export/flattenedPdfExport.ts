@@ -1,5 +1,7 @@
 import { pdfLib } from '@/core/pdf/lazyPdfLib';
 import { pickStandard14Font } from './fontFamilyResolver';
+import { loadArchivalFontkit } from '@/core/pdfa/lazyFontkit';
+import type { ArchivalFontAssetKey } from '@/core/pdfa/assets/archivalFontBundle';
 import type {
   PdfPoint,
   PdfRect,
@@ -21,7 +23,6 @@ import {
 type PDFPageT = import('pdf-lib').PDFPage;
 type PDFFontT = import('pdf-lib').PDFFont;
 type PDFDocumentT = import('pdf-lib').PDFDocument;
-type StandardFontsT = import('pdf-lib').StandardFonts;
 type PdfLibNs = Awaited<ReturnType<typeof pdfLib>>;
 
 // ─────────────────────────────────────────────
@@ -53,6 +54,7 @@ export interface FlattenWriterExportInput {
   pdfBytes: Uint8Array;
   elements: WriterElementV2[];
   assets?: WriterAssetRecordV2[];
+  archivalFontMode?: boolean;
 }
 
 export interface FlattenWriterExportResult {
@@ -74,8 +76,9 @@ interface PendingLinkAnnotation {
 interface DrawContext {
   doc: PDFDocumentT;
   page: PDFPageT;
-  /** Lazily-populated cache: StandardFonts enum value → embedded PDFFontT. */
-  fontCache: Map<StandardFontsT, PDFFontT>;
+  /** Lazily-populated cache: StandardFonts enum value or archival key → embedded PDFFontT. */
+  fontCache: Map<string, PDFFontT>;
+  archivalFontMode?: boolean;
   /** Fallback element-level font family (from element.style.fontFamily). */
   elementFontFamily: string | undefined;
   elementTextColor: string | undefined;
@@ -108,12 +111,16 @@ export async function exportFlattenedWriterPdf(
  */
 export async function flattenWriterElementsIntoDocument(
   doc: PDFDocumentT,
-  input: Pick<FlattenWriterExportInput, 'elements' | 'assets'>,
+  input: Pick<FlattenWriterExportInput, 'elements' | 'assets' | 'archivalFontMode'>,
 ): Promise<Omit<FlattenWriterExportResult, 'bytes'>> {
   await ensurePdfLibLoaded();
 
+  if (input.archivalFontMode) {
+    doc.registerFontkit(await loadArchivalFontkit());
+  }
+
   // Shared font cache — variants are embedded on first use, reused after.
-  const fontCache = new Map<StandardFontsT, PDFFontT>();
+  const fontCache = new Map<string, PDFFontT>();
 
   const pages = doc.getPages();
   const assets = input.assets ?? [];
@@ -134,6 +141,7 @@ export async function flattenWriterElementsIntoDocument(
       doc,
       page,
       fontCache,
+      archivalFontMode: input.archivalFontMode,
       elementFontFamily: element.style.fontFamily,
       elementTextColor: element.style.textColor,
       assetsById: new Map(assets.filter(asset => asset.documentFingerprint === element.documentFingerprint).map(asset => [asset.id, asset])),
@@ -145,7 +153,7 @@ export async function flattenWriterElementsIntoDocument(
 
   // Emit PDF URI link annotations collected during drawing.
   for (const link of pendingLinks) {
-    registerLinkAnnotation(doc, link);
+    registerLinkAnnotation(doc, link, input.archivalFontMode);
   }
 
   return {
@@ -435,6 +443,27 @@ async function getFontForStyle(
   context: DrawContext,
   style: PdfTextStyle,
 ): Promise<PDFFontT> {
+  if (context.archivalFontMode) {
+    const archivalKey: ArchivalFontAssetKey =
+      style.bold && style.italic
+        ? 'sansBoldItalic'
+        : style.bold
+        ? 'sansBold'
+        : style.italic
+        ? 'sansItalic'
+        : 'sansRegular';
+    const cacheKey = `archival:${archivalKey}`;
+    const cached = context.fontCache.get(cacheKey);
+    if (cached) return cached;
+
+    const { loadArchivalFontAsset } = await import('@/core/pdfa/assets/archivalFontBundle');
+    const embedded = await context.doc.embedFont(loadArchivalFontAsset(archivalKey), {
+      subset: true,
+    });
+    context.fontCache.set(cacheKey, embedded);
+    return embedded;
+  }
+
   const family = style.fontFamily ?? context.elementFontFamily;
   const variant = await pickStandard14Font(family, !!style.bold, !!style.italic);
 
@@ -1093,6 +1122,7 @@ function clamp(value: number, min: number, max: number): number {
 function registerLinkAnnotation(
   doc: PDFDocumentT,
   link: PendingLinkAnnotation,
+  archivalFontMode?: boolean,
 ): void {
   const { PDFHexString, PDFName, PDFArray } = lib();
   {
@@ -1112,6 +1142,7 @@ function registerLinkAnnotation(
         Rect: [link.x, link.y, link.x + link.width, link.y + link.height],
         Border: [0, 0, 0],
         C: [],
+        ...(archivalFontMode ? { F: 4 } : {}),
         A: actionDict,
       }),
     );

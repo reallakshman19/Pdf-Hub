@@ -120,10 +120,39 @@ export const SelectBoxCopyLayer: React.FC<SelectBoxCopyLayerProps> = ({
     }
   };
 
-  React.useEffect(() => {
+  const [prevSessionDeps, setPrevSessionDeps] = React.useState({
+    activeWriterTool,
+    documentKey,
+    workingBytes,
+    revisionStoreId,
+    originalRevisionId,
+    activeRevisionId,
+    pageNumber,
+  });
+  if (
+    prevSessionDeps.activeWriterTool !== activeWriterTool
+    || prevSessionDeps.documentKey !== documentKey
+    || prevSessionDeps.workingBytes !== workingBytes
+    || prevSessionDeps.revisionStoreId !== revisionStoreId
+    || prevSessionDeps.originalRevisionId !== originalRevisionId
+    || prevSessionDeps.activeRevisionId !== activeRevisionId
+    || prevSessionDeps.pageNumber !== pageNumber
+  ) {
+    setPrevSessionDeps({
+      activeWriterTool,
+      documentKey,
+      workingBytes,
+      revisionStoreId,
+      originalRevisionId,
+      activeRevisionId,
+      pageNumber,
+    });
     setDraftRect(null);
     setResult(null);
     setBusy(false);
+  }
+
+  React.useEffect(() => {
     return () => {
       selectionOperationIdRef.current += 1;
       selectionOwnerRef.current = null;
