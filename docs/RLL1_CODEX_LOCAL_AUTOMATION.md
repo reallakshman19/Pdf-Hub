@@ -1,78 +1,128 @@
 # PDF Hub RLL-1 Codex local automation
 
-PDF Hub consumes Engineering Relay V3.1 RLL-1 from reallaksh19/Common and uses Common CODEX_LOCAL_V1.
-
-This repository contains only a thin Windows adapter.
-
-## Architecture
-
-Windows Task Scheduler
-  -> scripts/rll1-codex-worker.ps1
-  -> Common skills/engineering-pr-delivery-v3.1/scripts/rll_worker.py --executor codex
-  -> codex exec
-  -> Common Git/provider postflight
-
-Common owns issue discovery, execution-envelope validation, directive filtering, mutex and lease state, workspace preparation, exact material observation, bounded branch push, executor evidence publication and transport-state transitions.
+PDF Hub consumes Engineering Relay V3.1 RLL-1 and Common CODEX_LOCAL_V1. This repository keeps only a thin consumer adapter.
 
 Required Common basis:
 
-e551cb50941b160b50cc21ea76888f2b962ca248
+22d365839e64c19c7ba606e2cf4edc6b9cc2999f
+
+## Topology
+
+Windows Task Scheduler
+  -> branch-independent PowerShell wrapper under ~/.rll/pdf-hub/bin
+  -> WSL2/Linux provider and deterministic Common launcher
+  -> Common rll_worker.py --executor codex
+  -> dedicated Linux Codex identity / dedicated CODEX_HOME
+  -> codex exec
+
+Windows Task Scheduler is only the host wake. BRANCH_RESUME source-writing execution runs inside WSL2/Linux. Native-Windows BRANCH_RESUME is not qualified.
+
+Common owns issue discovery, execution-envelope validation, directive filtering, mutex/lease state, workspace preparation, provider context retrieval, exact Git observation, allowed-path confinement, launcher-owned commit/push, TASK_EVIDENCE publication and transport-state transitions.
+
+Codex owns only bounded repository inspection/edit/test reasoning.
+
+## Identity and credential split
+
+The WSL provider/launcher identity uses git and gh with browser-backed credential-store authentication.
+
+The dedicated Codex identity defaults to:
+
+    user: rll-codex
+    CODEX_HOME: /home/rll-codex/.codex-rll
+
+Codex must not have GitHub provider credentials. The conformance probe verifies that gh authentication is unavailable to the dedicated Codex user.
+
+The scheduled wrapper refuses these process variables:
+
+    GH_TOKEN
+    GITHUB_TOKEN
+    GH_ENTERPRISE_TOKEN
+    GITHUB_ENTERPRISE_TOKEN
+
+Common also removes them from the Codex subprocess.
+
+Do not store provider tokens, passwords or OAuth material in RLL configuration, prompts or scheduled-task arguments.
 
 ## Prerequisites
 
-Install and authenticate Python, Git, GitHub CLI gh, OpenAI Codex CLI codex, and a local checkout of reallaksh19/Common.
+Windows:
+- PowerShell with ScheduledTasks;
+- WSL2;
+- a usable WSL distribution.
 
-Verify:
+Inside the selected WSL2 distribution:
+- git;
+- gh;
+- python3;
+- codex;
+- sudo;
+- provider gh authentication from gh auth login --web;
+- dedicated Linux user rll-codex;
+- non-interactive sudo delegation from the provider identity to that dedicated user for the bounded Codex invocation;
+- Codex authentication under the dedicated CODEX_HOME.
 
-    python --version
-    git --version
-    gh --version
-    gh auth status
-    codex --version
-    codex login status
+The PDF Hub and Common checkouts must be visible inside WSL2. They may be supplied explicitly with -WslRepoRoot and -WslCommonRoot, or Windows checkouts may be converted with wslpath.
 
-The Windows Scheduled Task runs as the current interactive user with limited privileges. GitHub and Codex credentials remain in the user's existing credential stores; the RLL config stores no token or password.
+## 1. WSL2 Codex conformance
 
-## 1. Native-Windows Codex conformance
-
-Before source-writing execution, prove the installed Codex can honor both read-only and workspace-write modes on this machine:
+Run:
 
     .\scripts\rll1-codex-conformance.ps1 -CommonRepoRoot 'C:\Code\Common'
 
-The probe uses a disposable temporary Git repository and verifies:
+Optional parameters include -WslDistro, -WslCommonRoot, -CodexUser and -CodexHome.
 
-- Codex authentication;
+The probe uses a disposable WSL2 Git repository and verifies:
+
+- WSL2 rather than native-Windows write execution;
+- current Common basis;
+- WSL provider gh authentication;
+- dedicated Codex authentication;
+- dedicated Codex identity has no gh provider authentication;
+- provider token environment variables are absent;
 - bounded non-interactive codex exec;
-- schema-bound --output-last-message;
-- read-only mode makes no unexpected workspace mutation;
-- workspace-write mode actually creates a known probe file.
+- JSON/schema-bound read-only execution;
+- read-only execution does not mutate repository material;
+- JSON/schema-bound workspace-write execution;
+- workspace-write can create only the requested probe file;
+- web search disabled;
+- workspace-write network access disabled;
+- approvals_reviewer=user;
+- no dangerous sandbox/approval bypass;
+- bounded timeout / no indefinite stdin wait.
 
 A passing probe writes:
 
     ~/.rll/pdf-hub/codex-conformance.json
 
-The marker is bound to the current machine, Windows user, installed Codex version, and required Common basis. If Codex is upgraded, rerun conformance before re-enabling source execution.
+The marker is bound to the current Common basis, WSL distribution, WSL kernel, Codex user/home and Codex version.
 
-Conformance does not touch PDF Hub product source or GitHub issue state.
+This low-level conformance probe does not replace the required RLL exact-head, overlap and disposable branch-write smoke gates.
 
-## 2. Install Windows Task Scheduler worker in smoke mode
+## 2. Install scheduled worker in smoke mode
 
-Initial installation is non-destructive:
+Initial installation is smoke-first:
 
     .\scripts\install-rll1-codex-task.ps1 -CommonRepoRoot 'C:\Code\Common'
 
 The installer:
 
-- ensures rll-ready, rll-active, rll-review-ready and rll-escalation labels exist;
-- writes non-secret worker config to ~/.rll/pdf-hub/codex-worker.json;
-- stores the currently validated tool PATH so scheduled runs resolve git, gh, python and codex;
-- registers Windows Task Scheduler task PDF Hub RLL-1 Codex;
-- repeats every 10 minutes by default;
-- uses MultipleInstances: IgnoreNew;
-- runs as the current interactive user with limited privileges;
+- verifies WSL2;
+- verifies WSL git, gh, python3, codex and sudo;
+- verifies provider gh authentication;
+- verifies isolated Codex authentication;
+- verifies current Common basis;
+- verifies the selected smoke issue is open and has no REVIEW_READY/CANCELLED RLL history;
+- ensures the four RLL labels exist;
+- copies scripts/rll1-codex-worker.ps1 to ~/.rll/pdf-hub/bin/rll1-codex-worker.ps1;
+- schedules that branch-independent copy, not the governed checkout copy;
+- uses a 10-minute default cadence;
+- uses MultipleInstances IgnoreNew;
+- runs as the current interactive Windows user with limited privileges;
+- keeps Common's mutex as the second overlap guard;
+- writes non-secret config to ~/.rll/pdf-hub/codex-worker.json;
 - defaults to smoke mode.
 
-Common's local mutex remains a second overlap guard.
+The default fresh smoke issue is #350 until it reaches REVIEW_READY/CANCELLED. A later disposable branch-write smoke must use a new fresh issue.
 
 Inspect:
 
@@ -80,92 +130,167 @@ Inspect:
     Get-ScheduledTaskInfo -TaskName 'PDF Hub RLL-1 Codex'
     Get-Content "$HOME\.rll\pdf-hub\codex-worker.json"
 
-Worker logs are written to:
+Worker logs:
 
     ~/.rll/pdf-hub/logs/worker.log
 
-## 3. Smoke mode
+## 3. Required smoke and promotion sequence
 
-Smoke mode lets Common perform deterministic RLL setup without invoking Codex.
+Do not enable production source-writing first.
 
-It may acquire/release the local mutex, discover an eligible RLL issue, validate RLL_EXECUTION_V1, prepare the governed workspace, update the singular RLL_WORKER_STATE_V1 comment and transition transport labels.
+Required sequence:
 
-It must not run Codex or change product source.
+A. adapter/source guard
+   -> PASS
 
-Use -RunNow only when an immediate scheduled smoke is intended.
+B. fresh deterministic smoke
+   -> fresh open issue
+   -> rll-ready
+   -> scheduler pickup
+   -> mutex/state mutation
+   -> no Codex invocation
+   -> SMOKE_COMPLETE
 
-## 4. Enable source execution
+C. exact-head Codex smoke
+   -> enable executor after WSL2 conformance
+   -> EXACT_HEAD_EVIDENCE
+   -> read-only sandbox
+   -> unchanged exact head
+   -> clean tree
+   -> Common-owned TASK_EVIDENCE
+   -> REVIEW_READY
 
-Source execution requires a valid local conformance marker:
+D. overlap smoke
+   -> overlapping host wake
+   -> Task Scheduler IgnoreNew and/or Common mutex prevents competing ownership
+
+E. fresh disposable WSL2/Linux branch-write smoke
+   -> new fresh smoke issue
+   -> BRANCH_RESUME
+   -> explicit allowed_paths
+   -> one harmless allowed edit
+   -> out-of-scope write rejected
+   -> Codex cannot move HEAD
+   -> Common launcher commits and pushes
+   -> exact evidence published
+
+F. production activation
+   -> only after all required gates pass
+   -> repin production envelope to worker codex-local
+   -> add rll-ready
+
+Do not reuse a completed or REVIEW_READY smoke issue for a new smoke purpose.
+
+## 4. Enable Codex execution
+
+After WSL2 conformance and deterministic smoke review:
 
     .\scripts\install-rll1-codex-task.ps1 -CommonRepoRoot 'C:\Code\Common' -EnableExecution
 
-The installer refuses execution mode if conformance does not match the current Codex version, machine, user or required Common basis.
+This permits eligible RLL work to invoke Codex. It is not by itself production BRANCH_RESUME authority. The issue still requires an authorized execution envelope and rll-ready, and production writes remain withheld until all required smoke gates pass.
 
-## 5. Disable
+## 5. Execution envelopes
 
-    .\scripts\install-rll1-codex-task.ps1 -Disable
-
-This disables the Windows scheduled task. It does not delete GitHub issues, branches, evidence or RLL state.
-
-## Execution envelope
-
-Codex is local executor configuration; the issue envelope identifies the stable worker:
+### Read-only exact-head evidence
 
     RLL_EXECUTION_V1
 
     transport: RLL-1
-    worker: pdfhub-rll-local
+    worker: codex-local
+    mode: EXACT_HEAD_EVIDENCE
+    repository: reallaksh19/Pdf-Hub
+    head_sha: <exact-sha>
+    base_sha: <comparison-base-sha>
+    allow_material_write: false
+
+For exact-head evidence, allowed_paths is empty/not used.
+
+### Governed branch implementation
+
+    RLL_EXECUTION_V1
+
+    transport: RLL-1
+    worker: codex-local
     mode: BRANCH_RESUME
     repository: reallaksh19/Pdf-Hub
-    branch: owned-branch
-    base_sha: <approved-base>
+    branch: <governed-branch>
+    base_sha: <approved-base-sha>
     allow_material_write: true
+    allowed_paths: <path/one>; <path/two>
+    commit_message: <launcher-owned bounded commit message>
 
-For exact-head evidence use worker pdfhub-rll-local, mode EXACT_HEAD_EVIDENCE, the exact head SHA, comparison base SHA, and allow_material_write false.
+For CODEX_LOCAL_V1 BRANCH_RESUME, allowed_paths is mandatory and semicolon-delimited.
 
-Executor selection is not controlled by ordinary issue comments.
+Codex may edit/test only. Common verifies changed-path confinement, verifies Codex did not move Git HEAD, runs git diff --check, stages, commits, confirms the remote branch did not advance, pushes without force, re-observes material truth and publishes durable evidence.
 
-## Directives
+## 6. Phase 13.7 production migration
 
-Only authorized structured RELAY_DIRECTIVE_V1 envelopes are transport commands. Ordinary comments remain context.
+Engineering issue #342 and PR #345 remain the existing engineering task/material.
 
-Supported actions remain CONTINUE, PAUSE, RESUME, REPLAN and CANCEL.
+Current governed branch:
 
-## Phase 13.7 migration
+    phase13/native-spacing-and-compound-shows
 
-After this adapter is merged and local conformance/smoke pass, #342 may receive a new authorized RLL_EXECUTION_V1 envelope with:
+Approved base:
 
-    worker: pdfhub-rll-local
+    9e7d3476b5a14f9ccb09417fc56a34b724bd0063
+
+Current accepted branch material before the outstanding correction:
+
+    616bd4c268e6d3e3afa69b18ef7962a985f3230f
+
+After all smoke gates pass, the production envelope should use:
+
+    worker: codex-local
     mode: BRANCH_RESUME
     branch: phase13/native-spacing-and-compound-shows
     base_sha: 9e7d3476b5a14f9ccb09417fc56a34b724bd0063
+    allow_material_write: true
+    allowed_paths: frontend/src/core/existing-text/contentStreamScanner.ts; frontend/src/core/existing-text/__tests__/contentStreamScanner.test.ts
+    commit_message: Phase 13.7: fail closed on malformed double-quote spacing state
 
-Its existing material must be preserved. The approved base is an ancestry boundary, not a reset target.
+This preserves the existing branch and engineering authorization. It does not restart Phase 13.7.
 
-The outstanding correction directive remains durable issue history. Migration must not invent a new engineering plan merely because the executor changed.
+The outstanding correction requires:
+- fully validate compound double-quote operands before proving spacing;
+- poison both spacing proofs on malformed compound operands;
+- preserve valid aw/ac spacing updates when placement alone is unsupported;
+- add the specified recovery regression journeys;
+- rerun focused and affected compatibility certification.
 
-## Evidence and authority
+The historical directive wording that says the engineering agent should commit/push is superseded only at the transport-mechanics layer: Codex edits/tests; Common owns commit/push. The engineering correction itself remains authoritative.
 
-Transport state is not engineering acceptance.
+## 7. Failure classification
 
-REVIEW_READY means exact material/evidence is available for independent review. It does not grant merge authority.
+Transport RETRY_WAIT includes transient quota/runtime/network failures, missing local prerequisite, Codex auth unavailable and native-Windows source-write requests.
 
-Common may publish executor-provided evidence after binding it to the observed Git head. Git material truth outranks executor claims and mutable transport state.
+Transport ESCALATION_REQUIRED includes:
+- Codex changes Git HEAD;
+- changed path escapes allowed_paths;
+- exact-head worktree becomes dirty;
+- remote governed branch advances during execution;
+- provider credentials are exposed to Codex;
+- reconciliation would require reset/rebase/force;
+- a protected surface must change.
 
-## Adapter audit
+Engineering results remain independently classified as PASS, FAIL, BLOCKED, NOT_RUN or NOT_APPLICABLE.
+
+## 8. Disable / rollback
+
+Disable the Windows task without requiring Codex, GitHub or Common health:
+
+    .\scripts\install-rll1-codex-task.ps1 -Disable
+
+Disabling automation does not invalidate durable Git material or engineering evidence.
+
+## 9. Adapter audit
 
 Run:
 
     node .\scripts\rll1-adapter-source-guard.mjs
 
-The audit proves PDF Hub remains a thin Common consumer and rejects executor/scheduler authority drift.
+The guard checks current Common pin, WSL2 write topology, identity isolation, token isolation, branch-independent scheduling, mandatory allowed_paths documentation and authority boundaries.
 
-## Rollback
+## Authority boundary
 
-1. Disable the Windows task.
-2. Leave durable GitHub issue, branch and evidence intact.
-3. Remove or pause RLL eligibility if required.
-4. Continue normal interactive V3.1 engineering.
-
-Disabling RLL does not invalidate engineering material truth.
+RLL and Codex never grant merge or release authority. REVIEW_READY is evidence-ready transport state, not engineering acceptance. Merge remains a direct Owner decision after independent exact-head review.
