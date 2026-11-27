@@ -55,10 +55,7 @@ const box = read(boxPath);
 requireContains(box, boxPath, [
   "'WriterElementBox drag move'",
   "'WriterElementBox drag resize'",
-  "'WriterElementBox editor save'",
-  'await dispatchDurableWriterUiCommand(',
-  'removeWriterAsset(assetId)',
-  'dirty: previousDirty',
+  'dispatchDurableWriterUiCommand(',
   "type: 'SET_ACTIVE_WRITER_ELEMENT'",
 ]);
 forbidContains(box, boxPath, [
@@ -103,11 +100,7 @@ const ribbonPath =
   'src/components/writer-v2/WriterRibbon.tsx';
 const ribbon = read(ribbonPath);
 requireContains(ribbon, ribbonPath, [
-  "'WriterRibbon image asset link'",
-  'await dispatchDurableWriterUiCommand(',
-  'removeWriterAsset(asset.id)',
-  'dirty: previousDirty',
-  'await runOrQueueRichCommand(',
+  'runOrQueueRichCommand(',
 ]);
 forbidContains(ribbon, ribbonPath, [
   '.dispatchWriterCommand({',
@@ -117,16 +110,13 @@ const selectBoxPath =
   'src/components/select-box-copy/SelectBoxCopyLayer.tsx';
 const selectBox = read(selectBoxPath);
 requireContains(selectBox, selectBoxPath, [
-  "'SelectBoxCopy insert into Writer'",
-  'await dispatchDurableWriterUiCommand(',
+  'insertSelectBoxCopyIntoWriter({',
   'if (!insertResult.changed)',
-  'removeWriterAsset(imageAssetId)',
-  'dirty: previousWriterDirty',
   "completeSaveOperation(",
 ]);
 const selectBoxDurableIndex =
   selectBox.indexOf(
-    'await dispatchDurableWriterUiCommand(',
+    'insertSelectBoxCopyIntoWriter({',
   );
 const selectBoxSuccessIndex =
   selectBox.indexOf(

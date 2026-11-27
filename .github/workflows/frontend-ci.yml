@@ -55,7 +55,7 @@ jobs:
 
       - name: Portable test suite
         working-directory: frontend
-        run: pnpm exec vitest run --pool=forks --maxWorkers=1 --exclude src/core/macro/psIsonote/rca.test.ts
+        run: pnpm exec vitest run --pool=forks --maxWorkers=1
 
       - name: Doc Hub certification
         working-directory: frontend
@@ -65,13 +65,11 @@ jobs:
         working-directory: frontend
         run: pnpm run build
 
-      - name: Baseline lint diagnostics
-        continue-on-error: true
+      - name: Lint
         working-directory: frontend
         run: pnpm run lint
 
-      - name: Baseline static diagnostics
-        continue-on-error: true
+      - name: Static contract checks
         working-directory: frontend
         run: pnpm run check:static
 

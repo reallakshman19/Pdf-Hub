@@ -1,5 +1,6 @@
 import Konva from 'konva';
 import type { PdfAnnotation } from '@/core/annotations/types';
+import { getAnnotationLocalPoints } from '@/core/annotations/pointsSpace';
 import { deserializeKonvaNodeToAnnotation, serializeAnnotationToKonvaConfig } from './serializer';
 
 interface SerializedKonvaChild {
@@ -37,7 +38,21 @@ function pointsFitLocalBounds(points: number[], width: number, height: number): 
   return true;
 }
 
-export function toLocalAnnotationPoints(points: number[], originX: number, originY: number, width: number, height: number): number[] {
+export function toLocalAnnotationPoints(
+  points: number[],
+  originX: number,
+  originY: number,
+  width: number,
+  height: number,
+  coordinateSpace?: 'page' | 'rect-local',
+): number[] {
+  if (coordinateSpace === 'rect-local') {
+    return [...points];
+  }
+  if (coordinateSpace === 'page') {
+    return points.map((value, index) => (index % 2 === 0 ? value - originX : value - originY));
+  }
+
   if (pointsFitLocalBounds(points, width, height)) {
     return [...points];
   }
@@ -47,12 +62,14 @@ export function toLocalAnnotationPoints(points: number[], originX: number, origi
 
 function readInkPoints(annotation: PdfAnnotation, originX: number, originY: number, width: number, height: number): number[] {
   const pointsFromData = readPointArray(annotation.data.points);
-  if (pointsFromData) return toLocalAnnotationPoints(pointsFromData, originX, originY, width, height);
+  if (pointsFromData) {
+    return toLocalAnnotationPoints(pointsFromData, originX, originY, width, height, annotation.data.coordinateSpace);
+  }
 
   if (Array.isArray(annotation.data.paths)) {
     for (const stroke of annotation.data.paths) {
       const strokePoints = readPointArray(stroke);
-      if (strokePoints) return toLocalAnnotationPoints(strokePoints, originX, originY, width, height);
+      if (strokePoints) return toLocalAnnotationPoints(strokePoints, originX, originY, width, height, 'page');
     }
   }
 
@@ -60,24 +77,21 @@ function readInkPoints(annotation: PdfAnnotation, originX: number, originY: numb
 }
 
 function normalizePolygonPoints(
-  rawPoints: unknown,
-  originX: number,
-  originY: number,
+  annotation: PdfAnnotation,
   width: number,
   height: number,
 ): number[] {
-  const points = readPointArray(rawPoints);
-  if (!points) {
+  const local = getAnnotationLocalPoints(annotation);
+  if (local.length < 6) {
     return [width / 2, 0, width, height, 0, height];
   }
-
-  return toLocalAnnotationPoints(points, originX, originY, width, height);
+  return local;
 }
 
-function readLinePoints(annotation: PdfAnnotation, originX: number, originY: number, width: number, height: number): number[] {
-  const points = readPointArray(annotation.data.points);
-  if (!points) return [0, height / 2, width, height / 2];
-  return toLocalAnnotationPoints(points, originX, originY, width, height);
+function readLinePoints(annotation: PdfAnnotation, _originX: number, _originY: number, width: number, height: number): number[] {
+  const local = getAnnotationLocalPoints(annotation);
+  if (local.length < 4) return [0, height / 2, width, height / 2];
+  return local;
 }
 
 function buildSquigglyPoints(width: number, height: number): number[] {
@@ -190,13 +204,25 @@ export class KonvaAdapter {
         });
         break;
       case 'shape-polygon':
+      case 'area-takeoff':
         node = new Konva.Line({
           ...config,
-          points: normalizePolygonPoints(annotation.data.points, x, y, width, height),
+          points: normalizePolygonPoints(annotation, width, height),
           closed: true,
           fill: fillColor,
           stroke: strokeColor,
           strokeWidth: borderWidth,
+          opacity,
+        });
+        break;
+      case 'perimeter-takeoff':
+        node = new Konva.Line({
+          ...config,
+          points: readLinePoints(annotation, x, y, width, height),
+          stroke: readStringValue(annotation.data.borderColor, '#2563eb'),
+          strokeWidth: borderWidth,
+          lineJoin: 'round',
+          lineCap: 'round',
           opacity,
         });
         break;

@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
+import { getAnnotationLocalPoints } from '../../core/annotations/pointsSpace';
 import { SelectionHandles } from './shared/SelectionHandles';
 
 type LineCap = 'none' | 'arrow' | 'circle' | 'square';
@@ -11,10 +12,12 @@ export const ArrowNode: React.FC<AnnotationNodeProps<'arrow'>> = ({
   isSelected,
   onSelect,
   onTransformStart,
+  onVertexDragStart,
 }) => {
   const color = annotation.data?.borderColor ?? '#111827';
   const width = (annotation.data?.borderWidth ?? 2) * scale;
-  const points = (annotation.data?.points ?? [0, rect.height / 2, rect.width, rect.height / 2]).map((value) => value * scale);
+  const localPoints = getAnnotationLocalPoints(annotation);
+  const points = (localPoints.length >= 4 ? localPoints : [0, rect.height / (2 * scale), rect.width / scale, rect.height / (2 * scale)]).map((value) => value * scale);
   const startCap = readLineCap(annotation.data?.lineStartCap, 'none');
   const endCap = readLineCap(annotation.data?.lineEndCap, 'arrow');
   const markerStartId = `arrow-start-${annotation.id}`;
@@ -56,6 +59,40 @@ export const ArrowNode: React.FC<AnnotationNodeProps<'arrow'>> = ({
           markerStart={startCap !== 'none' ? `url(#${markerStartId})` : undefined}
           markerEnd={endCap !== 'none' ? `url(#${markerEndId})` : undefined}
         />
+        {isSelected && !annotation.data?.locked && onVertexDragStart && (
+          <>
+            <circle
+              data-vertex-handle={0}
+              cx={points[0]}
+              cy={points[1]}
+              r={5 * scale}
+              fill="#ffffff"
+              stroke="#2563eb"
+              strokeWidth={1.75 * scale}
+              style={{ pointerEvents: 'all', cursor: 'grab' }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onVertexDragStart(e, 0);
+              }}
+            />
+            <circle
+              data-vertex-handle={1}
+              cx={points[2]}
+              cy={points[3]}
+              r={5 * scale}
+              fill="#ffffff"
+              stroke="#2563eb"
+              strokeWidth={1.75 * scale}
+              style={{ pointerEvents: 'all', cursor: 'grab' }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onVertexDragStart(e, 1);
+              }}
+            />
+          </>
+        )}
       </svg>
       {isSelected && <SelectionHandles rect={rect} onTransformStart={onTransformStart} />}
     </div>

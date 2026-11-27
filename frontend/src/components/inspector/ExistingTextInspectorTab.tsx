@@ -263,47 +263,33 @@ export const ExistingTextInspectorTab: React.FC = () => {
   }, [
     workingBytes,
     documentKey,
-    pageNode?.pageId,
+    pageNode,
     pageIndex,
     viewState.currentPage,
   ]);
 
-  React.useEffect(() => {
+  const directSelectionId = React.useMemo(() => {
     if (
       !existingTextSelection
       || !documentKey
       || !pageNode
-      || existingTextSelection.revisionId
-        !== documentKey
-      || existingTextSelection.pageId
-        !== pageNode.pageId
+      || existingTextSelection.revisionId !== documentKey
+      || existingTextSelection.pageId !== pageNode.pageId
     ) {
-      return;
+      return null;
     }
+    return inspection.spans.find(
+      (span) => span.sourceIndex === existingTextSelection.sourceIndex,
+    )?.id ?? null;
+  }, [documentKey, existingTextSelection, inspection.spans, pageNode]);
 
-    const directSelection =
-      inspection.spans.find(
-        (span) =>
-          span.sourceIndex
-          === existingTextSelection.sourceIndex,
-      );
-
-    if (
-      directSelection
-      && directSelection.id
-        !== selectedSpanId
-    ) {
-      setSelectedSpanId(
-        directSelection.id,
-      );
+  const [prevDirectSelectionId, setPrevDirectSelectionId] = React.useState<string | null>(directSelectionId);
+  if (directSelectionId !== prevDirectSelectionId) {
+    setPrevDirectSelectionId(directSelectionId);
+    if (directSelectionId && directSelectionId !== selectedSpanId) {
+      setSelectedSpanId(directSelectionId);
     }
-  }, [
-    documentKey,
-    existingTextSelection,
-    inspection.spans,
-    pageNode,
-    selectedSpanId,
-  ]);
+  }
 
   const selectedSpan =
     React.useMemo(
@@ -319,17 +305,19 @@ export const ExistingTextInspectorTab: React.FC = () => {
       ],
     );
 
+  const selectedSpanKey = selectedSpan?.id ?? null;
+  const selectedSpanText = selectedSpan?.text ?? '';
   React.useEffect(() => {
-    if (!selectedSpan) {
-      setReplacementText('');
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setReplacementText(selectedSpanKey ? selectedSpanText : '');
       setCapability(null);
-      return;
-    }
-    setReplacementText(
-      selectedSpan.text,
-    );
-    setCapability(null);
-  }, [selectedSpan?.id]);
+    });
+    return () => {
+      active = false;
+    };
+  }, [selectedSpanKey, selectedSpanText]);
 
   const checkEdit =
     async () => {

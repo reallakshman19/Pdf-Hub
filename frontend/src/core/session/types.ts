@@ -29,11 +29,16 @@ export interface SaveSessionSnapshotAction {
   type: 'SAVE_SESSION_SNAPSHOT';
 }
 
+export interface ExportPdfAAction {
+  type: 'EXPORT_PDFA_ARCHIVE';
+}
+
 export type SessionSaveExportAction =
   | SaveDocumentAction
   | ExportReviewAction
   | DownloadPdfAction
-  | SaveSessionSnapshotAction;
+  | SaveSessionSnapshotAction
+  | ExportPdfAAction;
 
 export type SessionOperationStatus = 'success' | 'failure';
 
@@ -90,6 +95,8 @@ export interface DocumentSession {
   historyJournalId: string | null;
   /** Whether the active journal store survives page/browser-process restart. */
   historyJournalPersistent: boolean;
+  /** True when the admitted PDF required password decryption to open in PDF.js. */
+  isEncryptedSource: boolean;
   fileName: string | null;
   /**
    * Copy-on-write: the store holds whatever reference callers pass to

@@ -4,20 +4,20 @@ import {
   Highlighter, UnderlineIcon, Strikethrough, Activity, MessageSquare, MessageCircle,
   MessageSquareDot, Stamp, Square, ScanText, Eye, EyeOff,
   PenTool, Type, Circle, Hexagon, Cloud, Minus, MoveRight, Ruler,
-  Sparkles, BrainCircuit, TableProperties, FileSearch, Info, MoreHorizontal, Copy, ClipboardPaste,
+  MoreHorizontal, Copy, ClipboardPaste,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/core/editor/store';
 import { useSessionStore } from '@/core/session/store';
 import { useReviewStore } from '@/core/review/store';
-import { useWriterStore } from '@/core/writer/store';
+import { useCalloutStore } from '@/core/callout/store';
 import { useAnnotationStore } from '@/core/annotations/store';
 import { isToolDisabled, getToolDisabledReason } from '@/core/tool-policy/disabledTools';
 import { resetInteractionState } from '@/core/editor/resetInteraction';
 import { ToolbarOrganize } from '@/components/toolbar/ToolbarOrganize';
 import { ToolbarFile } from '@/components/toolbar/ToolbarFile';
 import { WriterV2ToolbarControls } from '@/components/writer-v2/WriterV2ToolbarControls';
-import { useToastStore } from '@/core/toast/store';
+import { AutomateRibbonControls } from '@/components/shell/AutomateRibbonControls';
 import type { ActiveTool } from '@/core/editor/types';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { ScaleCalibrationDialog } from '@/components/dialogs/ScaleCalibrationDialog';
@@ -119,6 +119,7 @@ const ViewSection: React.FC = () => {
     activeTool: state.activeTool,
     setActiveTool: state.setActiveTool,
   })));
+  const hasPdf = useSessionStore((state) => Boolean(state.workingBytes && state.pageCount > 0));
   const { viewState, setFitMode, setViewMode } = useSessionStore(useShallow((state) => ({
     viewState: state.viewState,
     setFitMode: state.setFitMode,
@@ -129,16 +130,16 @@ const ViewSection: React.FC = () => {
     <>
       <CtxLabel first>Navigate</CtxLabel>
       <CtxBtn icon={MousePointer2} label="Select" active={activeTool === 'select'} onClick={() => resetInteractionState()} />
-      <CtxBtn icon={Hand} label="Pan" active={activeTool === 'hand'} onClick={() => setActiveTool('hand')} />
+      <CtxBtn icon={Hand} label="Pan" active={activeTool === 'hand'} disabled={!hasPdf} title={hasPdf ? 'Pan document' : 'Open a PDF to pan'} onClick={() => setActiveTool('hand')} />
       <CtxSep />
       <CtxLabel>Fit</CtxLabel>
-      <CtxBtn icon={Expand} label="Width" active={viewState.fitMode === 'width'} onClick={() => setFitMode('width')} />
-      <CtxBtn icon={Maximize} label="Page" active={viewState.fitMode === 'page'} onClick={() => setFitMode('page')} />
+      <CtxBtn icon={Expand} label="Width" active={viewState.fitMode === 'width'} disabled={!hasPdf} title={hasPdf ? 'Fit page width' : 'Open a PDF to fit width'} onClick={() => setFitMode('width')} />
+      <CtxBtn icon={Maximize} label="Page" active={viewState.fitMode === 'page'} disabled={!hasPdf} title={hasPdf ? 'Fit whole page' : 'Open a PDF to fit page'} onClick={() => setFitMode('page')} />
       <CtxSep />
       <CtxLabel>Layout</CtxLabel>
-      <CtxBtn icon={AlignJustify} label="Continuous" active={viewState.viewMode === 'continuous'} onClick={() => setViewMode('continuous')} />
-      <CtxBtn icon={FileIcon} label="Single" active={viewState.viewMode === 'single'} onClick={() => setViewMode('single')} />
-      <CtxBtn icon={Columns2} label="Two-Page" active={viewState.viewMode === 'two-page'} onClick={() => setViewMode('two-page')} />
+      <CtxBtn icon={AlignJustify} label="Continuous" active={viewState.viewMode === 'continuous'} disabled={!hasPdf} title={hasPdf ? 'Continuous vertical scroll' : 'Open a PDF first'} onClick={() => setViewMode('continuous')} />
+      <CtxBtn icon={FileIcon} label="Single" active={viewState.viewMode === 'single'} disabled={!hasPdf} title={hasPdf ? 'Single page view' : 'Open a PDF first'} onClick={() => setViewMode('single')} />
+      <CtxBtn icon={Columns2} label="Two-Page" active={viewState.viewMode === 'two-page'} disabled={!hasPdf} title={hasPdf ? 'Side-by-side two-page view' : 'Open a PDF first'} onClick={() => setViewMode('two-page')} />
     </>
   );
 };
@@ -206,7 +207,7 @@ const AnnotateSection: React.FC = () => {
     activeTool: state.activeTool,
     setActiveTool: state.setActiveTool,
   })));
-  const { setActiveTool: setWriterActiveTool, activeTool: writerActiveTool } = useWriterStore();
+  const { setActiveTool: setCalloutActiveTool, activeTool: calloutActiveTool } = useCalloutStore();
   const { hideResolved, setHideResolved } = useReviewStore(useShallow((state) => ({
     hideResolved: state.hideResolved,
     setHideResolved: state.setHideResolved,
@@ -234,17 +235,17 @@ const AnnotateSection: React.FC = () => {
 
   const handleToolClick = (tool: ActiveTool) => {
     if (isToolDisabled(tool)) return;
-    setWriterActiveTool('select');
+    setCalloutActiveTool('select');
     setActiveTool(activeTool === tool ? 'select' : tool);
     setMoreOpen(false);
   };
 
   const handleOcrClick = () => {
-    if (writerActiveTool === 'ocr-region') {
-      setWriterActiveTool('select');
+    if (calloutActiveTool === 'ocr-region') {
+      setCalloutActiveTool('select');
     } else {
       setActiveTool('select');
-      setWriterActiveTool('ocr-region');
+      setCalloutActiveTool('ocr-region');
     }
     setMoreOpen(false);
   };
@@ -273,7 +274,7 @@ const AnnotateSection: React.FC = () => {
   }, [moreOpen]);
 
   const secondaryActive =
-    writerActiveTool === 'ocr-region'
+    calloutActiveTool === 'ocr-region'
     || ANNOTATE_MORE_TOOLS.some((item) => item.id !== 'ocr-region' && item.id === activeTool);
 
   return (
@@ -361,7 +362,7 @@ const AnnotateSection: React.FC = () => {
             const Icon = item.icon;
             const isOcr = item.id === 'ocr-region';
             const active = isOcr
-              ? writerActiveTool === 'ocr-region'
+              ? calloutActiveTool === 'ocr-region'
               : activeTool === item.id;
             const disabled = !isOcr && isToolDisabled(item.id as ActiveTool);
             const disabledReason = !isOcr
@@ -421,7 +422,7 @@ const DrawSection: React.FC = () => {
     activeTool: state.activeTool,
     setActiveTool: state.setActiveTool,
   })));
-  const { setActiveTool: setWriterActiveTool } = useWriterStore();
+  const { setActiveTool: setCalloutActiveTool } = useCalloutStore();
   const { selectedAnnotationIds, updateStyleForSelection } = useAnnotationStore(useShallow((state) => ({
     selectedAnnotationIds: state.selectedAnnotationIds,
     updateStyleForSelection: state.updateStyleForSelection,
@@ -429,7 +430,7 @@ const DrawSection: React.FC = () => {
 
   const handleToolClick = (tool: ActiveTool) => {
     if (isToolDisabled(tool)) return;
-    setWriterActiveTool('select');
+    setCalloutActiveTool('select');
     setActiveTool(activeTool === tool ? 'select' : tool);
   };
 
@@ -491,11 +492,6 @@ const WriteSection: React.FC = () => (
   <div className="flex items-center h-full gap-2">
     <CtxLabel first>Writer Tools</CtxLabel>
     <WriterV2ToolbarControls />
-    <CtxSep />
-    <div className="flex items-center gap-1 text-[10.5px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-1.5 py-0.5 shrink-0 select-none">
-      <Info className="w-3 h-3 shrink-0" />
-      <span>Overlay only — does not edit existing PDF text</span>
-    </div>
   </div>
 );
 
@@ -505,22 +501,11 @@ const OrganizeSection: React.FC = () => (
   </div>
 );
 
-const GenerateSection: React.FC = () => {
-  const addToast = useToastStore((s) => s.addToast);
-  const stub = (name: string) => () =>
-    addToast({ type: 'info', title: `${name} (Preview)`, message: `${name} requires AI backend integration and is not yet available.` });
-  return (
-    <div className="flex items-center h-full">
-      <CtxLabel first>AI Tools</CtxLabel>
-      <CtxBtn icon={Sparkles} label="Smart Fill" ai onClick={stub('Smart Fill')} />
-      <CtxBtn icon={BrainCircuit} label="Ask AI" ai onClick={stub('Ask AI')} />
-      <CtxSep />
-      <CtxLabel>Extract</CtxLabel>
-      <CtxBtn icon={TableProperties} label="Extract Fields" ai onClick={stub('Extract Fields')} />
-      <CtxBtn icon={FileSearch} label="Summarize" ai onClick={stub('Summarize')} />
-    </div>
-  );
-};
+const GenerateSection: React.FC = () => (
+  <div className="flex items-center h-full">
+    <AutomateRibbonControls />
+  </div>
+);
 
 // ── CtxBar shell ─────────────────────────────────────────────────────────────
 

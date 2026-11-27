@@ -1,6 +1,6 @@
 import React from 'react';
 import type { AnnotationNodeProps, Point2D, Rect } from '@/core/annotations/types';
-import { computeCalloutPath } from '@/core/annotations/callout-geometry';
+import { computeCalloutPath, computeCadCalloutGeometry } from '@/core/annotations/callout-geometry';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { InlineTextEditor } from './shared/InlineTextEditor';
 
@@ -65,17 +65,38 @@ export const NativeAppearanceNode: React.FC<Props> = ({
     : rect;
   const anchor = anchorPoint !== undefined ? anchorPoint : annotation.data.anchor;
   const knee = kneePoint !== undefined ? kneePoint : annotation.data.knee;
-  const line = annotation.type === 'callout' && anchor
-    ? computeCalloutPath(
-        { x: anchor.x * scale, y: anchor.y * scale },
+  const shelfStyle = annotation.data?.shelfStyle;
+  const cadGeom = (annotation.type === 'callout' && anchor && shelfStyle && shelfStyle !== 'none')
+    ? computeCadCalloutGeometry(
         rect,
-        {
+        [{
+          id: 'primary',
+          anchor: { x: anchor.x * scale, y: anchor.y * scale },
+          knee: knee ? { x: knee.x * scale, y: knee.y * scale } : null,
           leaderStyle: annotation.data.leaderStyle === 'straight'
             ? 'straight' : annotation.data.leaderStyle === 'elbow' || knee ? 'elbow' : 'straight',
-          kneePoint: knee ? { x: knee.x * scale, y: knee.y * scale } : null,
+        }],
+        {
+          shelfStyle,
+          shelfLength: typeof annotation.data.shelfLength === 'number' ? annotation.data.shelfLength * scale : 16 * scale,
         },
       )
     : null;
+
+  const line = cadGeom
+    ? cadGeom.leaders[0]
+    : (annotation.type === 'callout' && anchor
+      ? computeCalloutPath(
+          { x: anchor.x * scale, y: anchor.y * scale },
+          rect,
+          {
+            leaderStyle: annotation.data.leaderStyle === 'straight'
+              ? 'straight' : annotation.data.leaderStyle === 'elbow' || knee ? 'elbow' : 'straight',
+            kneePoint: knee ? { x: knee.x * scale, y: knee.y * scale } : null,
+          },
+        )
+      : null);
+  const shelf = cadGeom?.shelf ?? null;
 
   return (
     <div
@@ -132,6 +153,19 @@ export const NativeAppearanceNode: React.FC<Props> = ({
           width={appearance.width}
           height={appearance.height}
         >
+          {shelf && shelf.length > 0 && (
+            <line
+              data-testid="native-callout-landing-shelf"
+              x1={shelf.start.x - appearance.x}
+              y1={shelf.start.y - appearance.y}
+              x2={shelf.end.x - appearance.x}
+              y2={shelf.end.y - appearance.y}
+              stroke={annotation.data?.borderColor ?? '#2563eb'}
+              strokeWidth={Math.max(1.5 * scale, 1)}
+              strokeLinecap="round"
+              style={{ pointerEvents: 'none' }}
+            />
+          )}
           <polyline
             points={line.points.map((point) => `${point.x - appearance.x},${point.y - appearance.y}`).join(' ')}
             stroke="transparent"

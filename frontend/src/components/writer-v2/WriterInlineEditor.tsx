@@ -82,17 +82,18 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
   const pendingAssetsRef = React.useRef<WriterAssetRecordV2[]>([]);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const hasSavedRef = React.useRef(false);
-  const ownerRef = React.useRef(captureRichEditorOwner(element));
+  const [owner] = React.useState(() => captureRichEditorOwner(element));
+  const ownerRef = React.useRef(owner);
   const pendingImportsRef = React.useRef(0);
   const stageAssets = React.useCallback((assets: WriterAssetRecordV2[]) => {
     pendingAssetsRef.current = [...pendingAssetsRef.current, ...assets];
   }, []);
-  const bindingRef = React.useRef<RichEditorBinding>({
-    owner: ownerRef.current, isOpen: () => !hasSavedRef.current,
+  const [binding] = React.useState<RichEditorBinding>(() => ({
+    owner, isOpen: () => !hasSavedRef.current,
     assets: () => pendingAssetsRef.current, stage: stageAssets,
     beginImport: () => { if (pendingImportsRef.current) return false; pendingImportsRef.current = 1; return true; },
     endImport: () => { pendingImportsRef.current -= 1; },
-  });
+  }));
 
   const initialEditorStateJson = React.useMemo(
     () => normalizeEditorStateJson(element.editorStateJson, element.plainText ?? ''),
@@ -279,7 +280,7 @@ export const WriterInlineEditor: React.FC<WriterInlineEditorProps> = ({
       }}
     >
       <LexicalComposer key={composerKey} initialConfig={initialConfig}>
-        <ActiveEditorRegisterPlugin onEditor={registerEditor} binding={bindingRef.current} />
+        <ActiveEditorRegisterPlugin onEditor={registerEditor} binding={binding} />
         <QueuedRichEditorCommandPlugin />
 
         <OnChangePlugin

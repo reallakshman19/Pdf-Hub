@@ -61,7 +61,7 @@ export const HeaderFooterDialog: React.FC<
   );
   const [activeSlot, setActiveSlot] =
     React.useState<HeaderFooterEditorSlotKey>('footer.right');
-  const [previewPageId, setPreviewPageId] =
+  const [selectedPreviewPageId, setSelectedPreviewPageId] =
     React.useState<PageId | null>(null);
   const [previewNow, setPreviewNow] = React.useState(
     () => new Date(),
@@ -81,14 +81,17 @@ export const HeaderFooterDialog: React.FC<
     setDraft,
   });
 
-  React.useEffect(() => {
-    if (!isOpen) return;
-    setDraft(createDefaultHeaderFooterEditorDraft());
-    setActiveSlot('footer.right');
-    setPreviewPageId(currentPageId);
-    setPreviewNow(new Date());
-    setSubmitting(false);
-  }, [currentPageId, isOpen]);
+  const [prevIsOpen, setPrevIsOpen] = React.useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      setDraft(createDefaultHeaderFooterEditorDraft());
+      setActiveSlot('footer.right');
+      setSelectedPreviewPageId(currentPageId);
+      setPreviewNow(new Date());
+      setSubmitting(false);
+    }
+  }
 
   const preview = React.useMemo(() => {
     try {
@@ -141,31 +144,49 @@ export const HeaderFooterDialog: React.FC<
     selectedPageIds,
   ]);
 
-  React.useEffect(() => {
+  const previewPageId = React.useMemo<PageId | null>(() => {
     if (preview.pages.length === 0) {
-      setPreviewPageId(null);
-      return;
+      return null;
     }
-
     if (
-      previewPageId
-      && preview.pages.some((page) => page.pageId === previewPageId)
+      selectedPreviewPageId
+      && preview.pages.some((page) => page.pageId === selectedPreviewPageId)
     ) {
-      return;
+      return selectedPreviewPageId;
     }
-
     const currentMatched = currentPageId
       ? preview.pages.find((page) => page.pageId === currentPageId)
       : null;
-    setPreviewPageId(
-      currentMatched?.pageId ?? preview.pages[0]?.pageId ?? null,
-    );
-  }, [currentPageId, preview.pages, previewPageId]);
+    return currentMatched?.pageId ?? preview.pages[0]?.pageId ?? null;
+  }, [currentPageId, preview.pages, selectedPreviewPageId]);
+
+  const [prevNativeInputs, setPrevNativeInputs] = React.useState({
+    isOpen,
+    template: preview.template,
+    previewPageId,
+    workingBytes,
+    binaryResources: imageEditor.binaryResources,
+  });
+  if (
+    prevNativeInputs.isOpen !== isOpen
+    || prevNativeInputs.template !== preview.template
+    || prevNativeInputs.previewPageId !== previewPageId
+    || prevNativeInputs.workingBytes !== workingBytes
+    || prevNativeInputs.binaryResources !== imageEditor.binaryResources
+  ) {
+    setPrevNativeInputs({
+      isOpen,
+      template: preview.template,
+      previewPageId,
+      workingBytes,
+      binaryResources: imageEditor.binaryResources,
+    });
+    setNativePreview({ imageUrl: null, busy: false, error: null, warnings: [] });
+  }
 
   // Invalidate prior pixels on any edit, selected page change or source update.
   React.useEffect(() => {
     previewAbortRef.current?.abort('Native preview inputs changed');
-    setNativePreview({ imageUrl: null, busy: false, error: null, warnings: [] });
     return () => {
       previewAbortRef.current?.abort('Native preview closed or superseded');
     };
@@ -325,7 +346,7 @@ export const HeaderFooterDialog: React.FC<
           nativeWarnings={nativePreview.warnings}
           nativeAvailable={Boolean(workingBytes) && !imageEditor.busy && !submitting}
           onRenderNativePreview={() => void renderNative()}
-          onPreviewPageChange={setPreviewPageId}
+          onPreviewPageChange={setSelectedPreviewPageId}
         />
 
         <div className="flex justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">

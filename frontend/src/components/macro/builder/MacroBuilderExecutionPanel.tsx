@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, CheckCircle2, FlaskConical, Play, Square } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/core/session/store';
 import type { MacroRecipe } from '@/core/macro/types';
@@ -22,7 +23,7 @@ export function MacroBuilderExecutionPanel({
 }: MacroBuilderExecutionPanelProps): React.ReactElement {
   // Observe the full session so every revision, PageId or selection change
   // invalidates previews created for a different editing context.
-  const session = useSessionStore();
+  const session = useSessionStore(useShallow((state) => state));
   const workingBytes = session.workingBytes;
   const fileName = session.fileName;
   const recipeSignature = React.useMemo(() => JSON.stringify(recipe), [recipe]);
@@ -54,7 +55,7 @@ export function MacroBuilderExecutionPanel({
   // preflight; do not suppress the actual completion outcome.
   const completionCurrent = sameMacroPreview(completedRunIdentity, currentIdentity);
 
-  const buildPreflight = React.useCallback(async (): Promise<{
+  const buildPreflight = async (): Promise<{
     report: PreflightReport;
     identity: MacroPreviewIdentity;
   } | null> => {
@@ -80,7 +81,7 @@ export function MacroBuilderExecutionPanel({
     setPreflightIdentity(identity);
     setLogs(report.dryRunLogs);
     return { report, identity };
-  }, [recipe, recipeSignature, validationValid]);
+  };
 
   const handleTestRun = async () => {
     if (!canTest) return;

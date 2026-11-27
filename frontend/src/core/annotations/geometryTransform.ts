@@ -1,4 +1,5 @@
 import type { AnnotationData, PdfAnnotation, Rect } from './types';
+import { resolveAnnotationPointsSpace } from './pointsSpace';
 
 type NativeMarkupRotationData = AnnotationData & {
   nativeMarkupRotationSourceHash?: string;
@@ -179,10 +180,15 @@ export function remapAnnotationGeometry(
   let result = nextData;
   const replace = (patch: Partial<AnnotationData>) => { result = { ...result, ...patch }; };
 
-  // Line and arrow points are relative to the rectangle; polygon points and
-  // ink paths are absolute page coordinates. Explicit point edits win.
-  if (annotation.type === 'shape-polygon' && annotation.data.points
-    && nextData.points === annotation.data.points) replace({ points: mapPairs(annotation.data.points) });
+  // Remap absolute page-space points (polygons, area takeoffs, page-space lines/polylines) and ink paths.
+  const isPageSpacePoints =
+    annotation.type === 'shape-polygon' ||
+    annotation.type === 'area-takeoff' ||
+    resolveAnnotationPointsSpace(annotation) === 'page';
+
+  if (isPageSpacePoints && annotation.data.points && nextData.points === annotation.data.points) {
+    replace({ points: mapPairs(annotation.data.points) });
+  }
   if (annotation.type === 'ink' && annotation.data.paths
     && nextData.paths === annotation.data.paths) replace({ paths: annotation.data.paths.map(mapPairs) });
 

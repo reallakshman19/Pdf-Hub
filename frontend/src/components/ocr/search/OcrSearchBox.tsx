@@ -39,12 +39,17 @@ export const OcrSearchBox: React.FC<OcrSearchBoxProps> = ({
     activeIndex: -1,
   });
 
+  const onActiveMatchChangeRef = React.useRef(onActiveMatchChange);
+  useEffect(() => {
+    onActiveMatchChangeRef.current = onActiveMatchChange;
+  }, [onActiveMatchChange]);
+
   // Evaluate query whenever input or options change
   useEffect(() => {
     if (!query.trim()) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- clear navigation when the query is emptied
       setNavState({ query: '', matches: [], activeIndex: -1 });
-      onActiveMatchChange?.(null, []);
+      onActiveMatchChangeRef.current?.(null, []);
       return;
     }
 
@@ -58,7 +63,7 @@ export const OcrSearchBox: React.FC<OcrSearchBoxProps> = ({
     setNavState(newNav);
 
     const activeMatch = matches.length > 0 ? matches[0] : null;
-    onActiveMatchChange?.(activeMatch, matches);
+    onActiveMatchChangeRef.current?.(activeMatch, matches);
   }, [query, caseSensitive, fuzzy, document]);
 
   const handleNext = () => {

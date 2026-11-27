@@ -21,8 +21,9 @@ export const WriterQuickTemplatesPanel: React.FC<WriterQuickTemplatesPanelProps>
         maxHeight: embedded ? undefined : 'calc(100vh - 120px)',
         display: 'flex',
         flexDirection: 'column',
-        background: '#ffffff',
-        border: embedded ? 'none' : '1px solid #e2e8f0',
+        background: 'var(--writer-surface, #ffffff)',
+        color: 'var(--writer-text, #0f172a)',
+        border: embedded ? 'none' : '1px solid var(--writer-border, #e2e8f0)',
         borderRadius: embedded ? 0 : 10,
         boxShadow: embedded ? 'none' : '0 8px 28px rgba(15, 23, 42, 0.14)',
         overflow: 'hidden',
@@ -31,7 +32,7 @@ export const WriterQuickTemplatesPanel: React.FC<WriterQuickTemplatesPanelProps>
       <header
         style={{
           padding: '8px 10px',
-          borderBottom: '1px solid #f1f5f9',
+          borderBottom: '1px solid var(--writer-surface-muted, #f1f5f9)',
         }}
       >
         <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>

@@ -61,8 +61,13 @@ export const LeftRail: React.FC = () => {
 
       <div className="flex-1" />
 
-      <Tooltip content="Help" position="right">
-        <button className="w-[34px] h-[34px] flex items-center justify-center rounded-md text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 transition-all">
+      <Tooltip content="Help & Shortcuts" position="right">
+        <button
+          type="button"
+          aria-label="Help"
+          onClick={() => document.dispatchEvent(new CustomEvent('pdf-hub:help'))}
+          className="w-[34px] h-[34px] flex items-center justify-center rounded-md text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 transition-all cursor-pointer border-none bg-transparent"
+        >
           <HelpCircle className="w-[17px] h-[17px]" />
         </button>
       </Tooltip>

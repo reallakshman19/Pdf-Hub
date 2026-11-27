@@ -59,8 +59,8 @@ const FONT_SIZES = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9' }}>
-      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 6 }}>
+    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--writer-surface-muted, #f1f5f9)' }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--writer-text-faint, #94a3b8)', marginBottom: 6 }}>
         {title}
       </div>
       {children}
@@ -73,7 +73,7 @@ function Row({ children }: { children: React.ReactNode }) {
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontSize: 11, color: '#64748b', width: 48, flexShrink: 0 }}>{children}</span>;
+  return <span style={{ fontSize: 11, color: 'var(--writer-text-muted, #64748b)', width: 48, flexShrink: 0 }}>{children}</span>;
 }
 
 interface DraftCommitResult {
@@ -97,11 +97,17 @@ function DraftTextInput({
 }) {
   const [draft, setDraft] =
     React.useState(value);
+  const [prevSyncKey, setPrevSyncKey] =
+    React.useState(`${resetKey}::${value}`);
+  const syncKey = `${resetKey}::${value}`;
+  if (syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
+    setDraft(value);
+  }
   const cancelBlurRef =
     React.useRef(false);
 
   React.useEffect(() => {
-    setDraft(value);
     cancelBlurRef.current = false;
   }, [resetKey, value]);
 
@@ -174,10 +180,17 @@ function DraftNumberInput({
   const [draft, setDraft] = React.useState(
     String(value),
   );
+  const [prevSyncKey, setPrevSyncKey] = React.useState(
+    `${resetKey}::${String(value)}`,
+  );
+  const syncKey = `${resetKey}::${String(value)}`;
+  if (syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
+    setDraft(String(value));
+  }
   const cancelBlurRef = React.useRef(false);
 
   React.useEffect(() => {
-    setDraft(String(value));
     cancelBlurRef.current = false;
   }, [resetKey, value]);
 
@@ -244,11 +257,12 @@ function DraftNumberInput({
       style={{
         height: 24,
         borderRadius: 5,
-        border: '1px solid #e2e8f0',
+        border: '1px solid var(--writer-border, #e2e8f0)',
         padding: '0 5px',
         fontSize: 11,
         width: 52,
-        background: '#f8fafc',
+        background: 'var(--writer-surface, #ffffff)',
+        color: 'var(--writer-text, #0f172a)',
         ...style,
       }}
     />
@@ -268,11 +282,17 @@ function DraftOpacityInput({
 }) {
   const [draft, setDraft] =
     React.useState(value);
+  const [prevSyncKey, setPrevSyncKey] =
+    React.useState(`${resetKey}::${value}`);
+  const syncKey = `${resetKey}::${value}`;
+  if (syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
+    setDraft(value);
+  }
   const lastCommittedRef =
     React.useRef(value);
 
   React.useEffect(() => {
-    setDraft(value);
     lastCommittedRef.current = value;
   }, [resetKey, value]);
 
@@ -353,6 +373,13 @@ function DraftColorPicker({
 }) {
   const [draft, setDraft] =
     React.useState(value);
+  const [prevSyncKey, setPrevSyncKey] =
+    React.useState(`${resetKey}::${value}`);
+  const syncKey = `${resetKey}::${value}`;
+  if (syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
+    setDraft(value);
+  }
   const timerRef =
     React.useRef<number | null>(null);
 
@@ -361,7 +388,6 @@ function DraftColorPicker({
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    setDraft(value);
   }, [resetKey, value]);
 
   React.useEffect(
@@ -408,7 +434,11 @@ function DraftColorPicker({
   );
 }
 
-export const WriterV2Inspector: React.FC = () => {
+export interface WriterV2InspectorProps {
+  embedded?: boolean;
+}
+
+export const WriterV2Inspector: React.FC<WriterV2InspectorProps> = ({ embedded = false }) => {
   const imageReplaceInputRef = React.useRef<HTMLInputElement | null>(null);
   const elements = useWriterV2Store((state) => state.elements);
   const activeId = useWriterV2Store((state) => state.activeId);
@@ -478,19 +508,23 @@ export const WriterV2Inspector: React.FC = () => {
     return (
       <div
         data-writer-v2-inspector="empty"
-        style={{
-          position: 'fixed', right: 16, top: 76, zIndex: 200,
-          background: '#ffffff', border: '1px solid #e2e8f0',
-          borderRadius: 12, boxShadow: '0 8px 32px rgba(15,23,42,0.12)',
-          width: 224, padding: '10px 12px',
-        }}
+        style={
+          embedded
+            ? { width: '100%', padding: '12px', fontFamily: 'inherit' }
+            : {
+                position: 'fixed', right: 16, top: 76, zIndex: 200,
+                background: 'var(--writer-surface, #ffffff)', border: '1px solid var(--writer-border, #e2e8f0)',
+                borderRadius: 12, boxShadow: '0 8px 32px rgba(15,23,42,0.12)',
+                width: 224, padding: '10px 12px',
+              }
+        }
       >
         <button
           type="button"
           onClick={() => { void showAllWriterElements(); }}
           style={{
-            width: '100%', height: 28, borderRadius: 6, border: '1px solid #cbd5e1',
-            background: '#f8fafc', fontSize: 12, cursor: 'pointer', color: '#374151',
+            width: '100%', height: 28, borderRadius: 6, border: '1px solid var(--writer-border-strong, #cbd5e1)',
+            background: 'var(--writer-surface-subtle, #f8fafc)', fontSize: 12, cursor: 'pointer', color: 'var(--writer-text-secondary, #374151)',
           }}
         >
           Show all hidden elements
@@ -579,29 +613,38 @@ export const WriterV2Inspector: React.FC = () => {
     <div
       data-writer-v2-inspector="active"
       aria-label="Writer V2 inspector"
-      style={{
-        position: 'fixed',
-        right: 16,
-        top: 76,
-        zIndex: 200,
-        background: '#ffffff',
-        border: '1px solid #e2e8f0',
-        borderRadius: 12,
-        boxShadow: '0 8px 32px rgba(15,23,42,0.12)',
-        width: 224,
-        maxHeight: 'calc(100vh - 96px)',
-        overflowY: 'auto',
-        fontFamily: 'inherit',
-      }}
+      style={
+        embedded
+          ? {
+              width: '100%',
+              fontFamily: 'inherit',
+              color: 'var(--writer-text, #0f172a)',
+            }
+          : {
+              position: 'fixed',
+              right: 16,
+              top: 76,
+              zIndex: 200,
+              background: 'var(--writer-surface, #ffffff)',
+              color: 'var(--writer-text, #0f172a)',
+              border: '1px solid var(--writer-border, #e2e8f0)',
+              borderRadius: 12,
+              boxShadow: '0 8px 32px rgba(15,23,42,0.12)',
+              width: 224,
+              maxHeight: 'calc(100vh - 96px)',
+              overflowY: 'auto',
+              fontFamily: 'inherit',
+            }
+      }
     >
       {/* Header */}
       <div style={{
-        padding: '8px 12px', borderBottom: '1px solid #f1f5f9',
+        padding: '8px 12px', borderBottom: '1px solid var(--writer-surface-muted, #f1f5f9)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div>
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{selected.type}</span>
-          <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--writer-text, #1e293b)' }}>{selected.type}</span>
+          <span style={{ fontSize: 11, color: 'var(--writer-text-faint, #94a3b8)', marginLeft: 6 }}>
             p{selected.pageIndex + 1} · {Math.round(selected.rect.width)}×{Math.round(selected.rect.height)}
           </span>
         </div>
@@ -669,8 +712,8 @@ export const WriterV2Inspector: React.FC = () => {
                 }).catch(() => undefined);
               }}
               style={{
-                flex: 1, height: 24, borderRadius: 5, border: '1px solid #e2e8f0',
-                fontSize: 11, background: '#f8fafc', cursor: 'pointer',
+                flex: 1, height: 24, borderRadius: 5, border: '1px solid var(--writer-border, #e2e8f0)',
+                fontSize: 11, background: 'var(--writer-surface, #ffffff)', color: 'var(--writer-text, #0f172a)', cursor: 'pointer',
               }}
             >
               {FONT_FAMILIES.map((f) => (
@@ -690,8 +733,8 @@ export const WriterV2Inspector: React.FC = () => {
                 }).catch(() => undefined);
               }}
               style={{
-                width: 60, height: 24, borderRadius: 5, border: '1px solid #e2e8f0',
-                fontSize: 11, background: '#f8fafc', cursor: 'pointer',
+                width: 60, height: 24, borderRadius: 5, border: '1px solid var(--writer-border, #e2e8f0)',
+                fontSize: 11, background: 'var(--writer-surface, #ffffff)', color: 'var(--writer-text, #0f172a)', cursor: 'pointer',
               }}
             >
               {FONT_SIZES.map((s) => (
@@ -779,8 +822,8 @@ export const WriterV2Inspector: React.FC = () => {
                 }).catch(() => undefined);
               }}
               style={{
-                flex: 1, height: 24, borderRadius: 5, border: '1px solid #e2e8f0',
-                fontSize: 11, background: '#f8fafc', cursor: 'pointer',
+                flex: 1, height: 24, borderRadius: 5, border: '1px solid var(--writer-border, #e2e8f0)',
+                fontSize: 11, background: 'var(--writer-surface, #ffffff)', color: 'var(--writer-text, #0f172a)', cursor: 'pointer',
               }}
             >
               <option value="none">None</option>
@@ -862,10 +905,10 @@ export const WriterV2Inspector: React.FC = () => {
               gap: 6,
               maxHeight: 240,
               overflow: 'auto',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--writer-border, #e2e8f0)',
               borderRadius: 6,
               padding: 6,
-              background: '#f8fafc',
+              background: 'var(--writer-surface-subtle, #f8fafc)',
             }}
           >
             <div
@@ -958,7 +1001,7 @@ export const WriterV2Inspector: React.FC = () => {
               style={{
                 flex: 1,
                 fontSize: 11,
-                color: selected.imageAssetId ? '#334155' : '#dc2626',
+                color: selected.imageAssetId ? 'var(--writer-text-secondary, #334155)' : '#dc2626',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -1267,7 +1310,8 @@ export const WriterV2Inspector: React.FC = () => {
           onClick={() => { void deleteSelectedWriterElements(); }}
           style={{
             width: '100%', height: 28, borderRadius: 6,
-            border: '1px solid #fca5a5', background: '#fff1f2',
+            border: '1px solid var(--writer-danger-border, #fca5a5)',
+            background: 'var(--writer-danger-bg, #fff1f2)',
             color: '#dc2626', fontSize: 12, fontWeight: 500, cursor: 'pointer',
           }}
         >
@@ -1279,35 +1323,38 @@ export const WriterV2Inspector: React.FC = () => {
 };
 
 const btnStyle: React.CSSProperties = {
-  flex: 1, height: 26, borderRadius: 6, border: '1px solid #e2e8f0',
-  background: '#f8fafc', fontSize: 11, cursor: 'pointer', color: '#374151',
+  flex: 1, height: 26, borderRadius: 6, border: '1px solid var(--writer-border, #e2e8f0)',
+  background: 'var(--writer-surface-subtle, #f8fafc)', fontSize: 11, cursor: 'pointer', color: 'var(--writer-text-secondary, #374151)',
 };
 
 const tableInputStyle: React.CSSProperties = {
   minWidth: 0,
   height: 24,
-  border: '1px solid #cbd5e1',
+  border: '1px solid var(--writer-border-strong, #cbd5e1)',
   borderRadius: 4,
   padding: '0 5px',
   fontSize: 11,
-  background: '#ffffff',
+  background: 'var(--writer-surface, #ffffff)',
+  color: 'var(--writer-text, #0f172a)',
 };
 
 const selectStyle: React.CSSProperties = {
   flex: 1,
   height: 24,
   borderRadius: 5,
-  border: '1px solid #e2e8f0',
+  border: '1px solid var(--writer-border, #e2e8f0)',
   fontSize: 11,
-  background: '#ffffff',
+  background: 'var(--writer-surface, #ffffff)',
+  color: 'var(--writer-text, #0f172a)',
 };
 
 const inputStyle: React.CSSProperties = {
   flex: 1,
   height: 24,
   borderRadius: 5,
-  border: '1px solid #e2e8f0',
+  border: '1px solid var(--writer-border, #e2e8f0)',
   fontSize: 11,
   padding: '0 6px',
-  background: '#ffffff',
+  background: 'var(--writer-surface, #ffffff)',
+  color: 'var(--writer-text, #0f172a)',
 };

@@ -385,7 +385,7 @@ if (fs.existsSync(signatureRiskPath)) {
 
 if (fs.existsSync(toolbarFilePath)) {
   const toolbarContent = fs.readFileSync(toolbarFilePath, 'utf-8');
-  if (!toolbarContent.includes('await inspectPdfSignatureRisk(workingBytes)')) {
+  if (!toolbarContent.includes('await inspectPdfSignatureRisk(')) {
     errors.push('Toolbar Save must inspect signature risk before rewrite');
   }
   if (!toolbarContent.includes("risk.status === 'SIGNED' || risk.status === 'UNKNOWN'")) {

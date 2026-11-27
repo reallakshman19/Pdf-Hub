@@ -68,7 +68,7 @@ requireContains(durability, durabilityPath, [
   'new Set(assetIds.filter(Boolean))',
   'Writer history cannot checkpoint missing asset',
   'await adapter.saveAsset({',
-  'documentFingerprint,',
+  'asset.documentFingerprint !== documentFingerprint',
 ]);
 forbidContains(durability, durabilityPath, [
   'markWriterPersisted',
@@ -80,7 +80,8 @@ const storePath =
 const store = read(storePath);
 requireContains(store, storePath, [
   'persistWriterAssetReferences',
-  'collectNewWriterAssetReferences',
+  'collectWriterAssetReferences(beforeStore.elements)',
+  'collectWriterAssetReferences(afterStore.elements)',
   'collectWriterAssetReferences',
   'await commitDurableStateMutation(async () => {',
   'await persistWriterAssetReferences(',

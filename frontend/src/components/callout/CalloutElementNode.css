@@ -1,0 +1,66 @@
+.callout-element-node {
+  position: absolute;
+  pointer-events: all;
+  box-sizing: border-box;
+  user-select: none;
+  overflow: hidden;
+}
+
+.callout-element-node-selected {
+  outline: 1.5px dashed #3b82f6;
+}
+
+.callout-element-node-unselected {
+  outline: 1px solid transparent;
+}
+
+.callout-element-node-locked {
+  cursor: default;
+}
+
+.callout-element-node-unlocked {
+  cursor: move;
+}
+
+.callout-resize-handle {
+  position: absolute;
+  background: #3b82f6;
+  border: 1.5px solid white;
+  border-radius: 2px;
+  pointer-events: all;
+}
+
+.callout-context-menu-container {
+  position: absolute;
+  background: white;
+  border: 0.5px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 0;
+  z-index: 999;
+  min-width: 140px;
+  pointer-events: all;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.callout-context-menu-item {
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.callout-context-menu-item-danger {
+  color: #ef4444;
+}
+
+.callout-context-menu-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 2px 0;
+}
+
+.callout-context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+}

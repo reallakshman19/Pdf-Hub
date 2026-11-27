@@ -28,6 +28,9 @@ import { useToastStore } from '@/core/toast/store';
 import { InsertPdfDialog } from '@/components/dialogs/InsertPdfDialog';
 import { ThumbnailActionStrip } from '@/components/sidebar/thumbnails/ThumbnailActionStrip';
 import { ThumbnailContextMenu } from '@/components/sidebar/thumbnails/ThumbnailContextMenu';
+import { ThumbnailPageOverlay } from '@/components/sidebar/thumbnails/ThumbnailPageOverlay';
+import { useThumbnailRevisionStore } from '@/core/thumbnails/thumbnailRevisionStore';
+import { useWriterV2Store } from '@/core/writer-v2/writerV2Store';
 import { acquireScheduledThumbnail } from '@/core/renderer/thumbnailRenderService';
 import { RENDER_PRIORITIES } from '@/core/renderer/renderScheduler';
 
@@ -59,29 +62,6 @@ export function formatPageDimensions(width: number, height: number): string {
   if (matches(842, 1191)) return 'A3';
   if (matches(792, 1224)) return 'Tabloid';
   return `${w} × ${h} pt`;
-}
-
-/** Returns a semi-transparent fill color for an annotation type preview */
-function annotationPreviewColor(type: string): string {
-  switch (type) {
-    case 'highlight':   return 'rgba(250,204,21,0.55)';
-    case 'underline':
-    case 'strikeout':
-    case 'squiggly':   return 'rgba(239,68,68,0.60)';
-    case 'comment':
-    case 'sticky-note':
-    case 'callout':    return 'rgba(59,130,246,0.55)';
-    case 'shape-rect':
-    case 'shape-ellipse':
-    case 'shape-cloud':
-    case 'shape-polygon': return 'rgba(34,197,94,0.45)';
-    case 'redaction':  return 'rgba(15,23,42,0.75)';
-    case 'line':
-    case 'arrow':      return 'rgba(100,116,139,0.55)';
-    case 'ink':        return 'rgba(139,92,246,0.55)';
-    case 'stamp':      return 'rgba(239,68,68,0.45)';
-    default:           return 'rgba(100,116,139,0.45)';
-  }
 }
 
 function rangeInclusive(from: number, to: number): number[] {
@@ -116,6 +96,7 @@ interface ThumbnailImageProps {
   documentKey: string;
   pageNumber: number;
   currentPage: number;
+  pageRevision?: number;
 }
 
 const ThumbnailImage: React.FC<ThumbnailImageProps> = ({
@@ -123,8 +104,9 @@ const ThumbnailImage: React.FC<ThumbnailImageProps> = ({
   documentKey,
   pageNumber,
   currentPage,
+  pageRevision = 0,
 }) => {
-  const requestKey = `${documentKey}:${pageNumber}`;
+  const requestKey = `${documentKey}:${pageNumber}:${pageRevision}`;
   const [imageState, setImageState] = React.useState<{
     requestKey: string;
     imageUrl: string;
@@ -165,7 +147,7 @@ const ThumbnailImage: React.FC<ThumbnailImageProps> = ({
       controller.abort('Thumbnail left the virtualized viewport');
       release?.();
     };
-  }, [doc, requestKey, pageNumber, currentPage, documentKey]);
+  }, [doc, requestKey, pageNumber, currentPage, documentKey, pageRevision]);
 
   if (!imageUrl) {
     return <div className="h-full w-full animate-pulse bg-slate-100 dark:bg-slate-900" />;
@@ -211,6 +193,15 @@ const ThumbnailSidebar: React.FC = () => {
   const { hits } = useSearchStore(useShallow((state) => ({
     hits: state.hits,
   })));
+  const writerElements = useWriterV2Store((state) => state.elements);
+  const writerDocumentMeta = useWriterV2Store((state) => state.documentMeta);
+  const activeBlankPage = useWriterV2Store((state) => state.activeBlankPage);
+  const setActiveBlankPage = useWriterV2Store((state) => state.setActiveBlankPage);
+  const addBlankWriterPage = useWriterV2Store((state) => state.addBlankWriterPage);
+  const duplicateBlankWriterPage = useWriterV2Store((state) => state.duplicateBlankWriterPage);
+  const deleteBlankWriterPage = useWriterV2Store((state) => state.deleteBlankWriterPage);
+  const pageRevisions = useThumbnailRevisionStore((state) => state.pageRevisions);
+  const globalRevision = useThumbnailRevisionStore((state) => state.globalRevision);
 
   const [thumbs, setThumbs] = React.useState<ThumbItem[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -361,20 +352,33 @@ const ThumbnailSidebar: React.FC = () => {
   }, [thumbs, searchHitCountByPage]);
 
   const filteredThumbs = React.useMemo(() => {
-    if (thumbnailFilter === 'all') return thumbs;
-    return thumbs.filter((thumb) => {
-      if (thumbnailFilter === 'annotations') {
-        return (annotationCountByPage[thumb.pageNumber] ?? 0) > 0;
-      }
-      if (thumbnailFilter === 'reviews') {
-        return (unresolvedCountByPage[thumb.pageNumber] ?? 0) > 0;
-      }
-      if (thumbnailFilter === 'search') {
-        return (searchHitCountByPage[thumb.pageNumber] ?? 0) > 0;
-      }
-      return true;
-    });
-  }, [thumbs, thumbnailFilter, annotationCountByPage, unresolvedCountByPage, searchHitCountByPage]);
+    // Reference annotations, writer elements and global revision so Virtua row cache reflects updates
+    if (globalRevision < 0 || annotations.length < 0 || writerElements.length < 0) return thumbs;
+    const list = thumbnailFilter === 'all'
+      ? thumbs
+      : thumbs.filter((thumb) => {
+          if (thumbnailFilter === 'annotations') {
+            return (annotationCountByPage[thumb.pageNumber] ?? 0) > 0;
+          }
+          if (thumbnailFilter === 'reviews') {
+            return (unresolvedCountByPage[thumb.pageNumber] ?? 0) > 0;
+          }
+          if (thumbnailFilter === 'search') {
+            return (searchHitCountByPage[thumb.pageNumber] ?? 0) > 0;
+          }
+          return true;
+        });
+    return [...list];
+  }, [
+    thumbs,
+    thumbnailFilter,
+    annotationCountByPage,
+    unresolvedCountByPage,
+    searchHitCountByPage,
+    globalRevision,
+    annotations,
+    writerElements,
+  ]);
 
   React.useEffect(() => {
     if (filteredThumbs.length > 0) {
@@ -832,6 +836,102 @@ const ThumbnailSidebar: React.FC = () => {
   };
 
   if (!workingBytes) {
+    if (writerDocumentMeta?.mode === 'blankDocument') {
+      const blankCount = writerDocumentMeta.pageCount;
+      const { width: pageWidth, height: pageHeight, backgroundColor } = writerDocumentMeta.pageSetup;
+      const aspectRatio = pageWidth > 0 && pageHeight > 0 ? pageWidth / pageHeight : 0.707;
+      const thumbWidthPx = 112;
+      const thumbHeightPx = Math.round(thumbWidthPx / aspectRatio);
+
+      return (
+        <div
+          data-testid="blank-doc-thumbnail-sidebar"
+          className="h-full flex flex-col bg-slate-50 dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between px-3.5 py-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+            <div className="flex items-center gap-2">
+              <Layers className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+                Pages ({blankCount})
+              </span>
+            </div>
+            <button
+              type="button"
+              data-testid="blank-thumb-add-page-btn"
+              onClick={() => addBlankWriterPage()}
+              className="text-[11px] font-medium px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
+            >
+              + Page
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {Array.from({ length: blankCount }, (_, idx) => {
+              const pageNumber = idx + 1;
+              const isActive = activeBlankPage === pageNumber;
+              return (
+                <div
+                  key={`blank-thumb-${idx}`}
+                  data-testid={`blank-thumb-card-${pageNumber}`}
+                  onClick={() => setActiveBlankPage(pageNumber)}
+                  className={`group flex flex-col items-center p-2 rounded-lg border transition-all cursor-pointer ${
+                    isActive
+                      ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/30 ring-1 ring-blue-500'
+                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 hover:border-slate-300 dark:hover:border-slate-700'
+                  }`}
+                >
+                  <div
+                    className="relative shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
+                    style={{
+                      width: thumbWidthPx,
+                      height: thumbHeightPx,
+                      background: backgroundColor ?? '#ffffff',
+                    }}
+                  >
+                    <ThumbnailPageOverlay
+                      pageNumber={pageNumber}
+                      pageWidth={pageWidth}
+                      pageHeight={pageHeight}
+                      annotations={[]}
+                      writerElements={writerElements}
+                    />
+                  </div>
+                  <div className="mt-1.5 w-full flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 px-1">
+                    <span className="font-mono font-medium">Page {pageNumber}</span>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        title="Duplicate page"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          duplicateBlankWriterPage(idx);
+                        }}
+                        className="px-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-[10px]"
+                      >
+                        Dup
+                      </button>
+                      {blankCount > 1 && (
+                        <button
+                          type="button"
+                          title="Delete page"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteBlankWriterPage(idx);
+                          }}
+                          className="px-1 rounded hover:bg-rose-100 dark:hover:bg-rose-950/50 text-rose-600 dark:text-rose-400 text-[10px]"
+                        >
+                          Del
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="h-full flex items-center justify-center p-4">
         <div className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5 text-center">
@@ -1339,31 +1439,17 @@ const ThumbnailSidebar: React.FC = () => {
                       documentKey={documentKey || 'default'}
                       pageNumber={thumb.pageNumber}
                       currentPage={viewState.currentPage}
+                      pageRevision={(pageRevisions[thumb.pageNumber] ?? 0) + globalRevision}
                     />
                   )}
-                  {/* Annotation shapes overlaid on thumbnail using page-space coordinates */}
-                  {thumb.pageWidth > 0 && annotations.some(a => a.pageNumber === thumb.pageNumber) && (
-                    <svg
-                      className="absolute inset-0 w-full h-full pointer-events-none"
-                      viewBox={`0 0 ${thumb.pageWidth} ${thumb.pageHeight}`}
-                      preserveAspectRatio="xMidYMin meet"
-                    >
-                      {annotations
-                        .filter(a => a.pageNumber === thumb.pageNumber)
-                        .map(a => (
-                          <rect
-                            key={a.id}
-                            x={a.rect.x}
-                            y={a.rect.y}
-                            width={Math.max(a.rect.width, 6)}
-                            height={Math.max(a.rect.height, 4)}
-                            fill={annotationPreviewColor(a.type)}
-                            rx={2}
-                          />
-                        ))
-                      }
-                    </svg>
-                  )}
+                  {/* Rich multi-primitive annotation and writer overlay */}
+                  <ThumbnailPageOverlay
+                    pageNumber={thumb.pageNumber}
+                    pageWidth={thumb.pageWidth}
+                    pageHeight={thumb.pageHeight}
+                    annotations={annotations}
+                    writerElements={writerElements}
+                  />
                 </div>
               </div>
               {showIndicatorAfter && (

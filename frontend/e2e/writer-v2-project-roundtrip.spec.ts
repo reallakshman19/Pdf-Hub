@@ -80,7 +80,7 @@ test('Writer V2: export a blank two-page document without a source PDF', async (
   await stubNativeFilePickers(page);
   await page.goto('/');
   await page.getByRole('tab', { name: 'Write' }).click();
-  await page.getByRole('button', { name: 'Blank Doc' }).click();
+  await page.getByRole('button', { name: 'Blank Doc', exact: true }).click();
 
   const dialog = page.getByRole('dialog', { name: 'Create blank Writer document' });
   await dialog.getByLabel('Title').fill('Blank export check');

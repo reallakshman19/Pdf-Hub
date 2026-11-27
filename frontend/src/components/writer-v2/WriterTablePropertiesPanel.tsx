@@ -77,10 +77,16 @@ function TableDraftTextInput({
 }) {
   const [draft, setDraft] =
     React.useState(value);
+  const [prevSyncKey, setPrevSyncKey] =
+    React.useState(`${resetKey}::${value}`);
+  const syncKey = `${resetKey}::${value}`;
+  if (syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
+    setDraft(value);
+  }
   const cancelBlurRef = React.useRef(false);
 
   React.useEffect(() => {
-    setDraft(value);
     cancelBlurRef.current = false;
   }, [resetKey, value]);
 
@@ -150,10 +156,16 @@ function TableDraftNumberInput({
 }) {
   const [draft, setDraft] =
     React.useState(String(value));
+  const [prevSyncKey, setPrevSyncKey] =
+    React.useState(`${resetKey}::${String(value)}`);
+  const syncKey = `${resetKey}::${String(value)}`;
+  if (syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
+    setDraft(String(value));
+  }
   const cancelBlurRef = React.useRef(false);
 
   React.useEffect(() => {
-    setDraft(String(value));
     cancelBlurRef.current = false;
   }, [resetKey, value]);
 
@@ -237,6 +249,13 @@ function TableDraftColorInput({
 }) {
   const [draft, setDraft] =
     React.useState(value);
+  const [prevSyncKey, setPrevSyncKey] =
+    React.useState(`${resetKey}::${value}`);
+  const syncKey = `${resetKey}::${value}`;
+  if (syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
+    setDraft(value);
+  }
   const timerRef =
     React.useRef<number | null>(null);
 
@@ -245,7 +264,6 @@ function TableDraftColorInput({
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    setDraft(value);
   }, [resetKey, value]);
 
   React.useEffect(

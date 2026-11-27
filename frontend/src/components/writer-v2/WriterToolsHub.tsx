@@ -138,16 +138,15 @@ export const WriterToolsHub: React.FC = () => {
         }}
         style={{
           position: 'fixed',
-          right: position ? undefined : 18,
-          left: position ? position.x : undefined,
-          top: position ? position.y : 96,
+          left: position ? position.x : 72,
+          top: position ? position.y : 108,
           zIndex: 230,
           height: 34,
           padding: '0 12px',
           borderRadius: 999,
-          border: '1px solid #cbd5e1',
-          background: '#ffffff',
-          color: '#0f172a',
+          border: '1px solid var(--writer-border-strong, #cbd5e1)',
+          background: 'var(--writer-surface, #ffffff)',
+          color: 'var(--writer-text, #0f172a)',
           fontSize: 12,
           fontWeight: 800,
           boxShadow: '0 8px 24px rgba(15, 23, 42, 0.18)',
@@ -167,16 +166,15 @@ export const WriterToolsHub: React.FC = () => {
       aria-label="Writer tools"
       style={{
         position: 'fixed',
-        right: position ? undefined : 18,
-        left: position ? position.x : undefined,
-        top: position ? position.y : 92,
+        left: position ? position.x : 72,
+        top: position ? position.y : 108,
         zIndex: 230,
         width: 340,
         maxHeight: 'calc(100vh - 120px)',
         display: 'flex',
         flexDirection: 'column',
-        background: '#ffffff',
-        border: '1px solid #cbd5e1',
+        background: 'var(--writer-surface, #ffffff)',
+        border: '1px solid var(--writer-border-strong, #cbd5e1)',
         borderRadius: 12,
         boxShadow: '0 16px 44px rgba(15, 23, 42, 0.22)',
         overflow: 'hidden',
@@ -202,8 +200,8 @@ export const WriterToolsHub: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          borderBottom: '1px solid #e2e8f0',
-          background: '#f8fafc',
+          borderBottom: '1px solid var(--writer-border, #e2e8f0)',
+          background: 'var(--writer-surface-subtle, #f8fafc)',
           cursor: isDragging ? 'grabbing' : 'grab',
           userSelect: 'none',
         }}
@@ -213,7 +211,7 @@ export const WriterToolsHub: React.FC = () => {
             flex: 1,
             minWidth: 0,
             fontSize: 13,
-            color: '#0f172a',
+            color: 'var(--writer-text, #0f172a)',
           }}
         >
           Writer Tools
@@ -237,8 +235,8 @@ export const WriterToolsHub: React.FC = () => {
           gridTemplateColumns: '1fr 1fr 1fr',
           gap: 4,
           padding: 8,
-          borderBottom: '1px solid #e2e8f0',
-          background: '#ffffff',
+          borderBottom: '1px solid var(--writer-border, #e2e8f0)',
+          background: 'var(--writer-surface, #ffffff)',
         }}
       >
         <TabButton active={tab === 'objects'} onClick={() => setTab('objects')}>
@@ -255,8 +253,8 @@ export const WriterToolsHub: React.FC = () => {
       <div
         style={{
           padding: '8px 10px',
-          borderBottom: '1px solid #e2e8f0',
-          background: '#f8fafc',
+          borderBottom: '1px solid var(--writer-border, #e2e8f0)',
+          background: 'var(--writer-surface-subtle, #f8fafc)',
         }}
       >
         <button
@@ -268,9 +266,9 @@ export const WriterToolsHub: React.FC = () => {
             width: '100%',
             height: 28,
             borderRadius: 7,
-            border: '1px solid #93c5fd',
-            background: '#eff6ff',
-            color: '#1d4ed8',
+            border: '1px solid var(--writer-accent-border, #93c5fd)',
+            background: 'var(--writer-accent-bg, #eff6ff)',
+            color: 'var(--writer-accent-text, #1d4ed8)',
             fontSize: 11,
             fontWeight: 800,
             cursor: 'pointer',
@@ -285,7 +283,8 @@ export const WriterToolsHub: React.FC = () => {
           flex: 1,
           minHeight: 0,
           overflow: 'auto',
-          background: '#ffffff',
+          background: 'var(--writer-surface, #ffffff)',
+          color: 'var(--writer-text, #0f172a)',
         }}
       >
         {tab === 'objects' ? <WriterLayersPanel embedded /> : null}
@@ -313,9 +312,9 @@ function TabButton({
       style={{
         height: 28,
         borderRadius: 7,
-        border: active ? '1px solid #2563eb' : '1px solid #cbd5e1',
-        background: active ? '#eff6ff' : '#ffffff',
-        color: active ? '#1d4ed8' : '#334155',
+        border: active ? '1px solid #2563eb' : '1px solid var(--writer-border-strong, #cbd5e1)',
+        background: active ? 'var(--writer-accent-bg, #eff6ff)' : 'var(--writer-surface, #ffffff)',
+        color: active ? 'var(--writer-accent-text, #1d4ed8)' : 'var(--writer-text-secondary, #334155)',
         fontSize: 11,
         fontWeight: 800,
         cursor: 'pointer',
@@ -330,9 +329,9 @@ const headerButtonStyle: React.CSSProperties = {
   width: 26,
   height: 26,
   borderRadius: 7,
-  border: '1px solid #cbd5e1',
-  background: '#ffffff',
-  color: '#334155',
+  border: '1px solid var(--writer-border-strong, #cbd5e1)',
+  background: 'var(--writer-surface, #ffffff)',
+  color: 'var(--writer-text-secondary, #334155)',
   cursor: 'pointer',
   fontSize: 16,
   lineHeight: 1,

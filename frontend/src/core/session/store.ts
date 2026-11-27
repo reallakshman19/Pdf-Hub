@@ -27,6 +27,7 @@ export interface OpenDocumentPayload {
   historyJournalStoreId?: string | null;
   historyJournalId?: string | null;
   historyJournalPersistent?: boolean;
+  isEncryptedSource?: boolean;
   fileName: string;
   bytes: Uint8Array;
   pageCount: number;
@@ -287,6 +288,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
   historyJournalStoreId: null,
   historyJournalId: null,
   historyJournalPersistent: false,
+  isEncryptedSource: false,
   fileName: null,
   originalBytes: null,
   workingBytes: null,
@@ -358,6 +360,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
     historyJournalStoreId = null,
     historyJournalId = null,
     historyJournalPersistent = false,
+    isEncryptedSource = false,
     fileName,
     bytes,
     pageCount,
@@ -430,6 +433,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
       historyJournalStoreId,
       historyJournalId,
       historyJournalPersistent,
+      isEncryptedSource,
       fileName,
       originalBytes: bytes,
       workingBytes: bytes,
@@ -823,6 +827,7 @@ export const useSessionStore = create<DocumentSession & SessionActions>((set, ge
       historyJournalStoreId: null,
       historyJournalId: null,
       historyJournalPersistent: false,
+      isEncryptedSource: false,
       fileName: null,
       originalBytes: null,
       workingBytes: null,

@@ -52,6 +52,11 @@ const allowedProductionOccurrences = [
     pattern: /Nested step editing is handled by the nested branch controls/g,
     reason: 'UI explanatory text, not a placeholder implementation.',
   },
+  {
+    file: 'src/components/macro/advanced/MacroGenerateDocumentPanel.tsx',
+    pattern: /\bplaceholder\b/gi,
+    reason: 'UI empty-state caption ("No image selected — using placeholder."), not a stub implementation.',
+  },
 ];
 
 let failures = 0;

@@ -71,6 +71,12 @@ export function validateHeaderFooterTemplate(
       if (rule.footer) {
         validateHeaderFooterBand(rule.footer, `${path}.footer`, errors);
       }
+      if (
+        rule.startNumber !== undefined
+        && (!Number.isInteger(rule.startNumber) || rule.startNumber < 1)
+      ) {
+        errors.push(`${path}.startNumber must be a positive integer.`);
+      }
     });
   }
 

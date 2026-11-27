@@ -1,11 +1,15 @@
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { PdfEditAdapter } from '@/adapters/pdf-edit/PdfEditAdapter';
-import { bakeWriterElementsIntoPdf, type WriterExportWarning } from '@/core/writer/exporter';
+import { bakeCalloutElementsIntoPdf, type CalloutExportWarning } from '@/core/callout/exporter';
 import type { PdfAnnotation } from '@/core/annotations/types';
 import type { NativeDeletionAuthorization } from '@/core/annotations/nativeIntegrity';
-import type { PlacedElement } from '@/core/writer/types';
+import type { PlacedElement } from '@/core/callout/types';
 import { writeNativePdfAnnotations } from '@/core/pdf-annotations/nativeAnnotationWriter';
 import { flattenNativePdfAnnotations } from '@/core/pdf-annotations/flattenNativePdfAnnotations';
+import { writeCustomBookmarksToPdfOutlines } from '@/core/pdf/pdfOutlines';
+import { applyAcroFormUpdatesToPdf } from '@/core/pdf-forms/acroFormEngine';
+import type { AcroFormFieldValue } from '@/core/pdf-forms/types';
+import type { AppBookmark } from '@/core/bookmarks/types';
 
 export interface ComposeCommittedPdfInput {
   baseBytes: Uint8Array;
@@ -14,6 +18,12 @@ export interface ComposeCommittedPdfInput {
   /** Caller has loaded the complete managed annotation model for these bytes. */
   replaceManagedAnnotations?: boolean;
   nativeDeletionAuthorization?: NativeDeletionAuthorization;
+  /** Optional custom user bookmarks to append to native PDF `/Outlines`. */
+  customBookmarks?: readonly AppBookmark[];
+  /** Optional dirty interactive AcroForm values to write before saving/exporting. */
+  formFieldValues?: Readonly<Record<string, AcroFormFieldValue>>;
+  /** When true on flattened export, flattens AcroForm widgets into page graphics. */
+  flattenFormFields?: boolean;
 }
 
 export interface ComposeCommittedPdfResult {
@@ -24,7 +34,7 @@ export interface ComposeCommittedPdfResult {
   committedWriterElementCount: number;
   hadAnnotations: boolean;
   hadWriterElements: boolean;
-  writerExportWarnings: WriterExportWarning[];
+  writerExportWarnings: CalloutExportWarning[];
 }
 
 /**
@@ -40,10 +50,10 @@ export async function composeCommittedPdf(
   const writerElements = Array.isArray(input.writerElements) ? input.writerElements : [];
 
   let nextBytes = new Uint8Array(input.baseBytes);
-  const writerExportWarnings: WriterExportWarning[] = [];
+  const writerExportWarnings: CalloutExportWarning[] = [];
 
   if (writerElements.length > 0) {
-    const rawBytes = await bakeWriterElementsIntoPdf(nextBytes, writerElements, {
+    const rawBytes = await bakeCalloutElementsIntoPdf(nextBytes, writerElements, {
       preferSemantic: true,
       allowRasterFallback: true,
       collectWarnings: (warnings) => writerExportWarnings.push(...warnings),
@@ -74,6 +84,31 @@ export async function composeCommittedPdf(
     flattened.byteLength,
   );
 
+  if (
+    input.flattenFormFields
+    || (input.formFieldValues && Object.keys(input.formFieldValues).length > 0)
+  ) {
+    const withForm = await applyAcroFormUpdatesToPdf(
+      nextBytes,
+      input.formFieldValues ?? {},
+      { flatten: true },
+    );
+    nextBytes = new Uint8Array(
+      withForm.buffer as ArrayBuffer,
+      withForm.byteOffset,
+      withForm.byteLength,
+    );
+  }
+
+  if (input.customBookmarks && input.customBookmarks.length > 0) {
+    const outlined = await writeCustomBookmarksToPdfOutlines(nextBytes, input.customBookmarks);
+    nextBytes = new Uint8Array(
+      outlined.buffer as ArrayBuffer,
+      outlined.byteOffset,
+      outlined.byteLength,
+    );
+  }
+
   const pageCount = await PdfEditAdapter.countPages(nextBytes);
   const documentKey = await FileAdapter.hashBytes(nextBytes);
 
@@ -102,10 +137,10 @@ export async function composeEditablePdf(
   const writerElements = Array.isArray(input.writerElements) ? input.writerElements : [];
 
   let nextBytes = new Uint8Array(input.baseBytes);
-  const writerExportWarnings: WriterExportWarning[] = [];
+  const writerExportWarnings: CalloutExportWarning[] = [];
 
   if (writerElements.length > 0) {
-    const rawBytes = await bakeWriterElementsIntoPdf(nextBytes, writerElements, {
+    const rawBytes = await bakeCalloutElementsIntoPdf(nextBytes, writerElements, {
       preferSemantic: true,
       allowRasterFallback: true,
       collectWarnings: (warnings) => writerExportWarnings.push(...warnings),
@@ -124,6 +159,28 @@ export async function composeEditablePdf(
       sourceBytesForAuthorization: input.baseBytes,
     });
     nextBytes = new Uint8Array(native.bytes);
+  }
+
+  if (input.formFieldValues && Object.keys(input.formFieldValues).length > 0) {
+    const withForm = await applyAcroFormUpdatesToPdf(
+      nextBytes,
+      input.formFieldValues,
+      { flatten: false },
+    );
+    nextBytes = new Uint8Array(
+      withForm.buffer as ArrayBuffer,
+      withForm.byteOffset,
+      withForm.byteLength,
+    );
+  }
+
+  if (input.customBookmarks && input.customBookmarks.length > 0) {
+    const outlined = await writeCustomBookmarksToPdfOutlines(nextBytes, input.customBookmarks);
+    nextBytes = new Uint8Array(
+      outlined.buffer as ArrayBuffer,
+      outlined.byteOffset,
+      outlined.byteLength,
+    );
   }
 
   const pageCount = await PdfEditAdapter.countPages(nextBytes);

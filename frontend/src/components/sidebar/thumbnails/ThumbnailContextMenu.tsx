@@ -1458,6 +1458,9 @@ export const ThumbnailContextMenu: React.FC<ThumbnailContextMenuProps> = ({
         kind={configKind}
         pageIndices={pageIndices}
         pageIds={pageIds}
+        allPageIds={pageGraph?.pages.map((node) => node.pageId)}
+        currentPageIndex={Math.max(0, page - 1)}
+        pageHeightPt={pageGraph?.pages[Math.max(0, page - 1)]?.height ?? 792}
         onCancel={() => setConfigKind(null)}
         onApply={(command, message) => {
           setConfigKind(null);

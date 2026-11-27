@@ -58,7 +58,6 @@ requireMarkers('src/components/sidebar/AutomateSidebar.tsx', [
   'Generate Document',
   'MacroGenerateDocumentPanel',
   'MacroBatchRunPanel',
-  'Batch Process PDFs',
   'MacroOutputQueue',
   'setMacroBuilderSource',
 ]);
@@ -82,8 +81,8 @@ requireMarkers('src/components/macro/advanced/MacroBatchRunPanel.tsx', [
   'Batch Process PDFs',
   'FileAdapter.pickPdfFileSources(true)',
   'runMacroBatch({',
-  'onOutput:',
-  'FileAdapter.downloadBytes',
+  'onOutputs:',
+  'downloadBlob',
   'onBusyChange',
 ]);
 
@@ -137,8 +136,7 @@ requireMarkers('src/components/macro/builder/MacroBuilderExecutionPanel.tsx', [
   'validateRecipeBeforeRun',
   'dryRun: true',
   'dryRun: false',
-  "riskAnalysis.risk === 'preview-required'",
-  'lastTestedRecipeSignature === recipeSignature',
+  'sameMacroPreview(lastTestedIdentity, currentIdentity)',
 ]);
 
 for (const file of [

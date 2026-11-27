@@ -61,10 +61,10 @@ requireContains(coordinator, coordinatorPath, [
   'prepareHistoryJournalStateTransaction',
   'assertSessionUnchanged',
   'assertHistoryUnchanged',
-  'await input.apply()',
+  'const applied = input.apply();',
   '.push(transaction)',
   'await preparedJournal.store.save',
-  'await input.rollback()',
+  'const rolledBack = input.rollback();',
   'useHistoryStore.setState(historySnapshot)',
 ]);
 
@@ -72,7 +72,7 @@ const prepareIndex = coordinator.indexOf(
   'await prepareHistoryJournalStateTransaction',
 );
 const applyIndex = coordinator.indexOf(
-  'await input.apply()',
+  'const applied = input.apply();',
 );
 const pushIndex = coordinator.indexOf(
   '.push(transaction)',
@@ -132,7 +132,7 @@ const prepareTestsPath =
   'src/core/document-history/journal/__tests__/appendStateTransaction.test.ts';
 const prepareTests = read(prepareTestsPath);
 requireContains(prepareTests, prepareTestsPath, [
-  'appends a same-revision descriptive barrier with after-state payload',
+  'appends a same-revision descriptive barrier with recovery-complete after-state payload',
   'fails closed when journal and in-memory history cursors disagree',
 ]);
 

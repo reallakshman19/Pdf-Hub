@@ -13,6 +13,7 @@ import { useToastStore } from '../toast/store';
 import type { PageGraph, PageNode } from '../pages/types';
 import { remapAnnotationGeometry } from './geometryTransform';
 import { useWriterV2Store } from '../writer-v2/writerV2Store';
+import { useThumbnailRevisionStore } from '../thumbnails/thumbnailRevisionStore';
 import { error as logError } from '../logger/service';
 import {
   normalizeAnnotationReview,
@@ -100,6 +101,8 @@ function clipboardPageSnapshot(graph: PageGraph<PageNode> | null): string | null
 
 interface AnnotationActions {
   addAnnotation: (annotation: PdfAnnotation) => void;
+  addManyAnnotations: (annotations: PdfAnnotation[], historyLabel?: string) => void;
+  replaceAnnotations: (removeIds: string[], insertBatch: PdfAnnotation[], historyLabel?: string) => void;
   updateAnnotation: (id: string, data: Partial<PdfAnnotation>) => void;
   updateManyAnnotations: (updates: Array<{ id: string; data: Partial<PdfAnnotation> }>) => void;
   deleteAnnotation: (id: string) => void;
@@ -477,6 +480,7 @@ export const useAnnotationStore =
             label,
             next.nativeDeletionTombstones ?? state.nativeDeletionTombstones,
           );
+          useThumbnailRevisionStore.getState().bumpAllPageRevisions();
           return next;
         });
         return;
@@ -510,6 +514,7 @@ export const useAnnotationStore =
           apply: () => {
             set(next);
             markAnnotationDirty();
+            useThumbnailRevisionStore.getState().bumpAllPageRevisions();
           },
           rollback: () => {
             set(beforeState);
@@ -563,6 +568,70 @@ export const useAnnotationStore =
         normalizedAnnotation.id,
       );
     }),
+
+  addManyAnnotations: (batch, historyLabel = 'Import annotations') =>
+    runMutation((state) => {
+      if (batch.length === 0) return state;
+      const graph = useSessionStore.getState().pageGraph;
+      const normalizedBatch: PdfAnnotation[] = [];
+
+      for (const annotation of batch) {
+        if (
+          graph &&
+          (!Number.isInteger(annotation.pageNumber) ||
+            annotation.pageNumber < 1 ||
+            annotation.pageNumber > graph.pages.length ||
+            (annotation.pageId !== undefined &&
+              graph.pages[annotation.pageNumber - 1]?.pageId !== annotation.pageId))
+        ) {
+          logError('annotation', 'Invalid or stale batch annotation page anchor rejected', {
+            annotationId: annotation.id,
+          });
+          continue;
+        }
+        normalizedBatch.push(
+          annotationForTargetPage(
+            normalizeAnnotationReview(annotation),
+            graph,
+            annotation.pageNumber,
+          ),
+        );
+      }
+
+      if (normalizedBatch.length === 0) return state;
+      const addedIds = normalizedBatch.map((a) => a.id);
+      return annotationSnapshot(
+        state,
+        [...state.annotations, ...normalizedBatch],
+        addedIds,
+        addedIds[0] ?? null,
+      );
+    }, historyLabel),
+
+  replaceAnnotations: (removeIds, insertBatch, historyLabel = 'Replace annotations') =>
+    runMutation((state) => {
+      const removeSet = new Set(removeIds);
+      const removed = state.annotations.filter((a) => removeSet.has(a.id));
+      if (removed.some((a) => a.data.locked === true)) return state;
+      const tombstones = removed.length > 0 ? explicitNativeDeletionCommands(state, removed) : state.nativeDeletionTombstones;
+      if (!tombstones) return state;
+
+      const graph = useSessionStore.getState().pageGraph;
+      const normalizedInsert = insertBatch.map((annotation) =>
+        annotationForTargetPage(
+          normalizeAnnotationReview(annotation),
+          graph,
+          annotation.pageNumber,
+        ),
+      );
+      const kept = state.annotations.filter((a) => !removeSet.has(a.id));
+      const nextAnnotations = [...kept, ...normalizedInsert];
+      const nextSelectedIds = normalizedInsert.map((a) => a.id);
+      return {
+        ...annotationSnapshot(state, nextAnnotations, nextSelectedIds, nextSelectedIds[0] ?? null),
+        nativeDeletionTombstones: tombstones,
+      };
+    }, historyLabel),
 
   updateAnnotation: (id, data) =>
     runMutation((state) => {
@@ -1217,6 +1286,7 @@ export const useAnnotationStore =
           'opacity', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'fontFamily',
           'textAlign', 'lineHeight', 'autoSize', 'leaderStyle', 'arrowHead',
           'lineStartCap', 'lineEndCap', 'locked',
+          'shelfStyle', 'shelfLength', 'leaders',
         ] as const;
         for (const key of directKeys) {
           if (Object.prototype.hasOwnProperty.call(guardedStylePatch, key)) {

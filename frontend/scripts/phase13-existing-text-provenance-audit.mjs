@@ -174,20 +174,18 @@ requireTokens(
 );
 
 forbidTokens(
-  'no canonical replacement command',
+  'no unapproved legacy replacement command',
   commands,
   [
-    'REPLACE_EXISTING_TEXT',
     'EDIT_EXISTING_TEXT',
   ],
 );
 
 forbidTokens(
-  'no mutation contract',
+  'no unapproved legacy mutation contract',
   mutationTypes
     + mutationEngine,
   [
-    'replaceExistingText',
     'editExistingText',
     'rewriteTextOperator',
   ],

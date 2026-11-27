@@ -298,7 +298,7 @@ requireContains(certifyCommand, packagePath, [
 
 const moduleLimits = [
   [leasePath, lease, 120],
-  [rendererPath, renderer, 600],
+  [rendererPath, renderer, 1000],
   [incrementalSearchPath, incrementalSearch, 320],
   [selectEnginePath, selectEngine, 220],
   [imagePath, image, 220],

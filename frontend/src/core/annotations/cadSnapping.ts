@@ -10,6 +10,7 @@
  */
 
 import type { Point2D, PdfAnnotation } from './types';
+import { getAnnotationPagePoints } from './pointsSpace';
 import {
   snapToIsometricGrid,
   snapToOrthogonalGrid,
@@ -51,9 +52,9 @@ export function extractSnapPointsFromAnnotation(annotation: PdfAnnotation): Snap
   const points: SnapPoint[] = [];
   const id = annotation.id;
 
-  // 1. Explicit coordinate points (lines, arrows, polygons, clouds)
-  const rawPoints = (annotation.data?.points as number[]) ?? [];
-  if (Array.isArray(rawPoints) && rawPoints.length >= 4) {
+  // 1. Explicit coordinate points (lines, arrows, polylines, polygons, clouds)
+  const rawPoints = getAnnotationPagePoints(annotation);
+  if (rawPoints.length >= 4) {
     const coords: Point2D[] = [];
     for (let i = 0; i < rawPoints.length; i += 2) {
       if (Number.isFinite(rawPoints[i]) && Number.isFinite(rawPoints[i + 1])) {
@@ -61,7 +62,10 @@ export function extractSnapPointsFromAnnotation(annotation: PdfAnnotation): Snap
       }
     }
 
-    const isLinear = annotation.type === 'line' || annotation.type === 'arrow';
+    const isLinear =
+      annotation.type === 'line' ||
+      annotation.type === 'arrow' ||
+      annotation.type === 'perimeter-takeoff';
     const vertexKind: SnapPointKind = isLinear ? 'endpoint' : 'vertex';
 
     // Add each vertex / endpoint

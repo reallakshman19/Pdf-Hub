@@ -22,13 +22,13 @@ const mockResults: LayoutResultItem[] = [
     placementClass: 'right', 
     callout: validCallout, 
     diagnostics: [],
-    occurrence: { id: 'occ-100', pageNumber: 1, psNo: 'PS-11168.8', tag: 'Remove Guide', note: ':/PS-11168.8 Remove Guide', confidence: 'HIGH', targetPoint: { x: 100, y: 100 } } as any,
+    occurrence: { id: 'occ-100', pageNumber: 1, psNo: 'PS-11168.8', tag: 'Remove Guide', note: ':/PS-11168.8 Remove Guide', confidence: 'HIGH', targetPoint: { x: 100, y: 100 } } as unknown as LayoutResultItem['occurrence'],
   },
   { 
     occurrenceId: 'occ-200', 
     status: 'unplaceable', 
     diagnostics: [],
-    occurrence: { id: 'occ-200', pageNumber: 1, psNo: 'PS-11168.9', tag: 'Add Guide', note: ':/PS-11168.9 Add Guide', confidence: 'MEDIUM', targetPoint: { x: 400, y: 400 } } as any,
+    occurrence: { id: 'occ-200', pageNumber: 1, psNo: 'PS-11168.9', tag: 'Add Guide', note: ':/PS-11168.9 Add Guide', confidence: 'MEDIUM', targetPoint: { x: 400, y: 400 } } as unknown as LayoutResultItem['occurrence'],
   },
 ];
 

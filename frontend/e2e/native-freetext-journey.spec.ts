@@ -82,6 +82,7 @@ test('adds and removes a line break in an imported rich callout across reopen an
   const editor = callout.locator('textarea');
   await editor.fill('Original\nBody');
   await editor.press('Control+Enter');
+  await expect(editor).toHaveCount(0);
   const first = await save(page);
   const firstPdf = await PDFDocument.load(first);
   const firstRoot = firstPdf.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray).lookup(0, PDFDict);
@@ -98,6 +99,8 @@ test('adds and removes a line break in an imported rich callout across reopen an
     await expect(nextEditor).toHaveValue('Original\nBody');
     await nextEditor.fill('Original Better');
     await nextEditor.press('Control+Enter');
+    await expect(nextEditor).toHaveCount(0);
+    await expect(restored.getByText('Original Better')).toBeVisible();
     const secondPdf = await PDFDocument.load(await save(reopened));
     const secondRoot = secondPdf.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray).lookup(0, PDFDict);
     expect(secondRoot.lookup(PDFName.of('Contents'), PDFHexString).decodeText()).toBe('Original Better');

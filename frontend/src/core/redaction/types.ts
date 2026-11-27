@@ -30,6 +30,8 @@ export interface RedactionRegion {
   fillColor?: 'black' | 'white';
   /** Status of the region. */
   status: 'preview' | 'applied';
+  /** Linked canvas annotation ID when created from the Redact drawing tool. */
+  sourceAnnotationId?: string;
 }
 
 /**
@@ -58,6 +60,7 @@ export interface RedactionAuditRecord {
   reason?: string;
   purgedTextCharacters: number;
   purgedAnnotationsCount: number;
+  purgedImagesCount?: number;
   timestamp: string;
 }
 
@@ -74,6 +77,8 @@ export interface RedactionAuditManifest {
   totalRedactionsApplied: number;
   purgedTextCharacterCount: number;
   purgedAnnotationsCount: number;
+  purgedImagesCount?: number;
+  metadataScrubbed?: boolean;
   redactedPages: number[];
   records: RedactionAuditRecord[];
 }
@@ -85,6 +90,8 @@ export interface RedactionSanitizationResult {
   sanitizedBytes: Uint8Array;
   purgedTextCharacterCount: number;
   purgedAnnotationsCount: number;
+  purgedImagesCount?: number;
+  metadataScrubbed?: boolean;
   appliedRedactionCount: number;
   redactedPages: number[];
   records: RedactionAuditRecord[];

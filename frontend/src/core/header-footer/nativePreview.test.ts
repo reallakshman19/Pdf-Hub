@@ -61,7 +61,7 @@ describe('native preview and Apply parity', () => {
     pdf.addPage([595, 842]).setRotation(degrees(90));
     const source = await pdf.save();
     const release = vi.fn(async () => undefined);
-    const getPage = vi.fn(async (_number: number) => ({
+    const getPage = vi.fn(async () => ({
       getViewport: ({ scale }: { scale: number }) => ({
         width: 842 * scale, height: 595 * scale,
       }),

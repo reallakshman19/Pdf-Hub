@@ -10,6 +10,7 @@
  */
 
 import type { PdfAnnotation } from '../annotations/types';
+import { getAnnotationPageVertices } from '../annotations/pointsSpace';
 import {
   DEFAULT_SCALE_CALIBRATION,
   type ScaleCalibration,
@@ -46,24 +47,17 @@ export function extractPipelineCoordinates(
   for (const ann of annotations) {
     const cal = getCalibration(ann.pageNumber);
     const scaleRatio = cal.scaleRatio > 0 ? cal.scaleRatio : 100;
-    const branch = (ann.data?.branchName as string) || (ann.data?.text as string) || opts.branchName;
+    const branch =
+      (ann.data?.branchName as string) ||
+      (ann.data?.text as string) ||
+      (ann.data?.cadLayerName as string) ||
+      opts.branchName;
     const customElevation = typeof ann.data?.elevationZ === 'number' ? ann.data.elevationZ : opts.defaultElevationZ;
     const customNodeElevations = (ann.data?.nodeElevations as Record<number, number> | undefined);
 
-    // 1. Multi-vertex line / pipe run (points array [x1, y1, x2, y2, x3, y3...])
-    const rawPoints = (ann.data?.points as number[]) ?? [];
-    if (Array.isArray(rawPoints) && rawPoints.length >= 4) {
-      const vertices: Array<{ x: number; y: number }> = [];
-      const baseRect = ann.rect ?? { x: 0, y: 0, width: 0, height: 0 };
-
-      for (let i = 0; i < rawPoints.length - 1; i += 2) {
-        if (Number.isFinite(rawPoints[i]) && Number.isFinite(rawPoints[i + 1])) {
-          // Absolute coordinate = rect offset + relative point
-          const absX = baseRect.x + rawPoints[i];
-          const absY = baseRect.y + rawPoints[i + 1];
-          vertices.push({ x: absX, y: absY });
-        }
-      }
+    // 1. Multi-vertex line / pipe run (page-space or rect-local via canonical helper)
+    const vertices = getAnnotationPageVertices(ann);
+    if (vertices.length >= 2) {
 
       if (opts.routingMode === 'isometric') {
         // Isometric 3D routing: decomposes 2D isometric drawing vectors into true 3D (X East, Y North, Z Elevation)
@@ -182,7 +176,7 @@ export function extractPipelineCoordinates(
           currentNode += opts.nodeIncrement;
         }
       }
-    } else if (ann.type === 'line' || ann.type === 'arrow') {
+    } else if (ann.type === 'line' || ann.type === 'arrow' || ann.type === 'perimeter-takeoff') {
       // 2. Simple bounding box line (from (rect.x, rect.y) to (rect.x + width, rect.y + height))
       const rect = ann.rect;
       const x1 = pdfPointsToRealMm(rect.x, scaleRatio) - opts.origin.x;

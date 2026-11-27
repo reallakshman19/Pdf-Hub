@@ -22,6 +22,8 @@ export const WRITE_MODE_BLOCKED_TOOLS: Partial<Record<ActiveTool, true>> = {
   'shape-polygon': true,
   line: true,
   arrow: true,
+  'perimeter-takeoff': true,
+  'area-takeoff': true,
   redaction: true,
   squiggly: true,
 };

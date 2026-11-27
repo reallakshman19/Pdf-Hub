@@ -29,7 +29,7 @@ export function calloutBodyRect(outer: readonly number[], rd: readonly number[] 
 /** Enclose the text box and its leader, retaining the text box as /RD. */
 export function enclosingCalloutRect(body: PdfRect, leader: readonly number[] | null): { rect: PdfRect; rd: [number, number, number, number] } {
   let [left, bottom, right, top] = body;
-  if (leader && (leader.length === 4 || leader.length === 6) && leader.every(Number.isFinite)) {
+  if (leader && leader.length >= 4 && leader.length % 2 === 0 && leader.every(Number.isFinite)) {
     for (let i = 0; i < leader.length; i += 2) {
       // A small margin prevents the leader tip and its stroke being clipped.
       left = Math.min(left, leader[i] - 1);

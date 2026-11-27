@@ -98,8 +98,9 @@ export const WriterLayersPanel: React.FC<WriterLayersPanelProps> = ({
         maxHeight: embedded ? undefined : 'calc(100vh - 120px)',
         display: 'flex',
         flexDirection: 'column',
-        background: '#ffffff',
-        border: embedded ? 'none' : '1px solid #e2e8f0',
+        background: 'var(--writer-surface, #ffffff)',
+        color: 'var(--writer-text, #0f172a)',
+        border: embedded ? 'none' : '1px solid var(--writer-border, #e2e8f0)',
         borderRadius: embedded ? 0 : 10,
         boxShadow: embedded ? 'none' : '0 8px 28px rgba(15, 23, 42, 0.14)',
         overflow: 'hidden',
@@ -108,17 +109,17 @@ export const WriterLayersPanel: React.FC<WriterLayersPanelProps> = ({
       <div
         style={{
           padding: '8px 10px',
-          borderBottom: '1px solid #f1f5f9',
+          borderBottom: '1px solid var(--writer-surface-muted, #f1f5f9)',
           display: 'flex',
           alignItems: 'center',
           gap: 8,
         }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--writer-text, #0f172a)' }}>
             Writer Objects
           </div>
-          <div style={{ fontSize: 10, color: '#64748b' }}>
+          <div style={{ fontSize: 10, color: 'var(--writer-text-muted, #64748b)' }}>
             {visibleRows.length} shown / {elements.length} total
           </div>
         </div>
@@ -129,7 +130,7 @@ export const WriterLayersPanel: React.FC<WriterLayersPanelProps> = ({
             alignItems: 'center',
             gap: 4,
             fontSize: 10,
-            color: '#475569',
+            color: 'var(--writer-text-secondary, #475569)',
             whiteSpace: 'nowrap',
           }}
         >
@@ -148,7 +149,7 @@ export const WriterLayersPanel: React.FC<WriterLayersPanelProps> = ({
           display: 'grid',
           gridTemplateColumns: '1fr 1fr 1fr',
           gap: 4,
-          borderBottom: '1px solid #f1f5f9',
+          borderBottom: '1px solid var(--writer-surface-muted, #f1f5f9)',
         }}
       >
         <button
@@ -184,8 +185,8 @@ export const WriterLayersPanel: React.FC<WriterLayersPanelProps> = ({
             display: 'grid',
             gridTemplateColumns: '1fr 1fr 1fr',
             gap: 4,
-            borderBottom: '1px solid #f1f5f9',
-            background: '#f8fafc',
+            borderBottom: '1px solid var(--writer-surface-muted, #f1f5f9)',
+            background: 'var(--writer-surface-subtle, #f8fafc)',
           }}
         >
           <button
@@ -228,9 +229,9 @@ export const WriterLayersPanel: React.FC<WriterLayersPanelProps> = ({
             onClick={() => { void deleteSelectedWriterElements(); }}
             style={{
               ...smallButtonStyle,
-              color: '#dc2626',
-              borderColor: '#fecaca',
-              background: '#fff1f2',
+              color: 'var(--writer-danger-text, #dc2626)',
+              borderColor: 'var(--writer-danger-border, #fecaca)',
+              background: 'var(--writer-danger-bg, #fff1f2)',
             }}
           >
             Delete
@@ -292,15 +293,15 @@ function LayerRow({
         border: active
           ? '1px solid #2563eb'
           : selected
-            ? '1px solid #93c5fd'
-            : '1px solid #e2e8f0',
+            ? '1px solid var(--writer-accent-border, #93c5fd)'
+            : '1px solid var(--writer-border, #e2e8f0)',
         background: element.hidden
-          ? '#f8fafc'
+          ? 'var(--writer-surface-subtle, #f8fafc)'
           : active
-            ? '#eff6ff'
+            ? 'var(--writer-accent-bg, #eff6ff)'
             : selected
-              ? '#f0f9ff'
-              : '#ffffff',
+              ? 'var(--writer-surface-subtle, #f0f9ff)'
+              : 'var(--writer-surface, #ffffff)',
         opacity: element.hidden ? 0.58 : 1,
         borderRadius: 8,
         overflow: 'hidden',
@@ -340,7 +341,7 @@ function LayerRow({
               display: 'block',
               fontSize: 11,
               fontWeight: 700,
-              color: '#1e293b',
+              color: 'var(--writer-text, #1e293b)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -352,7 +353,7 @@ function LayerRow({
             style={{
               display: 'block',
               fontSize: 10,
-              color: '#64748b',
+              color: 'var(--writer-text-muted, #64748b)',
             }}
           >
             p{element.pageIndex + 1} / z{element.style.zIndex} /{' '}
@@ -362,7 +363,7 @@ function LayerRow({
         <span
           style={{
             fontSize: 9,
-            color: '#64748b',
+            color: 'var(--writer-text-muted, #64748b)',
             whiteSpace: 'nowrap',
           }}
         >
@@ -443,9 +444,9 @@ function elementColor(element: WriterElementV2): string {
 const smallButtonStyle: React.CSSProperties = {
   height: 24,
   borderRadius: 5,
-  border: '1px solid #e2e8f0',
-  background: '#ffffff',
-  color: '#334155',
+  border: '1px solid var(--writer-border, #e2e8f0)',
+  background: 'var(--writer-surface, #ffffff)',
+  color: 'var(--writer-text-secondary, #334155)',
   fontSize: 10,
   cursor: 'pointer',
 };

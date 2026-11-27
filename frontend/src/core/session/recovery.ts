@@ -1,7 +1,7 @@
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { composeCommittedPdf } from '@/core/document/commitPipeline';
 import type { PdfAnnotation } from '@/core/annotations/types';
-import type { PlacedElement } from '@/core/writer/types';
+import type { PlacedElement } from '@/core/callout/types';
 
 export async function emergencyDownloadCommittedPdf(input: {
   workingBytes: Uint8Array;

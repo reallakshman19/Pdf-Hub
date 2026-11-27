@@ -15,7 +15,7 @@ export type SidebarTab =
   | 'ocr'
   | 'redaction';
 
-export type InspectorTab = 'properties' | 'text' | 'style' | 'history' | 'review' | 'takeoff' | 'redaction';
+export type InspectorTab = 'properties' | 'text' | 'style' | 'history' | 'review' | 'takeoff' | 'redaction' | 'compliance';
 export type RibbonTab = 'file' | 'organize' | 'annotate' | 'macro' | 'view';
 export type WorkspaceViewMode = '2d' | '3d';
 
@@ -42,4 +42,5 @@ export interface EditorState {
   cadIsoplane: IsoplaneMode;
   cadGridSnap: boolean;
   cadGridSpacing: number;
+  cadToolsOpen: boolean;
 }

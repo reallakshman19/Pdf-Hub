@@ -204,7 +204,7 @@ requireContains(
     'browser_navigation',
     'recovery_restore',
     'mutation_save_truth',
-    "status: failures.length === 0",
+    'failures.length === 0',
   ],
 );
 

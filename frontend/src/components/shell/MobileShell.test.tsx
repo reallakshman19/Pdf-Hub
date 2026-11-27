@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MobileShell } from './MobileShell';
 import { useEditorStore } from '@/core/editor/store';
@@ -185,6 +185,25 @@ describe('MobileShell', () => {
     render(<MobileShell {...defaultProps} />);
     expect(screen.getByText('More Actions')).toBeInTheDocument();
     expect(screen.getByText('Select Mode')).toBeInTheDocument();
+  });
+
+  it('opens standalone Inspector tabs (compliance, redaction, takeoff) from mobile More Actions', () => {
+    useEditorStore.setState({ mobileSheetOpen: true, inspectorTab: 'properties' });
+    useAnnotationStore.setState({ selectedAnnotationIds: [] });
+
+    render(<MobileShell {...defaultProps} />);
+
+    fireEvent.click(screen.getByTestId('mobile-open-redaction-tab'));
+    expect(useEditorStore.getState().inspectorTab).toBe('redaction');
+    expect(screen.getByTestId('mock-inspector')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-back-to-more-actions')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mobile-back-to-more-actions'));
+    expect(screen.getByText('More Actions')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mobile-open-compliance-tab'));
+    expect(useEditorStore.getState().inspectorTab).toBe('compliance');
+    expect(screen.getByTestId('mock-inspector')).toBeInTheDocument();
   });
 
   it('renders CtxBar when a document is loaded', () => {

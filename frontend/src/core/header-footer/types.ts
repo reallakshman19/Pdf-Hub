@@ -121,6 +121,8 @@ export interface HeaderFooterRule {
   selector: HeaderFooterPageSelector;
   header?: HeaderFooterBandTemplate;
   footer?: HeaderFooterBandTemplate;
+  /** Optional 1-based starting number for {{physicalPage}} within matched pages. */
+  startNumber?: number;
 }
 
 /**

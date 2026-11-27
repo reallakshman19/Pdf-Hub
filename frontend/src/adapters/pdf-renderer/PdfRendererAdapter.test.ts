@@ -17,15 +17,9 @@ vi.mock('pdfjs-dist', () => ({
       this.initialData = initialData;
     }
 
-    onDataRange(
-      _begin: number,
-      _chunk: Uint8Array,
-    ): void {}
+    onDataRange(): void {}
 
-    requestDataRange(
-      _begin: number,
-      _end: number,
-    ): void {}
+    requestDataRange(): void {}
 
     abort(): void {}
   },

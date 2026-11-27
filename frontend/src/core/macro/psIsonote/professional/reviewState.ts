@@ -62,7 +62,7 @@ export function initReviewState(pageNumber: number, results: LayoutResultItem[],
     const isUnplaceable = item.status === 'unplaceable';
     const status: ReviewStatus = isUnplaceable ? 'unplaceable' : 'auto-placed';
     const calloutSource = item.status === 'placed' ? item.callout : undefined;
-    const occ = (item as any).occurrence;
+    const occ = item.occurrence;
     const hasDiagnostics = Boolean(item.diagnostics && item.diagnostics.length > 0);
     const isApproved = !isUnplaceable && !hasDiagnostics;
 
@@ -82,7 +82,7 @@ export function initReviewState(pageNumber: number, results: LayoutResultItem[],
       tag: calloutSource?.tag ?? occ?.tag ?? '',
       note: calloutSource?.note ?? occ?.note ?? '',
       confidence: calloutSource?.confidence ?? occ?.confidence ?? 'UNKNOWN',
-      targetPoint: calloutSource?.targetPoint ?? occ?.targetPoint ?? occ?.point ?? undefined,
+      targetPoint: calloutSource?.targetPoint ?? occ?.targetPoint ?? (occ as { point?: typeof occ.targetPoint } | undefined)?.point ?? undefined,
       status,
       isApproved,
       isSuppressed: false,
@@ -527,7 +527,7 @@ export function commitTransientDrag(state: ReviewState, occurrenceId: string, no
   }
 
   const draft = existing.transientBox;
-  let newState = moveReviewItem(state, occurrenceId, draft, undefined, now);
+  const newState = moveReviewItem(state, occurrenceId, draft, undefined, now);
   
   // Replace the last audit log action with commit-drag for distinction
   const lastLog = newState.auditLog.at(-1)!;

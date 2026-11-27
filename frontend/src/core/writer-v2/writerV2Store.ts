@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useAnnotationStore } from '../annotations/store';
+import { useThumbnailRevisionStore } from '../thumbnails/thumbnailRevisionStore';
 import { materializePdfCommand } from '../commands/types';
 import {
   recordStateTransaction,
@@ -76,6 +77,13 @@ export interface WriterV2StoreState extends WriterV2State {
   tableSelection: WriterTableSelection | null;
   setTableSelection: (selection: WriterTableSelection | null) => void;
 
+  activeBlankPage: number;
+  setActiveBlankPage: (pageNumber: number) => void;
+
+  toolsHubOpen: boolean;
+  setToolsHubOpen: (open: boolean) => void;
+  toggleToolsHub: () => void;
+
   dispatchWriterCommand: (
     command: WriterCommand,
     options?: {
@@ -138,9 +146,26 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
   assetRecords: [],
   lastPersistedAt: null,
   tableSelection: null,
+  activeBlankPage: 1,
+  toolsHubOpen: false,
 
   setTableSelection: (tableSelection) => {
     set({ tableSelection });
+  },
+
+  setToolsHubOpen: (toolsHubOpen) => {
+    set({ toolsHubOpen });
+  },
+
+  toggleToolsHub: () => {
+    set((state) => ({ toolsHubOpen: !state.toolsHubOpen }));
+  },
+
+  setActiveBlankPage: (pageNumber) => {
+    const current = get().documentMeta;
+    const maxPages = current?.mode === 'blankDocument' ? current.pageCount : 1;
+    const clamped = Math.max(1, Math.min(Math.floor(pageNumber) || 1, Math.max(1, maxPages)));
+    set({ activeBlankPage: clamped });
   },
 
   setActiveWriterTool: (activeWriterTool) => {
@@ -219,6 +244,9 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
     }
 
     set(nextStore);
+    if (result.changed) {
+      useThumbnailRevisionStore.getState().bumpAllPageRevisions();
+    }
 
     if (useGlobalHistory && session.documentKey) {
       const afterStore = get();
@@ -435,6 +463,9 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
         },
         apply: () => {
           set(nextStore);
+    if (result.changed) {
+      useThumbnailRevisionStore.getState().bumpAllPageRevisions();
+    }
           useSessionStore
             .getState()
             .setDirty(true);
@@ -537,6 +568,7 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       assetRecords: [],
       lastPersistedAt: null,
       tableSelection: null,
+      activeBlankPage: 1,
       dirty: true,
     });
 
@@ -639,6 +671,7 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       selectedIds: result.selectedIds,
       activeId: result.activeId,
       editingId: result.activeId === get().editingId ? get().editingId : null,
+      activeBlankPage: Math.min(get().activeBlankPage, meta.pageCount),
       dirty: true,
     });
   },
@@ -738,6 +771,7 @@ export const useWriterV2Store = create<WriterV2StoreState>((set, get) => ({
       assetRecords: [],
       lastPersistedAt: null,
       tableSelection: null,
+      activeBlankPage: 1,
     });
   },
 }));

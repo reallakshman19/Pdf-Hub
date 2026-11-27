@@ -1,5 +1,6 @@
 import React from 'react';
-import type { AnnotationNodeProps, Point2D } from '../../core/annotations/types';
+import type { AnnotationNodeProps } from '../../core/annotations/types';
+import { getAnnotationLocalPoints, getAnnotationPageVertices } from '../../core/annotations/pointsSpace';
 import {
   computePolygonArea,
   computeCentroid,
@@ -8,7 +9,7 @@ import {
 } from '../../core/annotations/calibration';
 import { SelectionHandles } from './shared/SelectionHandles';
 
-export const AreaTakeoffNode: React.FC<AnnotationNodeProps<'shape-polygon'>> = ({
+export const AreaTakeoffNode: React.FC<AnnotationNodeProps<'shape-polygon' | 'area-takeoff'>> = ({
   annotation,
   rect,
   scale,
@@ -23,12 +24,11 @@ export const AreaTakeoffNode: React.FC<AnnotationNodeProps<'shape-polygon'>> = (
   const opacity = annotation.data?.opacity ?? 1;
   const dash = style === 'dashed' ? `${3 * scale} ${2 * scale}` : style === 'dotted' ? `${scale} ${scale}` : undefined;
 
-  const rawPoints = (annotation.data?.points as number[]) ?? [];
-  const vertices: Point2D[] = [];
-  for (let i = 0; i < rawPoints.length; i += 2) {
-    if (i + 1 < rawPoints.length) {
-      vertices.push({ x: rawPoints[i], y: rawPoints[i + 1] });
-    }
+  const vertices = getAnnotationPageVertices(annotation);
+  const localRaw = getAnnotationLocalPoints(annotation);
+  const localVertices = [];
+  for (let i = 0; i + 1 < localRaw.length; i += 2) {
+    localVertices.push({ x: localRaw[i], y: localRaw[i + 1] });
   }
 
   const calibration: ScaleCalibration = {
@@ -42,8 +42,8 @@ export const AreaTakeoffNode: React.FC<AnnotationNodeProps<'shape-polygon'>> = (
     ? String(annotation.data.dimensionText)
     : formatAreaLabel(area, calibration.unit, calibration.precision);
 
-  const centroid = computeCentroid(vertices);
-  const localPoints = rawPoints.map((p, i) => (i % 2 === 0 ? p * scale - rect.x : p * scale - rect.y));
+  const localCentroid = computeCentroid(localVertices);
+  const localPoints = localRaw.map((p) => p * scale);
 
   return (
     <div
@@ -80,8 +80,8 @@ export const AreaTakeoffNode: React.FC<AnnotationNodeProps<'shape-polygon'>> = (
           data-testid="area-takeoff-badge"
           style={{
             position: 'absolute',
-            left: centroid.x * scale - rect.x,
-            top: centroid.y * scale - rect.y,
+            left: localCentroid.x * scale,
+            top: localCentroid.y * scale,
             transform: 'translate(-50%, -50%)',
             padding: '2px 8px',
             background: bg !== 'transparent' ? '#ffffff' : '#ffffff',

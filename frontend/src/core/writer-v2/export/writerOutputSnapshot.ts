@@ -1,7 +1,7 @@
 import { useAnnotationStore } from '@/core/annotations/store';
 import { verifiedNativeWriteEvidence } from '@/core/annotations/nativeWriteEvidence';
 import { isNativeAnnotationHydrationCurrent } from '@/core/annotations/sessionHydration';
-import { useWriterStore } from '@/core/writer/store';
+import { useCalloutStore } from '@/core/callout/store';
 import { composeEditablePdf } from '@/core/document/commitPipeline';
 import { captureWriterPersistenceOwner, isWriterPersistenceOwnerCurrent, ownsWriterSnapshot } from '../persistence/writerPersistenceOwner';
 import { normalizeWriterPageAnchors } from '../writerPageAnchor';
@@ -13,7 +13,7 @@ export function captureWriterOutputSnapshot() {
   const { writer, document } = owner;
   const { session } = document;
   const annotationState = useAnnotationStore.getState();
-  const legacyElements = useWriterStore.getState().elements;
+  const legacyElements = useCalloutStore.getState().elements;
   const blank = writer.documentMeta?.mode === 'blankDocument';
   const fingerprint = writer.currentDocumentFingerprint;
   if (!fingerprint || !ownsWriterSnapshot(owner, fingerprint, writer)) {
@@ -51,7 +51,7 @@ export function isWriterOutputSnapshotCurrent(snapshot: WriterOutputSnapshot): b
       && annotations.nativeDeletionTombstones === snapshot.nativeDeletionTombstones
       && isNativeAnnotationHydrationCurrent(snapshot.fingerprint)
       && annotations.annotations === snapshot.annotations
-      && useWriterStore.getState().elements === snapshot.legacyElements));
+      && useCalloutStore.getState().elements === snapshot.legacyElements));
 }
 
 export function assertWriterOutputSnapshotCurrent(snapshot: WriterOutputSnapshot): void {

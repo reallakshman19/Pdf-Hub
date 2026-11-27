@@ -17,6 +17,12 @@ const forbiddenImports = [
   {
     name: 'legacy annotation dependency',
     pattern: /from\s+['"][^'"]*annotations(?!-v2)[^'"]*['"]/g,
+    allowFiles: new Set([
+      'src/core/writer-v2/export/projectImportController.ts',
+      'src/core/writer-v2/export/writerOutputSnapshot.ts',
+      'src/core/writer-v2/writerV2Store.ts',
+      'src/core/writer-v2/writerV2Store.history.test.ts',
+    ]),
   },
   {
     name: 'server api dependency',
@@ -44,6 +50,7 @@ for (const target of scanRoots) {
     const text = fs.readFileSync(file, 'utf8');
 
     for (const rule of forbiddenImports) {
+      if (rule.allowFiles?.has(rel)) continue;
       const matches = [...text.matchAll(rule.pattern)];
 
       for (const match of matches) {

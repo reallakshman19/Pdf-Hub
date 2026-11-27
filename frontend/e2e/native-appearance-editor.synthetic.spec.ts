@@ -252,9 +252,28 @@ test('forged cached native geometry cannot gain Save authority by fabricating pr
   await open(page, bytes);
   await expect(page.locator('[data-native-annotation-id="imported-line"]')).toBeVisible();
 
+  await expect.poll(async () => page.evaluate(async () => {
+    const request = indexedDB.open('DocCraftAnnotations');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction('annotations', 'readonly');
+    const req = tx.objectStore('annotations').getAll();
+    const rows = await new Promise<Array<{
+      annotations?: Array<{ id: string; data?: { geometryVersion?: number } }>;
+    }>>((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return rows.some((row) => row.annotations?.some((item) =>
+      item.id === 'imported-line' && item.data?.geometryVersion === 2));
+  }), { timeout: 15_000 }).toBe(true);
+
   // Change only the recovery sidecar. No annotation command or durable history
   // entry was issued by the application.
-  await page.evaluate(async () => {
+  const forgedCount = await page.evaluate(async () => {
     const request = indexedDB.open('DocCraftAnnotations');
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
@@ -274,6 +293,7 @@ test('forged cached native geometry cannot gain Save authority by fabricating pr
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
+    let forged = 0;
     for (const row of rows) {
       const target = row.annotations.find((item) => item.id === 'imported-line');
       if (!target?.data.nativeSourceRef) continue;
@@ -284,6 +304,7 @@ test('forged cached native geometry cannot gain Save authority by fabricating pr
         fields: ['rect'],
       };
       store.put(row);
+      forged += 1;
     }
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
@@ -291,7 +312,9 @@ test('forged cached native geometry cannot gain Save authority by fabricating pr
       tx.onabort = () => reject(tx.error);
     });
     db.close();
+    return forged;
   });
+  expect(forgedCount).toBe(1);
 
   await open(page, bytes);
   await expect(page.getByText('Native annotation recovery incomplete')).toBeVisible({ timeout: 30_000 });

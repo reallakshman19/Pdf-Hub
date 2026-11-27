@@ -115,5 +115,5 @@ test('PS→ISONOTE: paste table, annotate PDF, export evidence package', async (
     /Created checksummed evidence package with \d+ bound artifact\(s\)/i,
     { timeout: 20_000 },
   );
-  console.log(`WP07_PS_ISONOTE_NATIVE phase=${audit.phase} verified=${audit.verification?.verified} output_sha256=${annotatedSha256}`);
+  process.stdout.write(`WP07_PS_ISONOTE_NATIVE phase=${audit.phase} verified=${audit.verification?.verified} output_sha256=${annotatedSha256}\n`);
 });

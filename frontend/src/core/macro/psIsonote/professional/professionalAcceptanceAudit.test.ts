@@ -67,7 +67,7 @@ function placedResult(
     placementClass: 'right',
     callout,
     diagnostics,
-  } as any;
+  } as unknown as LayoutResultItem;
 }
 
 function visibleTextFor(callout: ProfessionalCalloutModel): string[] {
@@ -272,7 +272,7 @@ describe('PR #149 — obstacle-aware layout acceptance', () => {
 
     expect(item.status).toBe('placed');
     expect(item.diagnostics.length).toBeGreaterThan(0);
-    expect((item as any).callout?.style.isReview).toBe(true);
+    expect('callout' in item ? item.callout?.style.isReview : undefined).toBe(true);
   });
 
   it('never returns overlapping accepted callout rectangles', () => {
@@ -307,7 +307,7 @@ describe('PR #149 — obstacle-aware layout acceptance', () => {
     });
 
     const boxes = result.results
-      .map((item) => (item as any).callout?.box)
+      .map((item) => ('callout' in item ? item.callout?.box : undefined))
       .filter((box): box is Rect => box !== undefined);
 
     expect(boxes).toHaveLength(2);
@@ -349,7 +349,7 @@ describe('PR #150 — review workflow acceptance', () => {
       {
         occurrenceId: 'missing-metadata',
         status: 'unplaceable',
-        occurrence: {} as any,
+        occurrence: {} as unknown as LayoutResultItem['occurrence'],
         diagnostics: [
           {
             type: 'hard-collision',

@@ -6,6 +6,7 @@ import { DebugPage } from '@/pages/DebugPage';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { ToastProvider } from '@/components/ui/Toast';
+import { PasswordPromptDialog } from '@/components/dialogs/PasswordPromptDialog';
 import { isDebugRouteEnabled } from '@/core/debug/availability';
 import { useCapabilities } from '@/hooks/useCapabilities';
 
@@ -30,6 +31,7 @@ function App() {
   return (
     <HashRouter>
       <AppContent />
+      <PasswordPromptDialog />
       <ToastProvider />
     </HashRouter>
   );

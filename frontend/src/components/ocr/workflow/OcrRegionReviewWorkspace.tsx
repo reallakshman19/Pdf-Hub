@@ -5,7 +5,7 @@ import type { OcrTableBlock } from '@/core/ocr/types';
 import type { WriterElementV2 } from '@/core/writer-v2/types';
 import { useOcrStore } from '@/core/ocr/ocrStore';
 import { useEditorStore } from '@/core/editor/store';
-import { useWriterStore } from '@/core/writer/store';
+import { useCalloutStore } from '@/core/callout/store';
 import { resolveOcrRegionPageInput } from '@/core/ocr/ocrRegionRasterBridge';
 import { OcrRegionListPanel } from '../OcrRegionListPanel';
 import { OcrRegionActionPanel } from '../OcrRegionActionPanel';
@@ -35,7 +35,7 @@ export const OcrRegionReviewWorkspace: React.FC<OcrRegionReviewWorkspaceProps> =
   const [lastWriterElementType, setLastWriterElementType] = React.useState<string | null>(null);
   const setActiveMode = useEditorStore((state) => state.setActiveMode);
   const setSidebarTab = useEditorStore((state) => state.setSidebarTab);
-  const setWriterActiveTool = useWriterStore((state) => state.setActiveTool);
+  const setCalloutActiveTool = useCalloutStore((state) => state.setActiveTool);
 
   const selectedRegion = React.useMemo(() => {
     if (!selectedRegionId) return null;
@@ -67,7 +67,7 @@ export const OcrRegionReviewWorkspace: React.FC<OcrRegionReviewWorkspaceProps> =
           onClick={() => {
             setActiveMode('annotate');
             setSidebarTab('ocr');
-            setWriterActiveTool('ocr-region');
+            setCalloutActiveTool('ocr-region');
           }}
         >
           Select OCR Area

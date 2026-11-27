@@ -45,11 +45,11 @@ function extraction(): Record<string, unknown> {
 describe('DocumentEvidence v1 conformance', () => {
   it('matches RFC 8785 number and string canonicalization', () => {
     const value: JsonValue = {
-      numbers: [333333333.33333329, 1e30, 4.50, 2e-3, 1e-27],
+      numbers: [Number('333333333.33333329'), 1e30, 4.50, 2e-3, 1e-27],
       string: "€$\u000f\nA'B\"\\\"/",
       literals: [null, true, false],
     };
-    expect(canonicalJson(value)).toBe('{"literals":[null,true,false],"numbers":[333333333.3333333,1e+30,4.5,0.002,1e-27],"string":"€$\\u000f\\nA\'B\\\"\\\\\\\"/"}');
+    expect(canonicalJson(value)).toBe('{"literals":[null,true,false],"numbers":[333333333.3333333,1e+30,4.5,0.002,1e-27],"string":"€$\\u000f\\nA\'B\\"\\\\\\"/"}');
     expect(canonicalJson([1e-6, 1e-7, 1e20, 1e21, -0])).toBe('[0.000001,1e-7,100000000000000000000,1e+21,0]');
   });
 

@@ -56,8 +56,8 @@ export const MacroBuilderPage: React.FC = () => {
       aria-label="Workflow builder page"
       style={{
         minHeight: '100vh',
-        background: '#f8fafc',
-        color: '#0f172a',
+        background: 'var(--writer-surface-subtle, #f8fafc)',
+        color: 'var(--writer-text, #0f172a)',
       }}
     >
       <header
@@ -67,13 +67,13 @@ export const MacroBuilderPage: React.FC = () => {
           gap: 12,
           alignItems: 'center',
           padding: '12px 16px',
-          background: '#ffffff',
-          borderBottom: '1px solid #e5e7eb',
+          background: 'var(--writer-surface, #ffffff)',
+          borderBottom: '1px solid var(--writer-border, #e5e7eb)',
         }}
       >
         <div>
           <h1 style={{ margin: 0, fontSize: 20 }}>Workflow Builder</h1>
-          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13 }}>
+          <p style={{ margin: '4px 0 0', color: 'var(--writer-text-muted, #64748b)', fontSize: 13 }}>
             Build, test, save, and run reusable document workflows.
           </p>
         </div>
@@ -82,11 +82,11 @@ export const MacroBuilderPage: React.FC = () => {
           to="/"
           aria-label="Back to workspace"
           style={{
-            border: '1px solid #d1d5db',
+            border: '1px solid var(--writer-border-strong, #d1d5db)',
             borderRadius: 8,
             padding: '8px 10px',
-            background: '#ffffff',
-            color: '#0f172a',
+            background: 'var(--writer-surface, #ffffff)',
+            color: 'var(--writer-text, #0f172a)',
             textDecoration: 'none',
           }}
         >
@@ -101,8 +101,8 @@ export const MacroBuilderPage: React.FC = () => {
           gap: 8,
           alignItems: 'center',
           padding: '12px 16px',
-          background: '#f1f5f9',
-          borderBottom: '1px solid #e5e7eb',
+          background: 'var(--writer-surface-muted, #f1f5f9)',
+          borderBottom: '1px solid var(--writer-border, #e5e7eb)',
         }}
       >
         <label htmlFor="macro-builder-source" style={{ fontSize: 13, fontWeight: 600 }}>
@@ -116,10 +116,11 @@ export const MacroBuilderPage: React.FC = () => {
           onChange={(event) => handleLoadSelected(event.currentTarget.value)}
           style={{
             minWidth: 260,
-            border: '1px solid #d1d5db',
+            border: '1px solid var(--writer-border-strong, #d1d5db)',
             borderRadius: 8,
             padding: '8px 10px',
-            background: '#ffffff',
+            background: 'var(--writer-surface, #ffffff)',
+            color: 'var(--writer-text, #0f172a)',
           }}
         >
           <option value="new">New workflow</option>
@@ -144,7 +145,7 @@ export const MacroBuilderPage: React.FC = () => {
         </select>
 
         {saveMessage ? (
-          <span role="status" style={{ color: '#166534', fontSize: 13 }}>
+          <span role="status" style={{ color: '#16a34a', fontSize: 13, fontWeight: 500 }}>
             {saveMessage}
           </span>
         ) : null}

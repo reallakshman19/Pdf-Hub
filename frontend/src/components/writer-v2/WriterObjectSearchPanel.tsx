@@ -92,8 +92,9 @@ export const WriterObjectSearchPanel: React.FC<WriterObjectSearchPanelProps> = (
         maxHeight: embedded ? undefined : 'calc(100vh - 120px)',
         display: 'flex',
         flexDirection: 'column',
-        background: '#ffffff',
-        border: embedded ? 'none' : '1px solid #e2e8f0',
+        background: 'var(--writer-surface, #ffffff)',
+        color: 'var(--writer-text, #0f172a)',
+        border: embedded ? 'none' : '1px solid var(--writer-border, #e2e8f0)',
         borderRadius: embedded ? 0 : 10,
         boxShadow: embedded ? 'none' : '0 8px 28px rgba(15, 23, 42, 0.14)',
         overflow: 'hidden',
@@ -102,13 +103,13 @@ export const WriterObjectSearchPanel: React.FC<WriterObjectSearchPanelProps> = (
       <header
         style={{
           padding: '8px 10px',
-          borderBottom: '1px solid #f1f5f9',
+          borderBottom: '1px solid var(--writer-surface-muted, #f1f5f9)',
         }}
       >
-        <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--writer-text, #0f172a)' }}>
           Search Writer Objects
         </div>
-        <div style={{ fontSize: 10, color: '#64748b' }}>
+        <div style={{ fontSize: 10, color: 'var(--writer-text-muted, #64748b)' }}>
           {results.length} match(es) / {elements.length} object(s)
         </div>
       </header>
@@ -118,8 +119,8 @@ export const WriterObjectSearchPanel: React.FC<WriterObjectSearchPanelProps> = (
           padding: 8,
           display: 'grid',
           gap: 6,
-          borderBottom: '1px solid #f1f5f9',
-          background: '#f8fafc',
+          borderBottom: '1px solid var(--writer-surface-muted, #f1f5f9)',
+          background: 'var(--writer-surface-subtle, #f8fafc)',
         }}
       >
         <input
@@ -283,12 +284,12 @@ export const WriterObjectSearchPanel: React.FC<WriterObjectSearchPanelProps> = (
               style={{
                 border: activeId === result.id
                   ? '1px solid #2563eb'
-                  : '1px solid #e2e8f0',
+                  : '1px solid var(--writer-border, #e2e8f0)',
                 background: activeId === result.id
-                  ? '#eff6ff'
+                  ? 'var(--writer-accent-bg, #eff6ff)'
                   : result.hidden
-                    ? '#f8fafc'
-                    : '#ffffff',
+                    ? 'var(--writer-surface-subtle, #f8fafc)'
+                    : 'var(--writer-surface, #ffffff)',
                 borderRadius: 8,
                 padding: 8,
                 textAlign: 'left',
@@ -309,7 +310,7 @@ export const WriterObjectSearchPanel: React.FC<WriterObjectSearchPanelProps> = (
                   style={{
                     fontSize: 11,
                     fontWeight: 800,
-                    color: '#0f172a',
+                    color: 'var(--writer-text, #0f172a)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -320,7 +321,7 @@ export const WriterObjectSearchPanel: React.FC<WriterObjectSearchPanelProps> = (
                 <span
                   style={{
                     fontSize: 10,
-                    color: result.page === currentPage ? '#2563eb' : '#64748b',
+                    color: result.page === currentPage ? 'var(--writer-accent-text, #2563eb)' : 'var(--writer-text-muted, #64748b)',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -331,7 +332,7 @@ export const WriterObjectSearchPanel: React.FC<WriterObjectSearchPanelProps> = (
               <div
                 style={{
                   fontSize: 10,
-                  color: '#64748b',
+                  color: 'var(--writer-text-muted, #64748b)',
                   display: 'flex',
                   gap: 6,
                   flexWrap: 'wrap',
@@ -355,19 +356,21 @@ export const WriterObjectSearchPanel: React.FC<WriterObjectSearchPanelProps> = (
 const inputStyle: React.CSSProperties = {
   height: 28,
   borderRadius: 6,
-  border: '1px solid #cbd5e1',
+  border: '1px solid var(--writer-border-strong, #cbd5e1)',
   padding: '0 8px',
   fontSize: 12,
-  background: '#ffffff',
+  background: 'var(--writer-surface, #ffffff)',
+  color: 'var(--writer-text, #0f172a)',
 };
 
 const selectStyle: React.CSSProperties = {
   height: 28,
   borderRadius: 6,
-  border: '1px solid #cbd5e1',
+  border: '1px solid var(--writer-border-strong, #cbd5e1)',
   padding: '0 6px',
   fontSize: 11,
-  background: '#ffffff',
+  background: 'var(--writer-surface, #ffffff)',
+  color: 'var(--writer-text, #0f172a)',
 };
 
 const checkboxLabelStyle: React.CSSProperties = {
@@ -375,15 +378,15 @@ const checkboxLabelStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 6,
   fontSize: 11,
-  color: '#334155',
+  color: 'var(--writer-text-secondary, #334155)',
 };
 
 const buttonStyle: React.CSSProperties = {
   height: 26,
   borderRadius: 6,
-  border: '1px solid #cbd5e1',
-  background: '#ffffff',
-  color: '#334155',
+  border: '1px solid var(--writer-border-strong, #cbd5e1)',
+  background: 'var(--writer-surface, #ffffff)',
+  color: 'var(--writer-text-secondary, #334155)',
   fontSize: 11,
   cursor: 'pointer',
 };

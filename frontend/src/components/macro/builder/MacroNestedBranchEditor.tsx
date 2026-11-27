@@ -44,8 +44,9 @@ export function MacroNestedBranchEditor({
     <section
       aria-label="Conditional branch editor"
       style={{
-        border: '1px solid #dbeafe',
-        background: '#eff6ff',
+        border: '1px solid var(--writer-accent-border, #93c5fd)',
+        background: 'var(--writer-accent-bg, #eff6ff)',
+        color: 'var(--writer-text, #0f172a)',
         borderRadius: 8,
         padding: 10,
         marginTop: 12,
@@ -127,9 +128,10 @@ function BranchPanel({
     <div
       aria-label={`${title} branch`}
       style={{
-        border: '1px solid #bfdbfe',
+        border: '1px solid var(--writer-accent-border, #93c5fd)',
         borderRadius: 8,
-        background: '#ffffff',
+        background: 'var(--writer-surface, #ffffff)',
+        color: 'var(--writer-text, #0f172a)',
         padding: 8,
         marginTop: 8,
       }}
@@ -146,7 +148,9 @@ function BranchPanel({
             event.currentTarget.value = '';
           }}
           style={{
-            border: '1px solid #d1d5db',
+            border: '1px solid var(--writer-border-strong, #cbd5e1)',
+            background: 'var(--writer-surface-subtle, #f8fafc)',
+            color: 'var(--writer-text, #0f172a)',
             borderRadius: 6,
             padding: '4px 6px',
           }}
@@ -165,7 +169,7 @@ function BranchPanel({
       </div>
 
       {steps.length === 0 ? (
-        <p style={{ color: '#6b7280', fontSize: 12 }}>No nested steps.</p>
+        <p style={{ color: 'var(--writer-text-muted, #64748b)', fontSize: 12 }}>No nested steps.</p>
       ) : (
         <ol style={{ listStyle: 'none', paddingLeft: 0, display: 'grid', gap: 6 }}>
           {steps.map((step, index) => {
@@ -182,10 +186,15 @@ function BranchPanel({
               <li
                 key={`${branch}-${index}-${step.op}`}
                 style={{
-                  border: selected ? '2px solid #2563eb' : '1px solid #e5e7eb',
+                  border: selected
+                    ? '2px solid var(--writer-accent-border, #2563eb)'
+                    : '1px solid var(--writer-border, #e2e8f0)',
                   borderRadius: 6,
                   padding: 8,
-                  background: selected ? '#eff6ff' : '#ffffff',
+                  background: selected
+                    ? 'var(--writer-accent-bg, #eff6ff)'
+                    : 'var(--writer-surface-subtle, #f8fafc)',
+                  color: 'var(--writer-text, #0f172a)',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -196,6 +205,7 @@ function BranchPanel({
                     style={{
                       border: 0,
                       background: 'transparent',
+                      color: 'inherit',
                       padding: 0,
                       textAlign: 'left',
                       cursor: 'pointer',
@@ -208,20 +218,21 @@ function BranchPanel({
                   </button>
 
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <button type="button" onClick={() => onMoveUp(path)} disabled={index === 0}>
+                    <button type="button" className="macro-builder-btn" onClick={() => onMoveUp(path)} disabled={index === 0}>
                       ↑
                     </button>
                     <button
                       type="button"
+                      className="macro-builder-btn"
                       onClick={() => onMoveDown(path)}
                       disabled={index === steps.length - 1}
                     >
                       ↓
                     </button>
-                    <button type="button" onClick={() => onDuplicate(path)}>
+                    <button type="button" className="macro-builder-btn" onClick={() => onDuplicate(path)}>
                       Copy
                     </button>
-                    <button type="button" onClick={() => onRemove(path)}>
+                    <button type="button" className="macro-builder-btn" onClick={() => onRemove(path)}>
                       Remove
                     </button>
                   </div>

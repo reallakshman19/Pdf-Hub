@@ -1,0 +1,53 @@
+.macro-recipe-builder {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(260px, 1fr) minmax(280px, 360px);
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .macro-recipe-builder {
+    grid-template-columns: 1fr;
+  }
+}
+
+.macro-builder-btn {
+  border: 1px solid var(--writer-border-strong, #cbd5e1);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--writer-surface-subtle, #f8fafc);
+  color: var(--writer-text, #0f172a);
+  cursor: pointer;
+}
+
+.macro-builder-btn:hover:not(:disabled) {
+  background: var(--writer-accent-bg, #eff6ff);
+  border-color: var(--writer-accent-border, #93c5fd);
+}
+
+.macro-builder-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.macro-builder-btn-primary {
+  border: 1px solid var(--writer-accent-border, #2563eb);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.macro-builder-btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.macro-builder-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

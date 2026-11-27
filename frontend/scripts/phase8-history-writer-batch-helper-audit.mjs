@@ -75,7 +75,7 @@ requireContains(clipboard, clipboardPath, [
   'const sourceElements =',
   "'Writer clipboard paste'",
   'dispatchDurableWriterHelperLatest(',
-  'if (result.changed) {',
+  'if (result.changed && clipboard === capturedClipboard) {',
   'clipboard = {',
 ]);
 

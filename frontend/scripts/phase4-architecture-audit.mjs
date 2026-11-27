@@ -117,6 +117,7 @@ for (const absolutePath of walk(srcRoot)) {
     || /\.test\.[cm]?[jt]sx?$/.test(relative)
     || relative === 'src/core/commands/bus.ts'
     || relative === 'src/core/commands/dispatch.ts'
+    || relative === 'src/core/document-history/journal/recoveryExecutor.ts'
   ) {
     continue;
   }
@@ -132,7 +133,7 @@ for (const absolutePath of walk(srcRoot)) {
 }
 
 const commandBus = read('src/core/commands/bus.ts');
-if (!commandBus.includes('dispatchCommand')) {
+if (!commandBus.includes('dispatchPdfCommand')) {
   fail('CommandBus must remain the controlled bridge to the dispatcher');
 }
 

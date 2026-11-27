@@ -15,6 +15,11 @@ import type {
   ExportPdfHubProjectResult,
   ImportPdfHubProjectResult,
 } from '../writer-v2/export/projectZip';
+import type { PdfAnnotation } from '../annotations/types';
+import type {
+  ExportPdfAInput,
+  ExportPdfAResult,
+} from '../pdfa/types';
 
 export interface ExportWorkerLike {
   postMessage: (message: ExportWorkerRequest) => void;
@@ -175,6 +180,58 @@ export class ExportWorkerClient {
     });
   }
 
+  async serializeAnnotations(
+    payload: {
+      pdfBytes: Uint8Array;
+      annotations: PdfAnnotation[];
+      options?: {
+        replaceManagedAnnotations?: boolean;
+      };
+    },
+    options: ExportWorkerRequestOptions = {},
+  ): Promise<{ bytes: Uint8Array; annotationCount: number }> {
+    const requestId = this.requestIdFactory();
+
+    return this.sendRequest({
+      request: {
+        requestId,
+        type: 'SERIALIZE_ANNOTATIONS',
+        payload,
+      },
+      signal: options.signal,
+      resolveResponse: (response) => {
+        if (response.type !== 'SERIALIZE_RESULT') {
+          throw new Error(`Unexpected export worker response: ${response.type}`);
+        }
+
+        return response.payload;
+      },
+    });
+  }
+
+  exportPdfA(
+    payload: ExportPdfAInput,
+    options: ExportWorkerRequestOptions = {},
+  ): Promise<ExportPdfAResult> {
+    const requestId = this.requestIdFactory();
+
+    return this.sendRequest({
+      request: {
+        requestId,
+        type: 'EXPORT_PDFA',
+        payload,
+      },
+      signal: options.signal,
+      resolveResponse: (response) => {
+        if (response.type !== 'PDFA_RESULT') {
+          throw new Error(`Unexpected export worker response: ${response.type}`);
+        }
+
+        return response.payload.result;
+      },
+    });
+  }
+
   cancelRequest(requestId: string): void {
     if (this.disposed) {
       return;
@@ -313,6 +370,16 @@ export class ExportWorkerClient {
       }
 
       if (responseType === 'UNPACK_RESULT') {
+        pending.resolve(response.payload.result);
+        return;
+      }
+
+      if (responseType === 'SERIALIZE_RESULT') {
+        pending.resolve(response.payload);
+        return;
+      }
+
+      if (responseType === 'PDFA_RESULT') {
         pending.resolve(response.payload.result);
         return;
       }

@@ -406,7 +406,7 @@ requireContains(
     'Web Locks',
     'GC-blocker',
     'No age-only deletion',
-    'WP-8E still requires closure/recovery certification',
+    'WP-8E closure certification',
   ],
 );
 

@@ -70,7 +70,7 @@ async function openDocumentAndBuilder(page: Page): Promise<void> {
     body: sourceFile,
     contentType: 'application/pdf',
   });
-  console.log(`ALT_WP07_SOURCE sha256=${sourceSha256} pages=3`);
+  process.stdout.write((`ALT_WP07_SOURCE sha256=${sourceSha256} pages=3`) + '\n');
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
     page.getByRole('button', { name: 'Browse Files' }).click(),
@@ -157,7 +157,7 @@ async function saveAndInspect(page: Page): Promise<string[]> {
     `witness-${outputSha256}.json`,
     Buffer.from(JSON.stringify(witness, null, 2)),
   );
-  console.log(`ALT_WP07_EXPORT sha256=${outputSha256} pages=${markers.length} source_order=${markers.join(',')}`);
+  process.stdout.write(`ALT_WP07_EXPORT sha256=${outputSha256} pages=${markers.length} source_order=${markers.join(',')}\n`);
   return markers;
 }
 
@@ -283,7 +283,7 @@ test('WP07 M05: generated PDF stays in the session queue until browser receipt i
   await expect(queue).toContainText('Download initiated — receipt unverified');
   await queue.getByRole('button', { name: 'Confirm received' }).click();
   await expect(queue).toHaveCount(0);
-  console.log(`WP07_OUTPUT_CUSTODY sha256=${digest} queued_before_confirm=true pages=1`);
+  process.stdout.write((`WP07_OUTPUT_CUSTODY sha256=${digest} queued_before_confirm=true pages=1`) + '\n');
 });
 
 
@@ -356,7 +356,7 @@ test('WP07 P0: native annotation ownership follows source B through C,A,B reorde
       `annotated-reordered-${sha256}.json`,
       Buffer.from(JSON.stringify({ sha256, page_order: order, annotation_count_by_page: annotations }, null, 2)),
     );
-    console.log(`WP07_ANNOTATION_OWNER sha256=${sha256} order=${order.join(',')} notes=${annotations.join(',')}`);
+    process.stdout.write(`WP07_ANNOTATION_OWNER sha256=${sha256} order=${order.join(',')} notes=${annotations.join(',')}\n`);
   } finally {
     await native.destroy();
   }
@@ -528,7 +528,7 @@ test('WP07 B01: same-named batch PDFs retain separate hashes, output custody and
     `batch-report-${report.metadata.runId}.json`,
     Buffer.from(JSON.stringify(report, null, 2)),
   );
-  console.log(`WP07_BATCH_PROVENANCE run=${report.metadata.runId} inputs=2 queued=2 independent_outputs=2 sha256_verified=true receipts_explicit=true`);
+  process.stdout.write((`WP07_BATCH_PROVENANCE run=${report.metadata.runId} inputs=2 queued=2 independent_outputs=2 sha256_verified=true receipts_explicit=true`) + '\n');
 });
 
 test('WP07 B02: a corrupt middle input does not steal custody or ordinal from later PDFs', async ({ page }) => {
@@ -626,7 +626,7 @@ test('WP07 B02: a corrupt middle input does not steal custody or ordinal from la
     `mixed-report-${report.metadata.runId}.json`,
     Buffer.from(JSON.stringify(report, null, 2)),
   );
-  console.log(`WP07_BATCH_MIXED run=${report.metadata.runId} status=success,failed,success picker_indices=0,1,2 queued=2 saved=2`);
+  process.stdout.write((`WP07_BATCH_MIXED run=${report.metadata.runId} status=success,failed,success picker_indices=0,1,2 queued=2 saved=2`) + '\n');
 });
 
 test('WP07 B03: extracted current-page PDF and working copy are both hashed, queued, saved and receipt-confirmed', async ({ page }) => {
@@ -721,7 +721,7 @@ test('WP07 B03: extracted current-page PDF and working copy are both hashed, que
     `multi-report-${report.metadata.runId}.json`,
     Buffer.from(JSON.stringify(report, null, 2)),
   );
-  console.log(`WP07_BATCH_MULTI run=${report.metadata.runId} manifests=2 working=ABC auxiliary=A atomic_queued=true sha256_verified=true receipts_explicit=true`);
+  process.stdout.write((`WP07_BATCH_MULTI run=${report.metadata.runId} manifests=2 working=ABC auxiliary=A atomic_queued=true sha256_verified=true receipts_explicit=true`) + '\n');
 });
 
 async function readBatchReceipts(page: Page): Promise<Array<{ method: string; outputName: string; outputSha256: string }>> {
@@ -850,7 +850,7 @@ test('WP07 R4: batch queue and report recover after reload; receipt deletion sta
     `recovered-report-${report.metadata.runId}.json`,
     Buffer.from(JSON.stringify(report, null, 2)),
   );
-  console.log(`WP07_R4_RECOVERY run=${report.metadata.runId} reloads=3 outputs_restored=2 partial_receipt_retained=true completed_receipts_removed=true`);
+  process.stdout.write((`WP07_R4_RECOVERY run=${report.metadata.runId} reloads=3 outputs_restored=2 partial_receipt_retained=true completed_receipts_removed=true`) + '\n');
 });
 
 test('WP07 Stage2: Clear requires confirmation and journals every discarded PDF across reload', async ({ page }) => {
@@ -962,7 +962,7 @@ test('WP07 R4 FSA: mismatched external file readback leaves durable output queue
   await queue.getByRole('button', { name: 'Save', exact: true }).first().click();
   await expect(queue.getByTestId('batch-output-provenance')).toHaveCount(1, { timeout: 12_000 });
   await expect(queue).toContainText('PDF #2 (auxiliary)');
-  console.log('WP07_R4_FSA_READBACK corrupted_readback_rejected=true durable_output_retained=true verified_retry_acknowledged=true');
+  process.stdout.write(('WP07_R4_FSA_READBACK corrupted_readback_rejected=true durable_output_retained=true verified_retry_acknowledged=true') + '\n');
 });
 
 test('WP07 R5: repository-native engineering PDF corpus with invalid and encrypted inputs', async ({ page }) => {
@@ -1091,7 +1091,7 @@ test('WP07 R5: repository-native engineering PDF corpus with invalid and encrypt
       })),
     }, null, 2)),
   );
-  console.log('WP07_R5_REPO_CORPUS valid=2 rejected=2 generated=4 SHA_verified=true native_pdf_page_counts_verified=true rotations_verified=true');
+  process.stdout.write(('WP07_R5_REPO_CORPUS valid=2 rejected=2 generated=4 SHA_verified=true native_pdf_page_counts_verified=true rotations_verified=true') + '\n');
 });
 
 test('WP07 R5: cancellation during input read preserves prior native PDFs and never processes the next input', async ({ page }) => {
@@ -1165,7 +1165,7 @@ test('WP07 R5: cancellation during input read preserves prior native PDFs and ne
     `cancel-report-${report.metadata.runId}.json`,
     Buffer.from(JSON.stringify(report, null, 2)),
   );
-  console.log('WP07_R5_CANCEL first_outputs=2 cancelled_input=1 later_unread=true reload_retained=2');
+  process.stdout.write(('WP07_R5_CANCEL first_outputs=2 cancelled_input=1 later_unread=true reload_retained=2') + '\n');
 });
 
 test('WP07 R5: native rotated annotations survive batch extraction in both primary and auxiliary PDFs', async ({ page }) => {
@@ -1254,5 +1254,5 @@ test('WP07 R5: native rotated annotations survive batch extraction in both prima
     `r5-rotated-native-report-${report.metadata.runId}.json`,
     Buffer.from(JSON.stringify({ report, sourceSha256, before, nativeOutputs }, null, 2)),
   );
-  console.log('WP07_R5_ROTATED_NATIVE source=ABC output=ABC,A rotation=90 note_identity=true native_annotation=1 each_output=true');
+  process.stdout.write(('WP07_R5_ROTATED_NATIVE source=ABC output=ABC,A rotation=90 note_identity=true native_annotation=1 each_output=true') + '\n');
 });

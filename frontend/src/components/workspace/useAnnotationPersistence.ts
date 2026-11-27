@@ -62,6 +62,11 @@ export function useAnnotationPersistence({
 }: UseAnnotationPersistenceArgs): void {
   const hydratedDocumentKey = useAnnotationStore((state) => state.hydratedDocumentKey);
   const nativeDeletionTombstones = useAnnotationStore((state) => state.nativeDeletionTombstones);
+  const lastPersistedSnapshotRef = React.useRef<{
+    documentKey: string | null;
+    annotations: PdfAnnotation[] | null;
+    tombstones: NativeDeletionTombstone[] | null;
+  }>({ documentKey: null, annotations: null, tombstones: null });
   // A parent may supply a freshly allocated callback on every render. Only
   // the PDF revision, not that callback identity, may restart source hydration.
   const restoredCountCallback = React.useRef(setRestoredCount);
@@ -411,6 +416,11 @@ export function useAnnotationPersistence({
       }
       // Persist only a verified source baseline. Missing cache entries never
       // authorize native deletion, and disputed drafts are left untouched.
+      lastPersistedSnapshotRef.current = {
+        documentKey,
+        annotations: hydrated,
+        tombstones: validTombstones,
+      };
       void saveAnnotations(documentKey, hydrated, {
         nativeSourceKeys: imported.annotations.map(nativeSourceKey),
         nativeDeletionTombstones: validTombstones,
@@ -470,7 +480,13 @@ export function useAnnotationPersistence({
         && useAnnotationStore.getState().annotations === current
         && JSON.stringify(migrated) !== JSON.stringify(current)) {
         setAnnotations(migrated);
-        void saveAnnotations(documentKey, migrated).catch((err) => {
+        const committedState = useAnnotationStore.getState();
+        lastPersistedSnapshotRef.current = {
+          documentKey,
+          annotations: committedState.annotations,
+          tombstones: committedState.nativeDeletionTombstones,
+        };
+        void saveAnnotations(documentKey, committedState.annotations).catch((err) => {
           logError('annotation', 'Failed to persist normalized geometry migration', {
             documentKey,
             error: err instanceof Error ? err.message : String(err),
@@ -486,8 +502,19 @@ export function useAnnotationPersistence({
   React.useEffect(() => {
     if (!documentKey || hydratedDocumentKey !== documentKey
       || useAnnotationStore.getState().nativeIntegrity.status !== 'COMPLETE') return;
+    const last = lastPersistedSnapshotRef.current;
+    if (last.documentKey === documentKey
+      && last.annotations === annotations
+      && last.tombstones === nativeDeletionTombstones) {
+      return;
+    }
 
     const timer = window.setTimeout(() => {
+      lastPersistedSnapshotRef.current = {
+        documentKey,
+        annotations,
+        tombstones: nativeDeletionTombstones,
+      };
       void saveAnnotations(documentKey, annotations, {
         nativeDeletionTombstones,
       }).catch(err => {
@@ -509,6 +536,17 @@ export function useAnnotationPersistence({
 
     const flushNow = () => {
       const state = useAnnotationStore.getState();
+      const last = lastPersistedSnapshotRef.current;
+      if (last.documentKey === documentKey
+        && last.annotations === state.annotations
+        && last.tombstones === state.nativeDeletionTombstones) {
+        return;
+      }
+      lastPersistedSnapshotRef.current = {
+        documentKey,
+        annotations: state.annotations,
+        tombstones: state.nativeDeletionTombstones,
+      };
       void saveAnnotations(documentKey, state.annotations, {
         nativeDeletionTombstones: state.nativeDeletionTombstones,
       }).catch(err => {

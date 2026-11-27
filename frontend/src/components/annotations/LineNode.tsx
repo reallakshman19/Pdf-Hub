@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AnnotationNodeProps } from '../../core/annotations/types';
+import { getAnnotationLocalPoints } from '../../core/annotations/pointsSpace';
 import { SelectionHandles } from './shared/SelectionHandles';
 import { DimensionNode } from './DimensionNode';
 import { PerimeterTakeoffNode } from './PerimeterTakeoffNode';
@@ -13,8 +14,12 @@ export const LineNode: React.FC<AnnotationNodeProps<'line'>> = ({
   isSelected,
   onSelect,
   onTransformStart,
+  onVertexDragStart,
+  onInsertMidpointVertex,
+  onDeleteVertex,
 }) => {
-  if (annotation.data?.isPipeRun || (Array.isArray(annotation.data?.points) && annotation.data.points.length > 4)) {
+  const localPoints = getAnnotationLocalPoints(annotation);
+  if (annotation.data?.isPipeRun || localPoints.length > 4) {
     return (
       <PerimeterTakeoffNode
         annotation={annotation}
@@ -23,6 +28,9 @@ export const LineNode: React.FC<AnnotationNodeProps<'line'>> = ({
         isSelected={isSelected}
         onSelect={onSelect}
         onTransformStart={onTransformStart}
+        onVertexDragStart={onVertexDragStart}
+        onInsertMidpointVertex={onInsertMidpointVertex}
+        onDeleteVertex={onDeleteVertex}
       />
     );
   }
@@ -41,7 +49,7 @@ export const LineNode: React.FC<AnnotationNodeProps<'line'>> = ({
   }
   const color = annotation.data?.borderColor ?? '#111827';
   const width = (annotation.data?.borderWidth ?? 2) * scale;
-  const points = (annotation.data?.points ?? [0, rect.height / 2, rect.width, rect.height / 2]).map((value) => value * scale);
+  const points = (localPoints.length >= 4 ? localPoints : [0, rect.height / (2 * scale), rect.width / scale, rect.height / (2 * scale)]).map((value) => value * scale);
   const startCap = readLineCap(annotation.data?.lineStartCap, 'none');
   const endCap = readLineCap(annotation.data?.lineEndCap, 'none');
   const markerStartId = `line-start-${annotation.id}`;
@@ -87,6 +95,86 @@ export const LineNode: React.FC<AnnotationNodeProps<'line'>> = ({
           markerStart={startCap !== 'none' ? `url(#${markerStartId})` : undefined}
           markerEnd={endCap !== 'none' ? `url(#${markerEndId})` : undefined}
         />
+        {isSelected && !annotation.data?.locked && onVertexDragStart && (
+          <>
+            <circle
+              data-vertex-handle={0}
+              cx={points[0]}
+              cy={points[1]}
+              r={5 * scale}
+              fill="#ffffff"
+              stroke="#2563eb"
+              strokeWidth={1.75 * scale}
+              style={{ pointerEvents: 'all', cursor: 'grab' }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onVertexDragStart(e, 0);
+              }}
+            />
+            <circle
+              data-vertex-handle={1}
+              cx={points[2]}
+              cy={points[3]}
+              r={5 * scale}
+              fill="#ffffff"
+              stroke="#2563eb"
+              strokeWidth={1.75 * scale}
+              style={{ pointerEvents: 'all', cursor: 'grab' }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onVertexDragStart(e, 1);
+              }}
+            />
+            {onInsertMidpointVertex && (
+              <circle
+                data-midpoint-handle={0}
+                cx={(points[0] + points[2]) / 2}
+                cy={(points[1] + points[3]) / 2}
+                r={4 * scale}
+                fill="#06b6d4"
+                stroke="#ffffff"
+                strokeWidth={1.25 * scale}
+                style={{ pointerEvents: 'all', cursor: 'copy' }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  const midpoint = {
+                    x: (rect.x + (points[0] + points[2]) / 2) / scale,
+                    y: (rect.y + (points[1] + points[3]) / 2) / scale,
+                  };
+                  if (e.detail >= 2) {
+                    onInsertMidpointVertex(0, midpoint);
+                    return;
+                  }
+                  const startX = e.clientX;
+                  const startY = e.clientY;
+                  let committed = false;
+                  const cleanup = () => {
+                    window.removeEventListener('pointermove', onMove);
+                    window.removeEventListener('pointerup', onUp);
+                    window.removeEventListener('pointercancel', onUp);
+                  };
+                  const onMove = (moveEvent: PointerEvent) => {
+                    if (committed) return;
+                    if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 3) {
+                      committed = true;
+                      cleanup();
+                      onInsertMidpointVertex(0, midpoint);
+                    }
+                  };
+                  const onUp = () => {
+                    cleanup();
+                  };
+                  window.addEventListener('pointermove', onMove);
+                  window.addEventListener('pointerup', onUp);
+                  window.addEventListener('pointercancel', onUp);
+                }}
+              />
+            )}
+          </>
+        )}
       </svg>
       {isSelected && <SelectionHandles rect={rect} onTransformStart={onTransformStart} />}
     </div>

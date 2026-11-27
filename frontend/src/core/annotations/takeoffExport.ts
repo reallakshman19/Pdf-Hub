@@ -6,6 +6,7 @@
  */
 
 import type { PdfAnnotation, AnnotationType } from './types';
+import { getAnnotationPagePoints } from './pointsSpace';
 import {
   DEFAULT_SCALE_CALIBRATION,
   type ScaleCalibration,
@@ -87,8 +88,8 @@ export function pointsToRealArea(
  * Computes linear length of an annotation in PDF points.
  */
 export function getAnnotationLinearPoints(annotation: PdfAnnotation): number {
-  const rawPoints = (annotation.data?.points as number[]) ?? [];
-  if (Array.isArray(rawPoints) && rawPoints.length >= 4) {
+  const rawPoints = getAnnotationPagePoints(annotation);
+  if (rawPoints.length >= 4) {
     let totalDist = 0;
     for (let i = 0; i < rawPoints.length - 2; i += 2) {
       const dx = rawPoints[i + 2] - rawPoints[i];
@@ -98,7 +99,7 @@ export function getAnnotationLinearPoints(annotation: PdfAnnotation): number {
     return totalDist;
   }
 
-  if (annotation.type === 'line' || annotation.type === 'arrow') {
+  if (annotation.type === 'line' || annotation.type === 'arrow' || annotation.type === 'perimeter-takeoff') {
     return Math.hypot(annotation.rect.width, annotation.rect.height);
   }
 
@@ -109,8 +110,13 @@ export function getAnnotationLinearPoints(annotation: PdfAnnotation): number {
  * Computes polygon or rectangle area in PDF square points.
  */
 export function getAnnotationAreaPoints(annotation: PdfAnnotation): number {
-  const rawPoints = (annotation.data?.points as number[]) ?? [];
-  if (Array.isArray(rawPoints) && rawPoints.length >= 6) {
+  const rawPoints = getAnnotationPagePoints(annotation);
+  if (
+    rawPoints.length >= 6 &&
+    (annotation.type === 'shape-polygon' ||
+      annotation.type === 'area-takeoff' ||
+      Boolean(annotation.data?.isAreaTakeoff))
+  ) {
     // Shoelace formula for polygon area
     let area = 0;
     const n = rawPoints.length / 2;

@@ -275,4 +275,40 @@ describe('exportWorkerEntrypoint', () => {
     const error = posted[0] as Extract<ExportWorkerResponse, { type: 'ERROR' }>;
     expect(error.payload.code).toBe('UNSUPPORTED_EXPORT_WORKER_REQUEST');
   });
+
+  it('exports a PDF/A-2b document via EXPORT_PDFA and posts PDFA_RESULT', async () => {
+    const posted: ExportWorkerResponse[] = [];
+    const doc = await PDFDocument.create();
+    doc.addPage([612, 792]);
+    const pdfBytes = await doc.save();
+
+    const { createDefaultPdfAMetadata, createDefaultPdfARemediationOptions } = await import('../../pdfa/types');
+
+    const handler = createExportWorkerMessageHandler({
+      postMessage: (response) => {
+        posted.push(response);
+      },
+    });
+
+    await handler({
+      requestId: 'req-pdfa',
+      type: 'EXPORT_PDFA',
+      payload: {
+        pdfBytes,
+        fileName: 'worker-sample.pdf',
+        options: createDefaultPdfARemediationOptions(
+          'PDFA_2B',
+          createDefaultPdfAMetadata('worker-sample.pdf'),
+        ),
+      },
+    });
+
+    expect(posted).toHaveLength(1);
+    expect(posted[0].type).toBe('PDFA_RESULT');
+
+    const response = posted[0] as Extract<ExportWorkerResponse, { type: 'PDFA_RESULT' }>;
+    expect(response.payload.result.certificate.passed).toBe(true);
+    expect(response.payload.result.pageCount).toBe(1);
+    expect(response.payload.result.bytes.length).toBeGreaterThan(0);
+  });
 });

@@ -4,6 +4,11 @@ import {
   throwIfAborted,
 } from '@/core/cancellation/operationCancellation';
 import {
+  clearPdfPasswordForDocumentKey,
+  classifyPdfPasswordError,
+  setPdfPasswordForDocumentKey,
+} from '@/core/pdf/passwordRegistry';
+import {
   createPageGraph,
   isPageRotation,
 } from './pageGraph';
@@ -12,22 +17,42 @@ import { readNativePdfPageLabelRanges } from './pdfPageLabelNativeReader';
 import { applyResolvedPageLabels, withPageLabelRanges } from './pageLabels';
 import type { PageGraph, PageId, PageNode, PageRotation } from './types';
 
+export interface BuildPageGraphOptions {
+  readonly password?: string;
+}
+
 export async function buildPageGraphFromPdfBytes(
   bytes: Uint8Array,
   documentKey: string,
   signal?: AbortSignal,
+  options?: BuildPageGraphOptions,
 ): Promise<PageGraph<PageNode>> {
   throwIfAborted(signal, 'build PageGraph');
 
-  const leasePromise = PdfRendererAdapter.acquireDocument(bytes);
-  const lease = await raceWithAbort(
-    leasePromise,
-    signal,
-    'load PDF for PageGraph',
-    () => {
-      void leasePromise.then((lateLease) => lateLease.release()).catch(() => undefined);
-    },
+  if (options?.password !== undefined) {
+    setPdfPasswordForDocumentKey(documentKey, options.password);
+  }
+
+  const leasePromise = PdfRendererAdapter.acquireDocument(
+    bytes,
+    options?.password !== undefined ? { password: options.password } : undefined,
   );
+  let lease: Awaited<typeof leasePromise>;
+  try {
+    lease = await raceWithAbort(
+      leasePromise,
+      signal,
+      'load PDF for PageGraph',
+      () => {
+        void leasePromise.then((lateLease) => lateLease.release()).catch(() => undefined);
+      },
+    );
+  } catch (err) {
+    if (classifyPdfPasswordError(err)) {
+      clearPdfPasswordForDocumentKey(documentKey);
+    }
+    throw err;
+  }
 
   try {
     const resolvedPageLabels = await readResolvedPdfPageLabels(

@@ -41,9 +41,11 @@ export function MacroStepList({
           padding: '2px 10px',
           fontSize: 12,
           borderRadius: 4,
-          border: '1px solid #d1d5db',
-          background: view === 'list' ? '#2563eb' : '#ffffff',
-          color: view === 'list' ? '#ffffff' : '#374151',
+          border: view === 'list'
+            ? '1px solid var(--writer-accent-border, #2563eb)'
+            : '1px solid var(--writer-border-strong, #cbd5e1)',
+          background: view === 'list' ? '#2563eb' : 'var(--writer-surface-subtle, #f8fafc)',
+          color: view === 'list' ? '#ffffff' : 'var(--writer-text-secondary, #334155)',
           cursor: 'pointer',
         }}
       >
@@ -56,9 +58,11 @@ export function MacroStepList({
           padding: '2px 10px',
           fontSize: 12,
           borderRadius: 4,
-          border: '1px solid #d1d5db',
-          background: view === 'table' ? '#2563eb' : '#ffffff',
-          color: view === 'table' ? '#ffffff' : '#374151',
+          border: view === 'table'
+            ? '1px solid var(--writer-accent-border, #2563eb)'
+            : '1px solid var(--writer-border-strong, #cbd5e1)',
+          background: view === 'table' ? '#2563eb' : 'var(--writer-surface-subtle, #f8fafc)',
+          color: view === 'table' ? '#ffffff' : 'var(--writer-text-secondary, #334155)',
           cursor: 'pointer',
         }}
       >
@@ -133,10 +137,15 @@ export function MacroStepList({
             <li
               key={`${step.op}-${index}`}
               style={{
-                border: selected ? '2px solid #2563eb' : '1px solid #d1d5db',
+                border: selected
+                  ? '2px solid var(--writer-accent-border, #2563eb)'
+                  : '1px solid var(--writer-border-strong, #cbd5e1)',
                 borderRadius: 8,
                 padding: 10,
-                background: selected ? '#eff6ff' : '#ffffff',
+                background: selected
+                  ? 'var(--writer-accent-bg, #eff6ff)'
+                  : 'var(--writer-surface-subtle, #f8fafc)',
+                color: 'var(--writer-text, #0f172a)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -147,6 +156,7 @@ export function MacroStepList({
                   style={{
                     border: 0,
                     background: 'transparent',
+                    color: 'inherit',
                     padding: 0,
                     textAlign: 'left',
                     cursor: 'pointer',
@@ -160,27 +170,28 @@ export function MacroStepList({
                 </button>
 
                 <div style={{ display: 'flex', gap: 4, alignItems: 'start' }}>
-                  <button type="button" onClick={() => onMoveUp(path)} disabled={index === 0}>
+                  <button type="button" className="macro-builder-btn" onClick={() => onMoveUp(path)} disabled={index === 0}>
                     ↑
                   </button>
                   <button
                     type="button"
+                    className="macro-builder-btn"
                     onClick={() => onMoveDown(path)}
                     disabled={index === recipe.steps.length - 1}
                   >
                     ↓
                   </button>
-                  <button type="button" onClick={() => onDuplicate(path)}>
+                  <button type="button" className="macro-builder-btn" onClick={() => onDuplicate(path)}>
                     Copy
                   </button>
-                  <button type="button" onClick={() => onRemove(path)}>
+                  <button type="button" className="macro-builder-btn" onClick={() => onRemove(path)}>
                     Remove
                   </button>
                 </div>
               </div>
 
               {errors.length > 0 ? (
-                <ul style={{ margin: '8px 0 0', color: '#b91c1c' }}>
+                <ul style={{ margin: '8px 0 0', color: 'var(--writer-danger-text, #dc2626)' }}>
                   {errors.map((error) => (
                     <li key={`${error.field}-${error.message}`}>
                       {error.field}: {error.message}
@@ -203,7 +214,7 @@ export function MacroStepList({
 function StepSummary({ step }: { step: MacroStep }): React.ReactElement {
   if ('selector' in step && step.selector) {
     return (
-      <div style={{ fontSize: 12, color: '#374151' }}>
+      <div style={{ fontSize: 12, color: 'var(--writer-text-secondary, #334155)' }}>
         selector: {step.selector.mode}
       </div>
     );
@@ -211,7 +222,7 @@ function StepSummary({ step }: { step: MacroStep }): React.ReactElement {
 
   if (step.op === 'merge_files') {
     return (
-      <div style={{ fontSize: 12, color: '#374151' }}>
+      <div style={{ fontSize: 12, color: 'var(--writer-text-secondary, #334155)' }}>
         donors: {step.donorFileIds.join(', ')}
       </div>
     );
@@ -219,14 +230,14 @@ function StepSummary({ step }: { step: MacroStep }): React.ReactElement {
 
   if (step.op === 'apply_template_vars') {
     return (
-      <div style={{ fontSize: 12, color: '#374151' }}>
+      <div style={{ fontSize: 12, color: 'var(--writer-text-secondary, #334155)' }}>
         vars: {Object.keys(step.vars).join(', ')}
       </div>
     );
   }
 
   return (
-    <div style={{ fontSize: 12, color: '#374151' }}>
+    <div style={{ fontSize: 12, color: 'var(--writer-text-secondary, #334155)' }}>
       configured
     </div>
   );
@@ -238,7 +249,7 @@ function NestedConditionalSummary({
   step: Extract<MacroStep, { op: 'conditional' }>;
 }): React.ReactElement {
   return (
-    <div style={{ marginTop: 8, fontSize: 12, color: '#374151' }}>
+    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--writer-text-secondary, #334155)' }}>
       then: {step.then.length} step(s)
       {step.else ? `, else: ${step.else.length} step(s)` : ''}
     </div>

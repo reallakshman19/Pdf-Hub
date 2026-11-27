@@ -8,6 +8,7 @@ import { SidebarPanel } from '@/components/sidebar/SidebarPanel';
 import { DocumentWorkspace } from '@/components/workspace/DocumentWorkspace';
 import { InspectorPanel } from '@/components/inspector/InspectorPanel';
 import { StatusBar } from '@/components/shell/StatusBar';
+import { GlobalCommandBridge } from '@/components/shell/GlobalCommandBridge';
 import { MacroBuilderDrawer } from '@/components/macro/MacroBuilderDrawer';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useEditorStore } from '@/core/editor/store';
@@ -24,6 +25,7 @@ export const WorkspacePage: React.FC = () => {
   const activeMode = useEditorStore((state) => state.activeMode);
   const viewState = useSessionStore((state) => state.viewState);
   const documentMeta = useWriterV2Store((state) => state.documentMeta);
+  const toolsHubOpen = useWriterV2Store((state) => state.toolsHubOpen);
   const isBlankDocument = documentMeta?.mode === 'blankDocument';
 
   return (
@@ -55,8 +57,9 @@ export const WorkspacePage: React.FC = () => {
         inspector={<InspectorPanel />}
         statusbar={<StatusBar />}
       />
-      {activeMode === 'write' && <WriterToolsHub />}
+      {activeMode === 'write' && toolsHubOpen && <WriterToolsHub />}
       {capabilities.canUseClientMacros && <MacroBuilderDrawer />}
+      <GlobalCommandBridge />
       <WriterAutosaveController />
       <WriterRecoveryBanner />
     </>

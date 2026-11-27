@@ -11,14 +11,14 @@ const HANDLES: Array<{
   style: React.CSSProperties;
   cursor: string;
 }> = [
-  { handle: 'n',  style: { top: -6, left: '50%', transform: 'translateX(-50%)' }, cursor: 'n-resize' },
-  { handle: 'ne', style: { top: -6, right: -6 },                                  cursor: 'ne-resize' },
-  { handle: 'e',  style: { top: '50%', right: -6, transform: 'translateY(-50%)' }, cursor: 'e-resize' },
-  { handle: 'se', style: { bottom: -6, right: -6 },                                cursor: 'nwse-resize' },
-  { handle: 's',  style: { bottom: -6, left: '50%', transform: 'translateX(-50%)' }, cursor: 's-resize' },
-  { handle: 'sw', style: { bottom: -6, left: -6 },                                  cursor: 'nesw-resize' },
-  { handle: 'w',  style: { top: '50%', left: -6, transform: 'translateY(-50%)' },   cursor: 'w-resize' },
-  { handle: 'nw', style: { top: -6, left: -6 },                                      cursor: 'nw-resize' },
+  { handle: 'n',  style: { top: -8, left: '50%', transform: 'translateX(-50%)' }, cursor: 'n-resize' },
+  { handle: 'ne', style: { top: -8, right: -8 },                                  cursor: 'ne-resize' },
+  { handle: 'e',  style: { top: '50%', right: -8, transform: 'translateY(-50%)' }, cursor: 'e-resize' },
+  { handle: 'se', style: { bottom: -8, right: -8 },                                cursor: 'nwse-resize' },
+  { handle: 's',  style: { bottom: -8, left: '50%', transform: 'translateX(-50%)' }, cursor: 's-resize' },
+  { handle: 'sw', style: { bottom: -8, left: -8 },                                  cursor: 'nesw-resize' },
+  { handle: 'w',  style: { top: '50%', left: -8, transform: 'translateY(-50%)' },   cursor: 'w-resize' },
+  { handle: 'nw', style: { top: -8, left: -8 },                                      cursor: 'nw-resize' },
 ];
 
 export const WriterSelectionHandles: React.FC<WriterSelectionHandlesProps> = ({
@@ -32,7 +32,8 @@ export const WriterSelectionHandles: React.FC<WriterSelectionHandlesProps> = ({
         style={{
           position: 'absolute',
           inset: -2,
-          border: '1px solid #2563eb',
+          border: '1.5px solid #2563eb',
+          borderRadius: 2,
           pointerEvents: 'none',
         }}
       />
@@ -45,16 +46,29 @@ export const WriterSelectionHandles: React.FC<WriterSelectionHandlesProps> = ({
           onPointerDown={(event) => onResizePointerDown(event, handle)}
           style={{
             position: 'absolute',
-            width: 10,
-            height: 10,
-            borderRadius: 2,
-            background: '#2563eb',
-            border: '1px solid #ffffff',
+            width: 16,
+            height: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             cursor,
             pointerEvents: 'auto',
             ...style,
           }}
-        />
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: 2,
+              background: '#2563eb',
+              border: '1.5px solid #ffffff',
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.28)',
+              pointerEvents: 'none',
+            }}
+          />
+        </div>
       ))}
     </>
   );

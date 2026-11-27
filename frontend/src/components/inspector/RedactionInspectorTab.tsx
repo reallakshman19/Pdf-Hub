@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, ShieldAlert, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ShieldAlert, Square, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import {
   clearRegions,
@@ -11,6 +11,8 @@ import {
 import type { RedactionRegion } from '@/core/redaction/types';
 import { RedactionApplyDialog } from '@/components/dialogs/RedactionApplyDialog';
 import { useSessionStore } from '@/core/session/store';
+import { useEditorStore } from '@/core/editor/store';
+import { useAnnotationStore } from '@/core/annotations/store';
 import { sanitizePdfDocument } from '@/core/redaction/redactionSanitizer';
 import {
   generateRedactionAuditManifest,
@@ -20,6 +22,7 @@ import { commandBus } from '@/core/commands/bus';
 import { materializePdfCommand } from '@/core/commands/types';
 import { FileAdapter } from '@/adapters/file/FileAdapter';
 import { useToastStore } from '@/core/toast/store';
+import { useSearchStore } from '@/core/search/store';
 
 const PRESET_REASONS = [
   'PII',
@@ -52,13 +55,34 @@ export const RedactionInspectorTab: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
+    const target = regions.find((r) => r.id === id);
     deleteRegions([id]);
+    if (target?.sourceAnnotationId) {
+      useAnnotationStore.getState().deleteAnnotation(target.sourceAnnotationId);
+    }
+  };
+
+  const handleClearAll = () => {
+    clearRegions();
+    const { annotations, deleteAnnotation } = useAnnotationStore.getState();
+    for (const annotation of annotations) {
+      if (annotation.type === 'redaction') {
+        deleteAnnotation(annotation.id);
+      }
+    }
+  };
+
+  const handleActivateDrawRedaction = () => {
+    const editor = useEditorStore.getState();
+    editor.setActiveMode('annotate');
+    editor.setActiveTool('redaction');
   };
 
   const handleConfirmApply = async (options: {
     saveAsCopy: boolean;
     outputFileName: string;
     downloadAuditManifest: boolean;
+    scrubMetadata?: boolean;
   }) => {
     if (!workingBytes || !documentKey || regions.length === 0) return;
 
@@ -72,7 +96,9 @@ export const RedactionInspectorTab: React.FC = () => {
         fillColor: r.fillColor ?? 'black',
       }));
 
-      const sanitizationResult = await sanitizePdfDocument(workingBytes, targets);
+      const sanitizationResult = await sanitizePdfDocument(workingBytes, targets, {
+        scrubMetadata: Boolean(options.scrubMetadata),
+      });
 
       // 2. Generate cryptographic audit manifest
       const auditManifest = await generateRedactionAuditManifest(
@@ -135,15 +161,19 @@ export const RedactionInspectorTab: React.FC = () => {
           return;
         }
 
+        useSearchStore.getState().clearSearch();
+        const extraImages = sanitizationResult.purgedImagesCount
+          ? `, ${sanitizationResult.purgedImagesCount} image(s)`
+          : '';
         addToast({
           type: 'success',
           title: 'Redactions Applied Permanently',
-          message: `Purged ${sanitizationResult.purgedTextCharacterCount} characters and ${sanitizationResult.purgedAnnotationsCount} annotations.`,
+          message: `Purged ${sanitizationResult.purgedTextCharacterCount} characters, ${sanitizationResult.purgedAnnotationsCount} annotations${extraImages}.`,
         });
       }
 
-      // Clear staged preview regions once applied
-      clearRegions();
+      // Clear staged preview regions and visual canvas redaction masks once applied
+      handleClearAll();
     } catch (error) {
       addToast({
         type: 'error',
@@ -167,29 +197,42 @@ export const RedactionInspectorTab: React.FC = () => {
       </div>
 
       {/* Action Strip */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2">
         <Button
-          variant="destructive"
+          variant="secondary"
           size="sm"
-          data-testid="redaction-apply-button"
-          disabled={regions.length === 0}
-          onClick={() => setIsApplyDialogOpen(true)}
-          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold"
+          onClick={handleActivateDrawRedaction}
+          disabled={!workingBytes}
+          className="w-full justify-center text-xs"
+          title="Activate Redact tool and drag rectangles on the PDF canvas"
         >
-          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-          Apply All Redactions
+          <Square className="w-3.5 h-3.5 mr-1.5" />
+          Draw Redaction Box
         </Button>
-        {regions.length > 0 && (
+        <div className="flex items-center gap-2">
           <Button
-            variant="ghost"
+            variant="destructive"
             size="sm"
-            onClick={clearRegions}
-            className="text-slate-500 hover:text-red-600 text-xs px-2.5"
-            title="Clear all staged redaction regions"
+            data-testid="redaction-apply-button"
+            disabled={regions.length === 0}
+            onClick={() => setIsApplyDialogOpen(true)}
+            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold"
           >
-            Clear
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+            Apply All Redactions
           </Button>
-        )}
+          {regions.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearAll}
+              className="text-slate-500 hover:text-red-600 text-xs px-2.5"
+              title="Clear all staged redaction regions"
+            >
+              Clear
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Regions List */}

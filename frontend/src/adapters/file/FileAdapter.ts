@@ -130,10 +130,10 @@ export class FileAdapter {
     }
   }
 
-  static downloadBytes(bytes: Uint8Array, name: string): void {
-    const blob = new Blob([this.toArrayBuffer(bytes)], { type: 'application/pdf' });
+  static downloadBytes(bytes: Uint8Array, name: string, mimeType = 'application/pdf'): void {
+    const blob = new Blob([this.toArrayBuffer(bytes)], { type: mimeType });
     downloadBlob(blob, name);
-    log('session', 'PDF downloaded', { fileName: name, size: bytes.byteLength });
+    log('session', 'File downloaded', { fileName: name, mimeType, size: bytes.byteLength });
   }
 
   private static async writeHandle(handle: FileSystemFileHandle, bytes: Uint8Array): Promise<void> {

@@ -1,6 +1,27 @@
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import type { FullXmlBuilderModel, PipelineCoordinateRow } from '@/core/pipeline-geometry/types';
-import { Rotate3d, Compass, Maximize2 } from 'lucide-react';
+import {
+  Rotate3d,
+  Compass,
+  Maximize2,
+  PenTool,
+  Box,
+  ShieldAlert,
+  ShieldCheck,
+  FileBox,
+} from 'lucide-react';
+import { useCadModelingStore } from '@/core/cad-modeling/store';
+import { useSessionStore } from '@/core/session/store';
+import { buildVolumetricPipingScene } from '@/core/cad-3d/pipingVolumeBuilder';
+import { runSpatialClashAudit } from '@/core/cad-3d/clashDetector';
+import {
+  renderSceneMeshesToCanvas2D,
+  type Camera3D,
+  type SceneRenderMeshItem,
+} from '@/core/cad-3d/software3dRenderer';
+import { WebGl3DRenderer } from '@/core/cad-3d/webgl3dRenderer';
+import { WebGlDisposalManager } from '@/core/cad-3d/webglDisposal';
+import { embedU3DMeshInPdf } from '@/core/cad-3d/pdf3dAnnotation';
 
 export interface Piping3DViewerProps {
   model: FullXmlBuilderModel;
@@ -8,6 +29,9 @@ export interface Piping3DViewerProps {
   onSelectNode?: (nodeNumber: number) => void;
   className?: string;
   isMainCanvas?: boolean;
+  onReturnTo2d?: () => void;
+  harvestedLoopCount?: number;
+  onOpenExtrusionDock?: () => void;
 }
 
 interface Point3D {
@@ -33,8 +57,58 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
   onSelectNode,
   className = '',
   isMainCanvas = false,
+  onReturnTo2d,
+  harvestedLoopCount = 0,
+  onOpenExtrusionDock,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewportHostRef = useRef<HTMLDivElement>(null);
+  const volumetricCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const disposalManagerRef = useRef<WebGlDisposalManager | null>(null);
+  const webglRendererRef = useRef<WebGl3DRenderer | null>(null);
+  const webglAttemptedRef = useRef(false);
+
+  const [measuredSize, setMeasuredSize] = useState<{ width: number; height: number }>(() => ({
+    width: isMainCanvas ? 800 : 360,
+    height: isMainCanvas ? 500 : 220,
+  }));
+
+  useEffect(() => {
+    const host = viewportHostRef.current;
+    if (!host || typeof ResizeObserver === 'undefined') return;
+    const updateSize = () => {
+      const rect = host.getBoundingClientRect();
+      const w = Math.max(120, Math.round(rect.width));
+      const h = Math.max(120, Math.round(rect.height));
+      setMeasuredSize((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
+    };
+    updateSize();
+    let frameId = 0;
+    const scheduleUpdate = () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => {
+        frameId = 0;
+        updateSize();
+      });
+    };
+    const observer = new ResizeObserver(scheduleUpdate);
+    observer.observe(host);
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      observer.disconnect();
+    };
+  }, [isMainCanvas]);
+
+  const {
+    pipingRenderMode,
+    clashMinClearanceMm,
+    selectedClashId,
+    setPipingRenderMode,
+    setClashMinClearanceMm,
+    setClashReport,
+    setSelectedClashId,
+  } = useCadModelingStore();
+  const workingBytes = useSessionStore((s) => s.workingBytes);
 
   // Camera & view state
   const [azimuth, setAzimuth] = useState<number>(DEFAULT_AZIMUTH);
@@ -42,6 +116,7 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
   const [zoom, setZoom] = useState<number>(1.0);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [hoveredNode, setHoveredNode] = useState<number | null>(null);
+  const [exporting3dPdf, setExporting3dPdf] = useState(false);
 
   // Drag interaction state
   const isDraggingRef = useRef(false);
@@ -93,9 +168,9 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
     };
   }, [coordinateRows]);
 
-  // Viewport dimensions (800x500 for main canvas, 360x220 for side panel)
-  const viewWidth = isMainCanvas ? 800 : 360;
-  const viewHeight = isMainCanvas ? 500 : 220;
+  // Dynamic viewport pixel dimensions (1:1 via ResizeObserver with test fallback)
+  const viewWidth = measuredSize.width;
+  const viewHeight = measuredSize.height;
 
   // Camera auto-focus: while a node is selected the view stays centred on it
   // through rotate/zoom/reset; otherwise the free pan state applies.
@@ -199,23 +274,25 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
     return segs;
   }, [projectedNodes]);
 
+  const { restraintRows, weightRows } = model;
+
   // Support lookup by nodeNumber
   const restraintMap = useMemo(() => {
-    const map = new Map<number, typeof model.restraintRows[0]>();
-    for (const r of model.restraintRows) {
+    const map = new Map<number, typeof restraintRows[0]>();
+    for (const r of restraintRows) {
       map.set(r.nodeNumber, r);
     }
     return map;
-  }, [model.restraintRows]);
+  }, [restraintRows]);
 
   // Valve / Weight component lookup by nodeNumber
   const weightMap = useMemo(() => {
-    const map = new Map<number, typeof model.weightRows[0]>();
-    for (const w of model.weightRows) {
+    const map = new Map<number, typeof weightRows[0]>();
+    for (const w of weightRows) {
       map.set(w.nodeNumber, w);
     }
     return map;
-  }, [model.weightRows]);
+  }, [weightRows]);
 
   // Triad Axes projection for bottom-left orientation compass
   const triad = useMemo(() => {
@@ -248,14 +325,155 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
     return { origin, xEnd, yEnd, zEnd };
   }, [azimuth, elevation, viewHeight, isMainCanvas]);
 
-  // Mouse drag handlers for real-time 3D rotation
-  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    isDraggingRef.current = true;
-    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-    (e.target as Element).setPointerCapture(e.pointerId);
+  // Volumetric 3D solid piping & Spatial Hash Clash Audit
+  const volumetricScene = useMemo(() => {
+    if (pipingRenderMode !== 'volumetric' || coordinateRows.length === 0) return null;
+    return buildVolumetricPipingScene(model);
+  }, [pipingRenderMode, model, coordinateRows.length]);
+
+  const localClashReport = useMemo(() => {
+    if (!volumetricScene) return null;
+    return runSpatialClashAudit(volumetricScene.parts, {
+      minClearanceMm: clashMinClearanceMm,
+    });
+  }, [volumetricScene, clashMinClearanceMm]);
+
+  useEffect(() => {
+    setClashReport(localClashReport);
+  }, [localClashReport, setClashReport]);
+
+  useEffect(() => {
+    const manager = new WebGlDisposalManager();
+    disposalManagerRef.current = manager;
+    return () => {
+      webglRendererRef.current?.dispose();
+      webglRendererRef.current = null;
+      webglAttemptedRef.current = false;
+      manager.dispose();
+      disposalManagerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pipingRenderMode !== 'volumetric') {
+      webglRendererRef.current?.dispose();
+      webglRendererRef.current = null;
+      webglAttemptedRef.current = false;
+      return;
+    }
+
+    const canvas = volumetricCanvasRef.current;
+    if (!canvas || !volumetricScene || volumetricScene.parts.length === 0) return;
+
+    const severityByPart = new Map<string, 'hard' | 'clearance' | 'selected'>();
+    if (localClashReport) {
+      for (const issue of localClashReport.clashes) {
+        const isSel = selectedClashId === issue.id;
+        const sev: 'hard' | 'clearance' | 'selected' = isSel
+          ? 'selected'
+          : issue.severity === 'HARD_CLASH'
+            ? 'hard'
+            : 'clearance';
+        severityByPart.set(issue.partAId, sev);
+        severityByPart.set(issue.partBId, sev);
+      }
+    }
+
+    const renderItems: SceneRenderMeshItem[] = volumetricScene.parts.map((part) => ({
+      id: part.id,
+      mesh: part.mesh,
+      color: part.color,
+      highlightSeverity: severityByPart.get(part.id) ?? null,
+    }));
+
+    const cam3d: Camera3D = {
+      azimuthDeg: (azimuth * 180) / Math.PI,
+      elevationDeg: (elevation * 180) / Math.PI,
+      distance: Math.max(50, (bounds.span * 1.6) / zoom),
+      target: volumetricScene.centroid,
+      panOffset: effectivePan,
+    };
+
+    if (!webglAttemptedRef.current) {
+      webglAttemptedRef.current = true;
+      webglRendererRef.current = WebGl3DRenderer.tryCreate(
+        canvas,
+        disposalManagerRef.current ?? undefined,
+      );
+    }
+
+    if (webglRendererRef.current) {
+      webglRendererRef.current.renderScene(renderItems, cam3d, {
+        viewMode: 'shaded',
+        pivotCenter: volumetricScene.centroid,
+        drawGroundGrid: true,
+      });
+      return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    renderSceneMeshesToCanvas2D(ctx, renderItems, cam3d, {
+      viewMode: 'shaded',
+      pivotCenter: volumetricScene.centroid,
+      drawGroundGrid: true,
+    });
+  }, [
+    pipingRenderMode,
+    volumetricScene,
+    localClashReport,
+    selectedClashId,
+    azimuth,
+    elevation,
+    zoom,
+    bounds.span,
+    effectivePan,
+    viewWidth,
+    viewHeight,
+  ]);
+
+  const handleExport3DPdf = async () => {
+    const scene = volumetricScene ?? buildVolumetricPipingScene(model);
+    if (scene.parts.length === 0) return;
+    setExporting3dPdf(true);
+    try {
+      const res = await embedU3DMeshInPdf(
+        workingBytes ?? null,
+        scene.parts.map((p) => p.mesh),
+        {
+          annotationName: 'DocCraft_Piping_DigitalTwin',
+          viewName: 'Piping Volumetric ISO',
+          compressStream: true,
+        },
+      );
+      if (typeof document !== 'undefined') {
+        const blob = new Blob([new Uint8Array(res.pdfBytes)], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'piping_3d_digital_twin.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } finally {
+      setExporting3dPdf(false);
+    }
   };
 
-  const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+  // Mouse drag handlers for real-time 3D rotation
+  const handlePointerDown = (e: React.PointerEvent<Element>) => {
+    isDraggingRef.current = true;
+    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+    try {
+      (e.target as Element).setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<Element>) => {
     if (!isDraggingRef.current) return;
     const dx = e.clientX - lastMousePosRef.current.x;
     const dy = e.clientY - lastMousePosRef.current.y;
@@ -270,7 +488,7 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
     });
   };
 
-  const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+  const handlePointerUp = (e: React.PointerEvent<Element>) => {
     isDraggingRef.current = false;
     try {
       (e.target as Element).releasePointerCapture(e.pointerId);
@@ -308,7 +526,6 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
     }
   };
 
-
   const activeHoverOrSelectedNode = hoveredNode ?? selectedNode;
   const activeNodeData = activeHoverOrSelectedNode ? nodeMap.get(activeHoverOrSelectedNode)?.node : null;
 
@@ -320,7 +537,7 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
       data-testid="piping-3d-viewer"
     >
       {/* Top Header & Viewport Controls Bar */}
-      <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-950/70 border-b border-slate-800/80 text-[11px]">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 px-2.5 py-1.5 bg-slate-950/70 border-b border-slate-800/80 text-[11px]">
         <div className="flex items-center gap-1.5">
           <Rotate3d className="w-3.5 h-3.5 text-cyan-400" />
           <span className="font-semibold text-slate-200 uppercase tracking-wider text-[10px]">
@@ -331,8 +548,45 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
           </span>
         </div>
 
-        {/* Camera Preset Quick Buttons */}
-        <div className="flex items-center gap-1">
+        {/* Render Mode + Camera Preset Quick Buttons */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <button
+            type="button"
+            data-testid="piping-mode-wireframe"
+            onClick={() => setPipingRenderMode('wireframe')}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+              pipingRenderMode === 'wireframe'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+            title="Isometric centerline wireframe"
+          >
+            Stick
+          </button>
+          <button
+            type="button"
+            data-testid="piping-mode-volumetric"
+            onClick={() => setPipingRenderMode('volumetric')}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+              pipingRenderMode === 'volumetric'
+                ? 'bg-cyan-600 text-white'
+                : 'bg-slate-800 text-cyan-300 hover:bg-slate-700'
+            }`}
+            title="Volumetric 3D solid pipes, toroid elbows & spatial clash audit"
+          >
+            Solid 3D
+          </button>
+          <button
+            type="button"
+            data-testid="piping-btn-export-3dpdf"
+            disabled={coordinateRows.length === 0 || exporting3dPdf}
+            onClick={() => void handleExport3DPdf()}
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-emerald-300 hover:bg-slate-700 disabled:opacity-40"
+            title="Export piping network as native ECMA-363 U3D 3D PDF"
+          >
+            <FileBox className="w-3 h-3" />
+            <span>3D PDF</span>
+          </button>
           <button
             type="button"
             onClick={() => handleSetView('iso')}
@@ -368,17 +622,70 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
         </div>
       </div>
 
-      {/* Main 3D Wireframe SVG Canvas */}
+      {/* Main 3D Wireframe SVG / WebGL2 Volumetric Canvas */}
       <div
+        ref={viewportHostRef}
         className={`relative w-full ${
-          isMainCanvas ? 'flex-1 h-full min-h-[440px]' : 'h-[220px]'
+          isMainCanvas ? 'flex-1 min-h-0' : 'h-[220px]'
         } bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 cursor-grab active:cursor-grabbing`}
       >
         {coordinateRows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-500 text-xs gap-1">
-            <Compass className="w-6 h-6 stroke-1 text-slate-600" />
-            <span>Draw pipe lines or polylines to view 3D route</span>
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-3 px-6 text-center cursor-default">
+            <div className="w-12 h-12 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center">
+              <Compass className="w-6 h-6 stroke-[1.5] text-cyan-400" />
+            </div>
+            <div className="space-y-1 max-w-md">
+              <p className="text-sm font-medium text-slate-200">
+                Draw pipe lines or polylines to view 3D route
+              </p>
+              {isMainCanvas && (
+                <p className="text-xs text-slate-400">
+                  Switch to 2D Document and draw lines, arrows, or closed shapes to inspect isometric piping spools or extrude 2D CAD loops.
+                </p>
+              )}
+            </div>
+            {isMainCanvas && (onReturnTo2d || onOpenExtrusionDock) && (
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                {onReturnTo2d && (
+                  <button
+                    type="button"
+                    data-testid="3d-canvas-return-to-2d-btn"
+                    onClick={onReturnTo2d}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition-colors cursor-pointer"
+                  >
+                    <PenTool className="w-3.5 h-3.5" />
+                    <span>Draw Route in 2D</span>
+                  </button>
+                )}
+                {onOpenExtrusionDock && (
+                  <button
+                    type="button"
+                    data-testid="3d-canvas-open-extrusion-btn"
+                    onClick={onOpenExtrusionDock}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 font-medium text-xs transition-colors cursor-pointer"
+                  >
+                    <Box className="w-3.5 h-3.5" />
+                    <span>
+                      {harvestedLoopCount > 0
+                        ? `Open 3D Extrusion (${harvestedLoopCount} ${harvestedLoopCount === 1 ? 'loop' : 'loops'})`
+                        : 'Open 3D Extrusion Dock'}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
+        ) : pipingRenderMode === 'volumetric' ? (
+          <canvas
+            ref={volumetricCanvasRef}
+            data-testid="piping-volumetric-canvas"
+            width={viewWidth}
+            height={viewHeight}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            className="w-full h-full block cursor-grab active:cursor-grabbing"
+          />
         ) : (
           <svg
             width="100%"
@@ -601,6 +908,83 @@ export const Piping3DViewer: React.FC<Piping3DViewerProps> = ({
           </svg>
         )}
       </div>
+
+      {/* Volumetric Spatial Clash & Clearance Audit Strip */}
+      {pipingRenderMode === 'volumetric' && volumetricScene && localClashReport && (
+        <div
+          data-testid="piping-clash-summary"
+          className="px-2.5 py-1.5 bg-slate-950/90 border-t border-slate-800/80 text-[10px] space-y-1"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 font-mono">
+              {localClashReport.hardClashCount > 0 ? (
+                <span className="flex items-center gap-1 text-red-400 font-semibold">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>{localClashReport.hardClashCount} Hard Clash</span>
+                </span>
+              ) : localClashReport.clearanceViolationCount > 0 ? (
+                <span className="flex items-center gap-1 text-amber-400 font-semibold">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>{localClashReport.clearanceViolationCount} Clearance Warn</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Clear ({localClashReport.totalObjectsChecked} solids)</span>
+                </span>
+              )}
+              <span className="text-slate-400">
+                Elbows: {volumetricScene.elbowCount} · Hollow: {volumetricScene.hollowSegmentCount}
+              </span>
+            </div>
+
+            <label className="flex items-center gap-1 text-slate-400 font-mono">
+              <span>Min Clear:</span>
+              <input
+                type="number"
+                min={0}
+                max={500}
+                data-testid="piping-clash-clearance-input"
+                value={clashMinClearanceMm}
+                onChange={(e) => setClashMinClearanceMm(Number(e.target.value))}
+                className="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-right text-slate-200"
+              />
+              <span>mm</span>
+            </label>
+          </div>
+
+          {localClashReport.clashes.length > 0 && (
+            <div className="max-h-20 overflow-auto space-y-0.5">
+              {localClashReport.clashes.slice(0, 4).map((issue, idx) => (
+                <button
+                  key={issue.id}
+                  type="button"
+                  data-testid={`piping-clash-item-${idx}`}
+                  onClick={() =>
+                    setSelectedClashId(selectedClashId === issue.id ? null : issue.id)
+                  }
+                  className={`w-full text-left px-1.5 py-0.5 rounded flex items-center justify-between gap-2 font-mono transition-colors ${
+                    selectedClashId === issue.id
+                      ? 'bg-yellow-500/20 border border-yellow-400/60 text-yellow-200'
+                      : issue.severity === 'HARD_CLASH'
+                        ? 'bg-red-950/60 text-red-200 hover:bg-red-900/60'
+                        : 'bg-amber-950/60 text-amber-200 hover:bg-amber-900/60'
+                  }`}
+                >
+                  <span className="truncate">
+                    {issue.partALabel} ↔ {issue.partBLabel}
+                  </span>
+                  <span className="shrink-0">
+                    {issue.severity === 'HARD_CLASH'
+                      ? `-${issue.penetrationDepthMm}mm`
+                      : `${issue.surfaceClearanceMm}mm gap`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Node Telemetry & Coordinate Footer */}
       <div className="flex items-center justify-between px-2.5 py-1 bg-slate-950/80 border-t border-slate-800/80 text-[10px] text-slate-300 font-mono">

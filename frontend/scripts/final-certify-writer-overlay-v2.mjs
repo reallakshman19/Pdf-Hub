@@ -23,8 +23,9 @@ const commands = [
   },
   {
     name: 'final-smoke-focused-test',
-    command: executable('vitest'),
+    command: process.execPath,
     args: [
+      vitestEntrypoint(),
       'run',
       ...VITEST_SERIAL_ARGS,
       'src/core/writer-v2/finalSmoke/writerOverlayV2FinalSmoke.test.ts',
@@ -51,7 +52,7 @@ for (const item of commands) {
     cwd: root,
     encoding: 'utf8',
     stdio: 'pipe',
-    shell: true,
+    shell: item.command === 'npm' && process.platform === 'win32',
     env: {
       ...process.env,
       CI: process.env.CI ?? 'true',
@@ -119,9 +120,8 @@ if (failed) {
   process.exit(1);
 }
 
-function executable(binName) {
-  const suffix = process.platform === 'win32' ? '.cmd' : '';
-  return path.join(root, 'node_modules', '.bin', `${binName}${suffix}`);
+function vitestEntrypoint() {
+  return path.join(root, 'node_modules', 'vitest', 'vitest.mjs');
 }
 
 function tail(text) {

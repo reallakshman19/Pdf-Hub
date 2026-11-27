@@ -78,7 +78,7 @@ const persistIndex = undo.indexOf(
   'await persistHistoryState(target)',
 );
 const stackIndex = undo.indexOf(
-  "direction === 'undo'\n      ? useHistoryStore.getState().undo()",
+  'useHistoryStore.getState().undo()',
 );
 if (
   resolveIndex < 0

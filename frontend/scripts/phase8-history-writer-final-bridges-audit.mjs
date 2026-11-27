@@ -118,8 +118,7 @@ const ocrWorkspace = read(ocrWorkspacePath);
 requireContains(ocrWorkspace, ocrWorkspacePath, [
   'onInsertWriterElements?: (',
   ') => void | Promise<void>;',
-  'await onInsertWriterElements?.(',
-  'setLastInsertedWriterCount(',
+  'onInsertElements={onInsertWriterElements}',
 ]);
 
 const ocrConnectedPath =
@@ -179,7 +178,7 @@ const consolidationTestsPath =
   'src/core/writer-v2/writerLegacyObjectConsolidation.test.ts';
 const consolidationTests = read(consolidationTestsPath);
 requireContains(consolidationTests, consolidationTestsPath, [
-  'expect(state.undoStack).toHaveLength(1)',
+  'expect(useHistoryStore.getState().undoStack).toHaveLength(1)',
   'leaves every legacy object untouched when durable consolidation fails',
   'journal write failed',
   "element.type === 'richTextBox'",
@@ -198,12 +197,6 @@ const blankMutationAllowlist = new Map([
       'CLEAR_WRITER_SELECTION',
     ]),
   ],
-  [
-    'src/components/writer-v2/WriterBlankImageInsertButton.tsx',
-    new Set([
-      'ADD_WRITER_ELEMENT',
-    ]),
-  ],
 ]);
 for (const [relativePath] of blankMutationAllowlist) {
   const source = read(relativePath);
@@ -212,9 +205,16 @@ for (const [relativePath] of blankMutationAllowlist) {
     "type: 'ADD_WRITER_ELEMENT'",
   ]);
 }
+requireContains(
+  read('src/components/writer-v2/WriterBlankImageInsertButton.tsx'),
+  'src/components/writer-v2/WriterBlankImageInsertButton.tsx',
+  ['insertBlankWriterImage(', 'Open or create a blank Writer document'],
+);
 
 const storeInternal =
   'src/core/writer-v2/writerV2Store.ts';
+const smokeRunnerPath =
+  'src/core/writer-v2/finalSmoke/writerOverlayV2FinalSmoke.ts';
 
 function sourceFiles(dir) {
   const entries =
@@ -266,7 +266,7 @@ for (const relativePath of sourceFiles('src')) {
         )
     ) >= 0
   ) {
-    if (relativePath === storeInternal) {
+    if (relativePath === storeInternal || relativePath === smokeRunnerPath) {
       index += 1;
       continue;
     }
